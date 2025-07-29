@@ -1,0 +1,12 @@
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\bin\Debug\net9.0\USVI.Core.deps.json
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\bin\Debug\net9.0\USVI.Core.dll
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\bin\Debug\net9.0\USVI.Core.pdb
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\USVI.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\USVI.Core.AssemblyInfoInputs.cache
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\USVI.Core.AssemblyInfo.cs
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\USVI.Core.csproj.CoreCompileInputs.cache
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\USVI.Core.sourcelink.json
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\USVI.Core.dll
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\refint\USVI.Core.dll
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\USVI.Core.pdb
+C:\Projects\Ashagre\Projects\ScoreAnalytics_Backend\USVI.Core\obj\Debug\net9.0\ref\USVI.Core.dll

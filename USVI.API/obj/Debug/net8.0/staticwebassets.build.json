@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "DGZBvhoK5Lw4CQlqhvG8tsyGNI2dU6vswZPT0oZV0Fk=",
+  "Source": "USVI.API",
+  "BasePath": "_content/USVI.API",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}

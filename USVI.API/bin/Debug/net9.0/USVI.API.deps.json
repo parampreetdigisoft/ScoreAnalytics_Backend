@@ -1,0 +1,56 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "USVI.API/1.0.0": {
+        "dependencies": {
+          "USVI.Core": "1.0.0",
+          "USVI.Service": "1.0.0"
+        },
+        "runtime": {
+          "USVI.API.dll": {}
+        }
+      },
+      "USVI.Core/1.0.0": {
+        "runtime": {
+          "USVI.Core.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "USVI.Service/1.0.0": {
+        "dependencies": {
+          "USVI.Core": "1.0.0"
+        },
+        "runtime": {
+          "USVI.Service.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "USVI.API/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "USVI.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "USVI.Service/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

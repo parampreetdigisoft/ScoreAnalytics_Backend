@@ -1,0 +1,15 @@
+D:\Aksh Project\USVI.API\USVI.Service\bin\Debug\net8.0\USVI.Service.deps.json
+D:\Aksh Project\USVI.API\USVI.Service\bin\Debug\net8.0\USVI.Service.dll
+D:\Aksh Project\USVI.API\USVI.Service\bin\Debug\net8.0\USVI.Service.pdb
+D:\Aksh Project\USVI.API\USVI.Service\bin\Debug\net8.0\USVI.Core.dll
+D:\Aksh Project\USVI.API\USVI.Service\bin\Debug\net8.0\USVI.Core.pdb
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Service.csproj.AssemblyReference.cache
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Service.GeneratedMSBuildEditorConfig.editorconfig
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Service.AssemblyInfoInputs.cache
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Service.AssemblyInfo.cs
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Service.csproj.CoreCompileInputs.cache
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Ser.49D56844.Up2Date
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Service.dll
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\refint\USVI.Service.dll
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\USVI.Service.pdb
+D:\Aksh Project\USVI.API\USVI.Service\obj\Debug\net8.0\ref\USVI.Service.dll
