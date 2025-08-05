@@ -1,0 +1,17 @@
+# Ignore Visual Studio and build files
+.vs/
+bin/
+obj/
+*.user
+*.suo
+
+# Ignore temporary files
+*.log
+*.tmp
+*.bak
+
+# Ignore Rider/JetBrains
+.idea/
+
+# Ignore local secrets (optional)
+appsettings.Development.json
