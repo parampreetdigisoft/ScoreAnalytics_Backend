@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using AssessmentPlatform.Models;
-using AssessmentPlatform.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Threading.Tasks;
+using AssessmentPlatform.IServices;
 
 namespace AssessmentPlatform.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class AssessmentResponseController : ControllerBase
     {
         private readonly IAssessmentResponseService _responseService;
@@ -17,11 +18,9 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet]
-        [Authorize]
         public async Task<IActionResult> GetAll() => Ok(await _responseService.GetAllAsync());
 
         [HttpGet("{id}")]
-        [Authorize]
         public async Task<IActionResult> GetById(int id)
         {
             var resp = await _responseService.GetByIdAsync(id);
@@ -30,7 +29,6 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpPost]
-        [Authorize]
         public async Task<IActionResult> Add([FromBody] AssessmentResponse response)
         {
             var result = await _responseService.AddAsync(response);
@@ -38,7 +36,6 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize]
         public async Task<IActionResult> Update(int id, [FromBody] AssessmentResponse response)
         {
             var result = await _responseService.UpdateAsync(id, response);
@@ -47,7 +44,6 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize]
         public async Task<IActionResult> Delete(int id)
         {
             var success = await _responseService.DeleteAsync(id);

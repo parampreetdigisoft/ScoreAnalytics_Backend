@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using AssessmentPlatform.Models;
-using AssessmentPlatform.Services;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.IServices;
 
 namespace AssessmentPlatform.Controllers
 {

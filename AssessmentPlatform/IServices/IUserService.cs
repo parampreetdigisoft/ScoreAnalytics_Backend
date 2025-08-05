@@ -1,6 +1,6 @@
 using AssessmentPlatform.Models;
 
-namespace AssessmentPlatform.Services
+namespace AssessmentPlatform.IServices
 {
     public interface IUserService
     {

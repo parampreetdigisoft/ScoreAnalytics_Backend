@@ -1,13 +1,12 @@
+using System;
+using System.Linq;
+using System.Text;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using AssessmentPlatform.IServices;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
-using AssessmentPlatform.Models;
-using AssessmentPlatform.Data;
-using System.Linq;
-using System;
-using AssessmentPlatform.Services;
+using AssessmentPlatform.Dtos.UserDtos;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -15,15 +14,31 @@ namespace AssessmentPlatform.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
         private readonly IConfiguration _config;
-        private readonly UserService _userService;
-        public AuthController(ApplicationDbContext context, IConfiguration config)
+        private readonly IUserService _userService;
+        public AuthController( IConfiguration config, IUserService userService)
         {
-            _context = context;
             _config = config;
-            _userService = new UserService(context);
+            _userService = userService;
         }
+        [HttpPost("register")]
+        public IActionResult Register([FromBody] RegisterDto request)
+        {
+            if (request == null)
+                return BadRequest("Invalid request data.");
+
+            var existingUser = _userService.GetByEmail(request.Email);
+            if (existingUser != null)
+                return Conflict("User with this email already exists.");
+
+            var newUser = _userService.Register(request.FullName, request.Email, request.PasswordHash, request.Role);
+
+            if (newUser == null)
+                return StatusCode(500, "User registration failed due to a server error.");
+
+            return Ok("User registered successfully.");
+        }
+
 
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginRequest request)

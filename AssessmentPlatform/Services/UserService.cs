@@ -1,7 +1,8 @@
 using AssessmentPlatform.Models;
 using AssessmentPlatform.Data;
 using System.Linq;
-using BCrypt.Net; // Ensure you have installed the BCrypt.Net-Next NuGet package
+using BCrypt.Net;
+using AssessmentPlatform.IServices; // Ensure you have installed the BCrypt.Net-Next NuGet package
 
 namespace AssessmentPlatform.Services
 {

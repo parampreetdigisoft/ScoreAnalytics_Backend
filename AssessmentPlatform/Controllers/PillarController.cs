@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using AssessmentPlatform.Models;
-using AssessmentPlatform.Services;
 using Microsoft.AspNetCore.Authorization;
 using System.Threading.Tasks;
+using AssessmentPlatform.IServices;
 
 namespace AssessmentPlatform.Controllers
 {

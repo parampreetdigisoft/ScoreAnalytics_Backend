@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using AssessmentPlatform.Models;
 
-namespace AssessmentPlatform.Services
+namespace AssessmentPlatform.IServices
 {
     public interface IPillarService
     {
