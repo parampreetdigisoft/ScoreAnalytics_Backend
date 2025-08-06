@@ -1,14 +1,13 @@
-
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Interface;
+using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
-using AssessmentPlatform.Services;
 using AssessmentPlatform.IServices;
+using AssessmentPlatform.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace AssessmentPlatform
 {
@@ -28,7 +27,12 @@ namespace AssessmentPlatform
 
             // DbContext - SQL Server
             services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseSqlServer(Configuration.GetConnectionString("DefaultConnection")));
+                options.UseSqlServer(
+                    Configuration.GetConnectionString("DefaultConnection"),
+                    sqlOptions => sqlOptions.CommandTimeout(180) // Timeout in seconds
+                )
+            );
+
             //services.AddDbContext<ApplicationDbContext>(options =>
             //        options.UseInMemoryDatabase("AssessmentDB"));
 
@@ -38,6 +42,7 @@ namespace AssessmentPlatform
             services.AddScoped<IPillarService, PillarService>();
             services.AddScoped<IAssessmentResponseService, AssessmentResponseService>();
             services.AddScoped<ICityService, CityService>();
+            services.AddScoped<IEmailService, EmailService>();
 
 
             services.AddCors(options =>
@@ -50,6 +55,17 @@ namespace AssessmentPlatform
                            .AllowCredentials();
                 });
             });
+            var appSettingsSection = Configuration.GetSection("AppSettings");
+            services.Configure<AppSettings>(appSettingsSection);
+
+            var mailSettingsSection = Configuration.GetSection("Mail");
+            services.Configure<Mailsetting>(mailSettingsSection);
+
+            var jwtSettingSection = Configuration.GetSection("Jwt");
+            services.Configure<JwtSetting>(jwtSettingSection);
+
+            var jwtSetting = jwtSettingSection.Get<JwtSetting>();
+            var key = Encoding.ASCII.GetBytes(jwtSetting.Key);
 
             // Swagger Configuration
             services.AddSwaggerGen(c =>
@@ -86,18 +102,24 @@ namespace AssessmentPlatform
                 });
             });
 
+            services.AddControllersWithViews();
+            services.AddMvc().AddSessionStateTempDataProvider();
             // JWT Authentication
             services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-                .AddJwtBearer(options =>
+                .AddJwtBearer(x =>
                 {
-                    options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+                    x.RequireHttpsMetadata = false;
+                    x.SaveToken = true;
+                    x.TokenValidationParameters = new TokenValidationParameters
                     {
                         NameClaimType = System.Security.Claims.ClaimTypes.Name,
                         RoleClaimType = System.Security.Claims.ClaimTypes.Role,
-                        // You should also add validation parameters like:
-                        // ValidateIssuer = true,
-                        // ValidateAudience = true,
-                        // IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("YourSecretKey"))
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(key),
+                        ValidateIssuer = false,
+                        ValidateAudience = false,
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.Zero
                     };
                 });
 

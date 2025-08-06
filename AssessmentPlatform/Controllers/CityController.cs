@@ -1,7 +1,7 @@
-﻿using AssessmentPlatform.IServices;
+﻿using AssessmentPlatform.Dtos.CityDto;
+using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
@@ -48,6 +48,35 @@ namespace AssessmentPlatform.Controllers
             var success = await _cityService.DeleteCityAsync(id);
             if (!success) return NotFound();
             return Ok();
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [Route("assignCity")]
+        public async Task<IActionResult> AssignCity([FromBody] UserCityMappingRequestDto q)
+        {
+            var result = await _cityService.AssingCityToUser(q.UserId, q.CityId, q.AssignedByUserId);
+            return Ok(result);
+        }
+
+        [HttpPut]
+        [Authorize(Roles = "Admin")]
+        [Route("assignCity/{id}")]
+        public async Task<IActionResult> EditAssignCity(int id, [FromBody] UserCityMappingRequestDto q)
+        {
+            var result = await _cityService.EditAssingCity(id, q.UserId,q.CityId,q.AssignedByUserId);
+            if (result == null) return NotFound();
+            return Ok(result);
+        }
+
+        [HttpDelete]
+        [Authorize(Roles = "Admin")]
+        [Route("assignCity/{id}")]
+        public async Task<IActionResult> DeleteAssignCity(int id)
+        {
+            var result = await _cityService.DeleteAssingCity(id);
+
+            return Ok(result);
         }
     }
 }

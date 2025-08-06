@@ -1,11 +1,6 @@
-using System;
-using System.Linq;
-using System.Text;
-using System.Security.Claims;
+
 using Microsoft.AspNetCore.Mvc;
 using AssessmentPlatform.IServices;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
 using AssessmentPlatform.Dtos.UserDtos;
 
 namespace AssessmentPlatform.Controllers
@@ -14,55 +9,64 @@ namespace AssessmentPlatform.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly IConfiguration _config;
         private readonly IUserService _userService;
-        public AuthController( IConfiguration config, IUserService userService)
+        public AuthController(IUserService userService)
         {
-            _config = config;
             _userService = userService;
         }
-        [HttpPost("register")]
-        public IActionResult Register([FromBody] RegisterDto request)
-        {
-            if (request == null)
-                return BadRequest("Invalid request data.");
-
-            var existingUser = _userService.GetByEmail(request.Email);
-            if (existingUser != null)
-                return Conflict("User with this email already exists.");
-
-            var newUser = _userService.Register(request.FullName, request.Email, request.PasswordHash, request.Role);
-
-            if (newUser == null)
-                return StatusCode(500, "User registration failed due to a server error.");
-
-            return Ok("User registered successfully.");
-        }
-
 
         [HttpPost("login")]
-        public IActionResult Login([FromBody] LoginRequest request)
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var user = _userService.GetByEmail(request.Email);
-            if (user == null || !_userService.VerifyPassword(request.Password, user.PasswordHash))
+            var user = await _userService.Login(request.Email, request.Password);
+            if (user == null)
                 return Unauthorized();
+            return Ok(user);
+        }
+        
+        [HttpPost]
+        [Route("ForgotPassword")]
+        public IActionResult ForgotPassword([FromBody] ForgotPasswordDto request)
+        {
+            if (request?.Email == null)
+                return BadRequest("Invalid request data.");
 
-            var claims = new[]
-            {
-                new Claim(ClaimTypes.Name, user.Email),
-                new Claim(ClaimTypes.Role, user.Role.ToString())
-            };
+            var response = _userService.ForgotPassword(request.Email);
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"] ?? "supersecretkey"));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"] ?? "TestIssuer",
-                audience: _config["Jwt:Audience"] ?? "TestAudience",
-                claims: claims,
-                expires: DateTime.Now.AddHours(1),
-                signingCredentials: creds
-            );
-            return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token) });
+            if (response == null)
+                return StatusCode(500, "User registration failed due to a server error.");
+
+            return Ok(response);
+        }
+
+        [HttpPost]
+        [Route("ChangePassword")]
+        public IActionResult ChangePassword([FromBody] ChangedPasswordDto request)
+        {
+            if (request?.PasswordToken == null)
+                return BadRequest("Invalid request data.");
+
+            var response = _userService.ChangePassword(request.PasswordToken, request.Password);
+
+            if (response == null)
+                return StatusCode(500, "User registration failed due to a server error.");
+
+            return Ok(response);
+        }
+
+        [HttpPost]
+        [Route("InviteUser")]
+        public IActionResult InviteUser([FromBody] InviteUserDto request)
+        {
+            if (request?.Email == null)
+                return BadRequest("Invalid request data.");
+
+            var response = _userService.InviteUser(request);
+
+            if (response == null)
+                return StatusCode(500, "User registration failed due to a server error.");
+
+            return Ok(response);
         }
     }
 

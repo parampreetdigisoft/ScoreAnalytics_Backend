@@ -1,7 +1,9 @@
-﻿using AssessmentPlatform.Data;
+﻿using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Data;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 
 namespace AssessmentPlatform.Services
 {
@@ -35,6 +37,7 @@ namespace AssessmentPlatform.Services
             if (existing == null) return null;
             existing.CityName = q.CityName;
             existing.UpdatedDate = DateTime.Now;
+            existing.PostalCode = q.PostalCode;
             existing.PerformanceTier = q.PerformanceTier;
             existing.Region = q.Region;
             existing.IsActive = q.IsActive;
@@ -50,6 +53,69 @@ namespace AssessmentPlatform.Services
         {
             var d = await _context.Cities.FirstAsync(x => x.CityID == id);
             return d;
+        }
+
+        public async Task<ResultResponseDto> AssingCityToUser(int userId, int cityId, int assignedByUserId)
+        {
+            if(_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId))
+            {
+                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "City already assigned to user" }));
+            }
+            var user = _context.Users.Find(userId);
+
+            if (user == null)
+            {
+                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "Invalid request data." }));
+            }
+            var mapping = new UserCityMapping
+            {
+                UserId = userId,
+                CityId = cityId,
+                AssignedByUserId = assignedByUserId,
+                Role = user.Role
+            };
+            _context.UserCityMappings.Add(mapping);
+
+            await _context.SaveChangesAsync();
+
+            return await Task.FromResult(ResultResponseDto.Success(new string[] { "City assigned successfully" }));
+        }
+
+        public async Task<ResultResponseDto> EditAssingCity(int id, int userId, int cityId, int assignedByUserId)
+        {
+            if (_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId))
+            {
+                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "City already assigned to user" }));
+            }
+            var userMapping = _context.UserCityMappings.Find(id);
+
+            if (userMapping == null)
+            {
+                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "Invalid request data." }));
+            }
+
+            userMapping.UserId = userId;
+            userMapping.CityId = cityId;
+            userMapping.AssignedByUserId = assignedByUserId;
+            _context.UserCityMappings.Update(userMapping);
+            await _context.SaveChangesAsync();
+
+            return await Task.FromResult(ResultResponseDto.Success(new string[] { "Assigned city updated successfully" }));
+        }
+
+        public async Task<ResultResponseDto> DeleteAssingCity(int id)
+        {
+            var userMapping = _context.UserCityMappings.Find(id);
+            if (userMapping == null)
+            {
+                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "Invalid request data." }));
+            }
+
+            userMapping.IsDeleted = true;
+            _context.UserCityMappings.Update(userMapping);
+            await _context.SaveChangesAsync();
+
+            return await Task.FromResult(ResultResponseDto.Success(new string[] { "Assigned city deleted successfully" }));
         }
     }
 }

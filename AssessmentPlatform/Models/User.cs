@@ -2,7 +2,7 @@ using System;
 
 namespace AssessmentPlatform.Models
 {
-    public enum UserRole { Admin, Evaluator, Analyst, CityUser }
+    public enum UserRole { Admin, Analyst, Evaluator, CityUser }
     public class User
     {
         public int UserID { get; set; }
@@ -11,7 +11,9 @@ namespace AssessmentPlatform.Models
         public string PasswordHash { get; set; }
         public UserRole Role { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public int? EvaluatorId { get; set; }
+        public int? CreatedBy { get; set; }
         public bool IsDeleted { get; set; } = false;
+        public string? ResetToken { get; set; }
+        public DateTime ResetTokenDate { get; set; } = DateTime.UtcNow;
     }
 } 

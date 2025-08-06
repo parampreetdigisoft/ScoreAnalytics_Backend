@@ -23,6 +23,7 @@ namespace AssessmentPlatform.Controllers
             var user = _userService.Register(req.FullName, req.Email, req.Password, req.Role);
             return Created($"/api/user/{user.UserID}", new { user.UserID, user.FullName, user.Email, user.Role });
         }
+
     }
 
     public class RegisterRequest
