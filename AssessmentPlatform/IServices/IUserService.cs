@@ -6,7 +6,7 @@ namespace AssessmentPlatform.IServices
 {
     public interface IUserService
     {
-        User Register(string fullName, string email, string password, UserRole role);
+        User Register(string fullName, string email, string phn, string password, UserRole role);
         User GetByEmail(string email);
         Task<User?> GetByEmailAysync(string email);
         bool VerifyPassword(string password, string hash);

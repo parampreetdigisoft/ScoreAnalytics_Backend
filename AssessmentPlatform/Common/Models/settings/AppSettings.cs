@@ -8,7 +8,6 @@
         public string UserName { get; init; }
         public string Password { get; init; }
         public int Port { get; init; }
-        public int ExpirationHours { get; init; }
         public string Secret { get; init; }
         public string ApplicationPath { get; set; }
         public int LinkValidHours { get; set; }

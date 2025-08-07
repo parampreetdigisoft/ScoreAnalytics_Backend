@@ -1,18 +1,16 @@
-using AssessmentPlatform.Common.Interface;
-using AssessmentPlatform.Common.Models;
-using AssessmentPlatform.Common.Models.settings;
+using System.Text;
+using System.Security.Claims;
 using AssessmentPlatform.Data;
-using AssessmentPlatform.Dtos.UserDtos;
-using AssessmentPlatform.IServices; 
 using AssessmentPlatform.Models;
-using BCrypt.Net;
-using Microsoft.EntityFrameworkCore;
+using AssessmentPlatform.IServices;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
-using System.Linq;
-using System.Security.Claims;
-using System.Text;
+using AssessmentPlatform.Dtos.UserDtos;
+using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Common.Interface;
+using AssessmentPlatform.Common.Models.settings;
 
 namespace AssessmentPlatform.Services
 {
@@ -30,13 +28,14 @@ namespace AssessmentPlatform.Services
             _jwtSetting = jwtSetting.Value;
         }
 
-        public User Register(string fullName, string email, string password, UserRole role)
+        public User Register(string fullName, string email, string phn, string password, UserRole role)
         {
             var hash = BCrypt.Net.BCrypt.HashPassword(password);
             var user = new User
             {
                 FullName = fullName,
                 Email = email,
+                Phone = phn,
                 PasswordHash = hash,
                 Role = role
             };
@@ -68,7 +67,7 @@ namespace AssessmentPlatform.Services
         }
         public async Task<ResultResponseDto> ForgotPassword(string email)
         {
-            var user =  GetByEmail(email);
+            var user = GetByEmail(email);
             if (user == null)
             {
                 return ResultResponseDto.Failure(new string[] { "User not exist." });
@@ -80,7 +79,7 @@ namespace AssessmentPlatform.Services
                 var token = passwordToken.Replace("+", " ");
 
                 string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-                var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl= passwordResetLink });
+                var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
                 if (isMailSent)
                 {
                     user.ResetToken = token;
@@ -97,7 +96,7 @@ namespace AssessmentPlatform.Services
             if (!string.IsNullOrEmpty(passwordToken))
             {
                 var user = await _context.Users.Where(u => u.ResetToken == passwordToken).FirstOrDefaultAsync();
-                
+
                 if (user == null)
                 {
                     return ResultResponseDto.Failure(new string[] { "User not exist." });
@@ -151,12 +150,13 @@ namespace AssessmentPlatform.Services
                 expires: DateTime.Now.AddHours(1),
                 signingCredentials: creds
             );
-             var token = new JwtSecurityTokenHandler().WriteToken(securityToken);
+            var token = new JwtSecurityTokenHandler().WriteToken(securityToken);
 
             var response = new UserResponseDto
             {
                 UserID = user.UserID,
                 FullName = user.FullName,
+                Phone = user.Phone,
                 Email = user.Email,
                 Role = user.Role,
                 CreatedAt = user.CreatedAt,
@@ -177,7 +177,7 @@ namespace AssessmentPlatform.Services
             {
                 return ResultResponseDto.Failure(new string[] { "User already exists." });
             }
-            var user = Register(inviteUser.FullName, inviteUser.Email, inviteUser.Password, inviteUser.Role);
+            var user = Register(inviteUser.FullName, inviteUser.Email,inviteUser.Phone, inviteUser.Password, inviteUser.Role);
             if (user == null)
             {
                 return ResultResponseDto.Failure(new string[] { "Failed to register user." });
@@ -197,8 +197,10 @@ namespace AssessmentPlatform.Services
                 user.CreatedBy = inviteUser.InvitedUserID;
                 _context.Users.Update(user);
                 await _context.SaveChangesAsync();
+
+                return ResultResponseDto.Success(new string[] { "Invitation sent successfully." });
             }
-            return ResultResponseDto.Success(new string[] { "Invitation sent successfully." });
+            return ResultResponseDto.Failure(new string[] { "User created but invitation not send due to server error" });
         }
     }
 }

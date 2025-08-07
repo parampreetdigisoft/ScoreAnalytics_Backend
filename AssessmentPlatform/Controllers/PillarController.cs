@@ -18,6 +18,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet]
         [Authorize]
+        [Route("Pillars")]
         public async Task<IActionResult> GetAll() => Ok(await _pillarService.GetAllAsync());
 
         [HttpGet("{id}")]

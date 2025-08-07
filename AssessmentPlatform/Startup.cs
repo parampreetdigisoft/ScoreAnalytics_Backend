@@ -116,9 +116,11 @@ namespace AssessmentPlatform
                         RoleClaimType = System.Security.Claims.ClaimTypes.Role,
                         ValidateIssuerSigningKey = true,
                         IssuerSigningKey = new SymmetricSecurityKey(key),
-                        ValidateIssuer = false,
-                        ValidateAudience = false,
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
                         ValidateLifetime = true,
+                        ValidIssuer = jwtSetting.Issuer,
+                        ValidAudience = jwtSetting.Audience,
                         ClockSkew = TimeSpan.Zero
                     };
                 });

@@ -34,7 +34,7 @@ namespace AssessmentPlatform.Controllers
             var response = _userService.ForgotPassword(request.Email);
 
             if (response == null)
-                return StatusCode(500, "User registration failed due to a server error.");
+                return StatusCode(500, "Password reset failed due to a server error.");
 
             return Ok(response);
         }
@@ -64,7 +64,7 @@ namespace AssessmentPlatform.Controllers
             var response = _userService.InviteUser(request);
 
             if (response == null)
-                return StatusCode(500, "User registration failed due to a server error.");
+                return StatusCode(500, "User Invitation failed due to a server error.");
 
             return Ok(response);
         }

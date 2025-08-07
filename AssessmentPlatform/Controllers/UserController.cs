@@ -20,7 +20,7 @@ namespace AssessmentPlatform.Controllers
         {
             if (_userService.GetByEmail(req.Email) != null)
                 return BadRequest("User already exists");
-            var user = _userService.Register(req.FullName, req.Email, req.Password, req.Role);
+            var user = _userService.Register(req.FullName, req.Email,req.Phone, req.Password, req.Role);
             return Created($"/api/user/{user.UserID}", new { user.UserID, user.FullName, user.Email, user.Role });
         }
 
@@ -30,6 +30,7 @@ namespace AssessmentPlatform.Controllers
     {
         public string FullName { get; set; }
         public string Email { get; set; }
+        public string Phone { get; set; }
         public string Password { get; set; }
         public UserRole Role { get; set; }
     }
