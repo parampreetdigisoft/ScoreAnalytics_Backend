@@ -43,6 +43,7 @@ namespace AssessmentPlatform
             services.AddScoped<IAssessmentResponseService, AssessmentResponseService>();
             services.AddScoped<ICityService, CityService>();
             services.AddScoped<IEmailService, EmailService>();
+            services.AddScoped<IAuthService, AuthService>();
 
 
             services.AddCors(options =>

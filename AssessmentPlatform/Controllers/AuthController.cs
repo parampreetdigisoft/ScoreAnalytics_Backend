@@ -1,7 +1,8 @@
 
-using Microsoft.AspNetCore.Mvc;
-using AssessmentPlatform.IServices;
 using AssessmentPlatform.Dtos.UserDtos;
+using AssessmentPlatform.IServices;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -9,16 +10,16 @@ namespace AssessmentPlatform.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly IUserService _userService;
-        public AuthController(IUserService userService)
+        private readonly IAuthService _authService;
+        public AuthController(IAuthService authService)
         {
-            _userService = userService;
+            _authService = authService;
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var user = await _userService.Login(request.Email, request.Password);
+            var user = await _authService.Login(request.Email, request.Password);
             if (user == null)
                 return Unauthorized();
             return Ok(user);
@@ -31,7 +32,7 @@ namespace AssessmentPlatform.Controllers
             if (request?.Email == null)
                 return BadRequest("Invalid request data.");
 
-            var response = _userService.ForgotPassword(request.Email);
+            var response = _authService.ForgotPassword(request.Email);
 
             if (response == null)
                 return StatusCode(500, "Password reset failed due to a server error.");
@@ -46,7 +47,7 @@ namespace AssessmentPlatform.Controllers
             if (request?.PasswordToken == null)
                 return BadRequest("Invalid request data.");
 
-            var response = _userService.ChangePassword(request.PasswordToken, request.Password);
+            var response = _authService.ChangePassword(request.PasswordToken, request.Password);
 
             if (response == null)
                 return StatusCode(500, "User registration failed due to a server error.");
@@ -56,17 +57,28 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost]
         [Route("InviteUser")]
+        [Authorize]
         public IActionResult InviteUser([FromBody] InviteUserDto request)
         {
             if (request?.Email == null)
                 return BadRequest("Invalid request data.");
 
-            var response = _userService.InviteUser(request);
+            var response = _authService.InviteUser(request);
 
             if (response == null)
                 return StatusCode(500, "User Invitation failed due to a server error.");
 
             return Ok(response);
+        }
+
+        [HttpPost("register")]
+        [Authorize(Roles = "Admin")]
+        public IActionResult Register([FromBody] RegisterRequest req)
+        {
+            if (_authService.GetByEmail(req.Email) != null)
+                return BadRequest("User already exists");
+            var user = _authService.Register(req.FullName, req.Email, req.Phone, req.Password, req.Role);
+            return Created($"/api/user/{user.UserID}", new { user.UserID, user.FullName, user.Email, user.Role });
         }
     }
 

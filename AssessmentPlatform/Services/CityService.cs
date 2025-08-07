@@ -38,7 +38,7 @@ namespace AssessmentPlatform.Services
             existing.CityName = q.CityName;
             existing.UpdatedDate = DateTime.Now;
             existing.PostalCode = q.PostalCode;
-            existing.PerformanceTier = q.PerformanceTier;
+            existing.Region = q.Region;
             existing.State = q.State;
             existing.IsActive = q.IsActive;
             _context.Cities.Update(existing);

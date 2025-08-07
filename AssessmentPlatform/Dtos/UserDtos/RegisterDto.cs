@@ -13,5 +13,6 @@ namespace AssessmentPlatform.Dtos.UserDtos
     public class InviteUserDto : RegisterDto
     {
         public int InvitedUserID { get; set; }
+        public int CityID { get; set; }
     }
 }

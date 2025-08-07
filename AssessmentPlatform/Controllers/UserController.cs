@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using AssessmentPlatform.Models;
-using AssessmentPlatform.Data;
 using AssessmentPlatform.IServices;
 
 namespace AssessmentPlatform.Controllers
@@ -18,10 +17,8 @@ namespace AssessmentPlatform.Controllers
         [HttpPost("register")]
         public IActionResult Register([FromBody] RegisterRequest req)
         {
-            if (_userService.GetByEmail(req.Email) != null)
-                return BadRequest("User already exists");
-            var user = _userService.Register(req.FullName, req.Email,req.Phone, req.Password, req.Role);
-            return Created($"/api/user/{user.UserID}", new { user.UserID, user.FullName, user.Email, user.Role });
+
+            return Created($"", new() { });
         }
 
     }
