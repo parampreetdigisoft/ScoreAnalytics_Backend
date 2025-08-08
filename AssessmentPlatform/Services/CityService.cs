@@ -55,17 +55,17 @@ namespace AssessmentPlatform.Services
             return d;
         }
 
-        public async Task<ResultResponseDto> AssingCityToUser(int userId, int cityId, int assignedByUserId)
+        public async Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int assignedByUserId)
         {
             if(_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId))
             {
-                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "City already assigned to user" }));
+                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
             }
             var user = _context.Users.Find(userId);
 
             if (user == null)
             {
-                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "Invalid request data." }));
+                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
             }
             var mapping = new UserCityMapping
             {
@@ -78,20 +78,20 @@ namespace AssessmentPlatform.Services
 
             await _context.SaveChangesAsync();
 
-            return await Task.FromResult(ResultResponseDto.Success(new string[] { "City assigned successfully" }));
+            return await Task.FromResult(ResultResponseDto<object>.Success(new string[] { "City assigned successfully" }));
         }
 
-        public async Task<ResultResponseDto> EditAssingCity(int id, int userId, int cityId, int assignedByUserId)
+        public async Task<ResultResponseDto<object>> EditAssingCity(int id, int userId, int cityId, int assignedByUserId)
         {
             if (_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId))
             {
-                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "City already assigned to user" }));
+                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
             }
             var userMapping = _context.UserCityMappings.Find(id);
 
             if (userMapping == null)
             {
-                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "Invalid request data." }));
+                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
             }
 
             userMapping.UserId = userId;
@@ -100,22 +100,22 @@ namespace AssessmentPlatform.Services
             _context.UserCityMappings.Update(userMapping);
             await _context.SaveChangesAsync();
 
-            return await Task.FromResult(ResultResponseDto.Success(new string[] { "Assigned city updated successfully" }));
+            return await Task.FromResult(ResultResponseDto<object>.Success(new string[] { "Assigned city updated successfully" }));
         }
 
-        public async Task<ResultResponseDto> DeleteAssingCity(int id)
+        public async Task<ResultResponseDto<object>> DeleteAssingCity(int id)
         {
             var userMapping = _context.UserCityMappings.Find(id);
             if (userMapping == null)
             {
-                return await Task.FromResult(ResultResponseDto.Failure(new string[] { "Invalid request data." }));
+                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
             }
 
             userMapping.IsDeleted = true;
             _context.UserCityMappings.Update(userMapping);
             await _context.SaveChangesAsync();
 
-            return await Task.FromResult(ResultResponseDto.Success(new string[] { "Assigned city deleted successfully" }));
+            return await Task.FromResult(ResultResponseDto<object>.Success(new string[] { "Assigned city deleted successfully" }));
         }
     }
 }

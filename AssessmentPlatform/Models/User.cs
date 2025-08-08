@@ -16,5 +16,7 @@ namespace AssessmentPlatform.Models
         public bool IsDeleted { get; set; } = false;
         public string? ResetToken { get; set; }
         public DateTime ResetTokenDate { get; set; } = DateTime.UtcNow;
+        public bool IsEmailConfirmed { get; set; } = false;
+        public string? ProfileImagePath { get; set; }
     }
 } 

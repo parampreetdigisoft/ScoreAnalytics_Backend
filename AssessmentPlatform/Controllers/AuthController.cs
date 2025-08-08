@@ -26,7 +26,7 @@ namespace AssessmentPlatform.Controllers
         }
         
         [HttpPost]
-        [Route("ForgotPassword")]
+        [Route("forgotPassword")]
         public IActionResult ForgotPassword([FromBody] ForgotPasswordDto request)
         {
             if (request?.Email == null)
@@ -41,7 +41,7 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpPost]
-        [Route("ChangePassword")]
+        [Route("changePassword")]
         public IActionResult ChangePassword([FromBody] ChangedPasswordDto request)
         {
             if (request?.PasswordToken == null)

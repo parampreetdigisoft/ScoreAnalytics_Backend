@@ -65,12 +65,12 @@ namespace AssessmentPlatform.Services
         {
             return BCrypt.Net.BCrypt.Verify(password, hash);
         }
-        public async Task<ResultResponseDto> ForgotPassword(string email)
+        public async Task<ResultResponseDto<object>> ForgotPassword(string email)
         {
             var user = GetByEmail(email);
             if (user == null)
             {
-                return ResultResponseDto.Failure(new string[] { "User not exist." });
+                return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
             }
             else
             {
@@ -87,11 +87,11 @@ namespace AssessmentPlatform.Services
                     _context.Users.Update(user);
                     await _context.SaveChangesAsync();
                 }
-                return ResultResponseDto.Success(new string[] { "Please check your email for change password." });
+                return ResultResponseDto<object>.Success(new string[] { "Please check your email for change password." });
 
             }
         }
-        public async Task<ResultResponseDto> ChangePassword(string passwordToken, string password)
+        public async Task<ResultResponseDto<object>> ChangePassword(string passwordToken, string password)
         {
             if (!string.IsNullOrEmpty(passwordToken))
             {
@@ -99,7 +99,7 @@ namespace AssessmentPlatform.Services
 
                 if (user == null)
                 {
-                    return ResultResponseDto.Failure(new string[] { "User not exist." });
+                    return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
                 }
                 if (_appSettings.LinkValidHours >= (DateTime.Now - user.ResetTokenDate).Hours)
                 {
@@ -110,21 +110,21 @@ namespace AssessmentPlatform.Services
                         _context.Users.Update(user);
                         await _context.SaveChangesAsync();
 
-                        return ResultResponseDto.Success(new string[] { "Password updated successfully" });
+                        return ResultResponseDto<object>.Success(new string[] { "Password updated successfully" });
                     }
                     else
                     {
-                        return ResultResponseDto.Failure(new string[] { "Password cannot be null" });
+                        return ResultResponseDto<object>.Failure(new string[] { "Password cannot be null" });
                     }
                 }
                 else
                 {
-                    return ResultResponseDto.Failure(new string[] { "Link has been expired." });
+                    return ResultResponseDto<object>.Failure(new string[] { "Link has been expired." });
                 }
             }
             else
             {
-                return ResultResponseDto.Failure(new string[] { "Link has been expired." });
+                return ResultResponseDto<object>.Failure(new string[] { "Link has been expired." });
             }
         }
         public async Task<UserResponseDto> Login(string email, string password)
@@ -140,14 +140,14 @@ namespace AssessmentPlatform.Services
                 new Claim(ClaimTypes.Name, user.Email),
                 new Claim(ClaimTypes.Role, user.Role.ToString())
             };
-
+            var tokenExpired = DateTime.Now.AddHours(1);
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSetting.Key));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var securityToken = new JwtSecurityToken(
                 issuer: _jwtSetting.Issuer,
                 audience: _jwtSetting.Audience,
                 claims: claims,
-                expires: DateTime.Now.AddHours(1),
+                expires: tokenExpired,
                 signingCredentials: creds
             );
             var token = new JwtSecurityTokenHandler().WriteToken(securityToken);
@@ -158,29 +158,33 @@ namespace AssessmentPlatform.Services
                 FullName = user.FullName,
                 Phone = user.Phone,
                 Email = user.Email,
-                Role = user.Role,
+                IsDeleted = user.IsDeleted,
+                Role = user.Role.ToString(),
                 CreatedAt = user.CreatedAt,
                 CreatedBy = user.CreatedBy,
+                IsEmailConfirmed=user.IsEmailConfirmed,
+                TokenExpirationDate = tokenExpired,
+                ProfileImagePath = user.ProfileImagePath,
                 Token = token
             };
             return response;
         }
 
-        public async Task<ResultResponseDto> InviteUser(InviteUserDto inviteUser)
+        public async Task<ResultResponseDto<object>> InviteUser(InviteUserDto inviteUser)
         {
             if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
             {
-                return ResultResponseDto.Failure(new string[] { "Invalid request data." });
+                return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
             }
             var existingUser = await GetByEmailAysync(inviteUser.Email);
             if (existingUser != null)
             {
-                return ResultResponseDto.Failure(new string[] { "User already exists." });
+                return ResultResponseDto<object>.Failure(new string[] { "User already exists." });
             }
             var user = Register(inviteUser.FullName, inviteUser.Email, inviteUser.Phone, inviteUser.Password, inviteUser.Role);
             if (user == null)
             {
-                return ResultResponseDto.Failure(new string[] { "Failed to register user." });
+                return ResultResponseDto<object>.Failure(new string[] { "Failed to register user." });
             }
 
             var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
@@ -208,9 +212,9 @@ namespace AssessmentPlatform.Services
 
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto.Success(new string[] { "Invitation sent successfully." });
+                return ResultResponseDto<object>.Success(new string[] { "Invitation sent successfully." });
             }
-            return ResultResponseDto.Failure(new string[] { "User created but invitation not send due to server error" });
+            return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
         }
     }
 }
