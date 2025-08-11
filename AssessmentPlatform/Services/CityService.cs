@@ -1,5 +1,7 @@
-﻿using AssessmentPlatform.Common.Models;
+﻿using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
@@ -45,9 +47,18 @@ namespace AssessmentPlatform.Services
             await _context.SaveChangesAsync();
             return existing;
         }
-        public async Task<List<City>> GetCitiesAsync()
+        public async Task<PaginationResponse<City>> GetCitiesAsync(PaginationRequest request)
         {
-            return await _context.Cities.Where(p => p.IsActive).ToListAsync();
+            var query = _context.Cities.Where(p => p.IsActive); 
+
+            var response = await query.ApplyPaginationAsync(
+                request,
+                x => string.IsNullOrEmpty(request.SearchText) ||
+                     x.CityName.Contains(request.SearchText) ||
+                     x.State.Contains(request.SearchText)
+            );
+
+            return response;
         }
         public async Task<City> GetByIdAsync(int id)
         {

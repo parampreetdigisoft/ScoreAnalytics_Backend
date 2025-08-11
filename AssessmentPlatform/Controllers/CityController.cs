@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Dtos.CityDto;
+using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -18,7 +19,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet("cities")]
         [Authorize]
-        public async Task<IActionResult> GetCities() => Ok(await _cityService.GetCitiesAsync());
+        public async Task<IActionResult> GetCities([FromQuery] PaginationRequest request) => Ok(await _cityService.GetCitiesAsync(request));
 
         [HttpGet("cities/{id}")]
         [Authorize]
