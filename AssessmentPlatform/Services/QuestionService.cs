@@ -1,10 +1,10 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
-using AssessmentPlatform.Models;
+using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Dtos.QuestionDto;
 using AssessmentPlatform.IServices;
+using AssessmentPlatform.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace AssessmentPlatform.Services
 {
@@ -21,9 +21,32 @@ namespace AssessmentPlatform.Services
             return await _context.Pillars.OrderBy(p => p.DisplayOrder).ToListAsync();
         }
 
-        public async Task<List<Question>> GetQuestionsAsync()
+        public async Task<PaginationResponse<GetQuestionRespones>> GetQuestionsAsync(GetQuestionRequestDto request)
         {
-            return await _context.Questions.Include(q => q.Pillar).OrderBy(q => q.DisplayOrder).ToListAsync();
+            var query =
+                from q in _context.Questions
+                    .Include(q => q.Pillar)
+                where !q.IsDeleted
+                   && (!request.PillarID.HasValue || q.PillarID == request.PillarID.Value)
+                join c in _context.Cities.Where(city => city.IsActive)
+                    on q.CityID equals c.CityID into cityJoin
+                from c in cityJoin.DefaultIfEmpty()
+                where !request.CityID.HasValue || c.CityID == request.CityID.Value
+                select new GetQuestionRespones
+                {
+                    QuestionID = q.QuestionID,
+                    QuestionText = q.QuestionText,
+                    PillarID = q.PillarID,
+                    PillarName = q.Pillar.PillarName,
+                    DisplayOrder = q.DisplayOrder,
+                    CityID = c.CityID,
+                    CityName = c.CityName,
+                    State = c.State
+                };
+
+            var response = await query.ApplyPaginationAsync(request);
+
+            return response;
         }
 
         public async Task<Question> AddQuestionAsync(Question q)
@@ -48,7 +71,9 @@ namespace AssessmentPlatform.Services
         {
             var q = await _context.Questions.FindAsync(id);
             if (q == null) return false;
-            _context.Questions.Remove(q);
+
+            q.IsDeleted = true; 
+            _context.Questions.Update(q);
             await _context.SaveChangesAsync();
             return true;
         }

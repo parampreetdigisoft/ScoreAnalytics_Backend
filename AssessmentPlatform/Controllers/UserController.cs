@@ -1,6 +1,7 @@
-using Microsoft.AspNetCore.Mvc;
-using AssessmentPlatform.Models;
+using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
+using AssessmentPlatform.Models;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -21,6 +22,9 @@ namespace AssessmentPlatform.Controllers
             return Created($"", new() { });
         }
 
+        [HttpGet]
+        [Route("GetUserByRole")]
+        public async Task<IActionResult> GetUserByRole([FromQuery] GetUserByRoleRequestDto request) => Ok(await _userService.GetUserByRole(request));
     }
 
     public class RegisterRequest

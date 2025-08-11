@@ -1,8 +1,9 @@
 
+using AssessmentPlatform.Dtos.QuestionDto;
+using AssessmentPlatform.IServices;
+using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using AssessmentPlatform.Models;
-using AssessmentPlatform.IServices;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -22,7 +23,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet("questions")]
         [Authorize]
-        public async Task<IActionResult> GetQuestions() => Ok(await _questionService.GetQuestionsAsync());
+        public async Task<IActionResult> GetQuestions([FromQuery] GetQuestionRequestDto requestDto) => Ok(await _questionService.GetQuestionsAsync(requestDto));
 
         [HttpPost("add")]
         [Authorize(Roles = "Admin")]

@@ -14,5 +14,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<object>> ForgotPassword(string email);
         Task<ResultResponseDto<object>> ChangePassword(string passwordToken, string password);
         Task<ResultResponseDto<object>> InviteUser(InviteUserDto inviteUser);
+        Task<ResultResponseDto<object>> UpdateInviteUser(UpdateInviteUserDto inviteUser);
     }
 }

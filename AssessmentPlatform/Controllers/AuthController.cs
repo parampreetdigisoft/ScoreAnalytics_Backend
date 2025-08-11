@@ -44,7 +44,7 @@ namespace AssessmentPlatform.Controllers
         [Route("changePassword")]
         public IActionResult ChangePassword([FromBody] ChangedPasswordDto request)
         {
-            if (request?.PasswordToken == null)
+            if (request?.PasswordToken == null || request.Password == null)
                 return BadRequest("Invalid request data.");
 
             var response = _authService.ChangePassword(request.PasswordToken, request.Password);
@@ -64,6 +64,22 @@ namespace AssessmentPlatform.Controllers
                 return BadRequest("Invalid request data.");
 
             var response = _authService.InviteUser(request);
+
+            if (response == null)
+                return StatusCode(500, "User Invitation failed due to a server error.");
+
+            return Ok(response);
+        }
+
+        [HttpPost]
+        [Route("UpdateInviteUser")]
+        [Authorize]
+        public IActionResult UpdateInviteUser([FromBody] UpdateInviteUserDto request)
+        {
+            if (request?.Email == null)
+                return BadRequest("Invalid request data.");
+
+            var response = _authService.UpdateInviteUser(request);
 
             if (response == null)
                 return StatusCode(500, "User Invitation failed due to a server error.");

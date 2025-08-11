@@ -4,8 +4,11 @@ namespace AssessmentPlatform.Models
     {
         public int QuestionID { get; set; }
         public int PillarID { get; set; }
+        public int CityID { get; set; }
         public string QuestionText { get; set; }
         public int DisplayOrder { get; set; }
         public Pillar Pillar { get; set; }
+
+        public bool IsDeleted { get; set; } = false;
     }
 } 

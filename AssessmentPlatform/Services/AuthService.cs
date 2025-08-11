@@ -8,6 +8,7 @@ using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using System.Data;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -37,7 +38,8 @@ namespace AssessmentPlatform.Services
                 Email = email,
                 Phone = phn,
                 PasswordHash = hash,
-                Role = role
+                Role = role,
+                IsEmailConfirmed = false,
             };
             _context.Users.Add(user);
             _context.SaveChanges();
@@ -93,34 +95,20 @@ namespace AssessmentPlatform.Services
         }
         public async Task<ResultResponseDto<object>> ChangePassword(string passwordToken, string password)
         {
-            if (!string.IsNullOrEmpty(passwordToken))
+            var user = await _context.Users.Where(u => u.ResetToken == passwordToken).FirstOrDefaultAsync();
+
+            if (user == null)
             {
-                var user = await _context.Users.Where(u => u.ResetToken == passwordToken).FirstOrDefaultAsync();
+                return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
+            }
+            if (_appSettings.LinkValidHours >= (DateTime.Now - user.ResetTokenDate).Hours)
+            {
+                var hash = BCrypt.Net.BCrypt.HashPassword(password);
+                user.PasswordHash = hash;
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
 
-                if (user == null)
-                {
-                    return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
-                }
-                if (_appSettings.LinkValidHours >= (DateTime.Now - user.ResetTokenDate).Hours)
-                {
-                    if (!string.IsNullOrEmpty(password))
-                    {
-                        var hash = BCrypt.Net.BCrypt.HashPassword(password);
-                        user.PasswordHash = hash;
-                        _context.Users.Update(user);
-                        await _context.SaveChangesAsync();
-
-                        return ResultResponseDto<object>.Success(new string[] { "Password updated successfully" });
-                    }
-                    else
-                    {
-                        return ResultResponseDto<object>.Failure(new string[] { "Password cannot be null" });
-                    }
-                }
-                else
-                {
-                    return ResultResponseDto<object>.Failure(new string[] { "Link has been expired." });
-                }
+                return ResultResponseDto<object>.Success(new string[] { "Password updated successfully" });
             }
             else
             {
@@ -162,7 +150,7 @@ namespace AssessmentPlatform.Services
                 Role = user.Role.ToString(),
                 CreatedAt = user.CreatedAt,
                 CreatedBy = user.CreatedBy,
-                IsEmailConfirmed=user.IsEmailConfirmed,
+                IsEmailConfirmed = user.IsEmailConfirmed,
                 TokenExpirationDate = tokenExpired,
                 ProfileImagePath = user.ProfileImagePath,
                 Token = token
@@ -213,6 +201,79 @@ namespace AssessmentPlatform.Services
                 await _context.SaveChangesAsync();
 
                 return ResultResponseDto<object>.Success(new string[] { "Invitation sent successfully." });
+            }
+            return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
+        }
+
+        public async Task<ResultResponseDto<object>> UpdateInviteUser(UpdateInviteUserDto inviteUser)
+        {
+            if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
+            {
+                return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
+            }
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == inviteUser.UserID);
+
+            if (user == null)
+            {
+                return ResultResponseDto<object>.Failure(new string[] { "User not found." });
+            }
+            bool isMailSent = true;
+
+            string msg = "User updated successfully";
+            if (user.Email != inviteUser.Email)
+            {
+                var existingUser = await GetByEmailAysync(inviteUser.Email);
+                if (existingUser != null)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "User already exists." });
+                }
+                var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
+                var passwordToken = hash;
+                var token = passwordToken.Replace("+", " ");
+
+                string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
+                string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
+
+                var passwordHash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Password);
+                user.Email = inviteUser.Email;
+                user.PasswordHash = passwordHash;
+                user.IsEmailConfirmed = false;
+                user.ResetToken = token;
+                user.ResetTokenDate = DateTime.Now;
+
+                msg = "User updated and invitation sent successfully";
+            }
+
+            if (isMailSent)
+            {
+                user.FullName = inviteUser.FullName;
+                user.Phone = inviteUser.Phone;
+                user.CreatedBy = inviteUser.InvitedUserID;
+                _context.Users.Update(user);
+
+                var mapping = _context.UserCityMappings.FirstOrDefault(m => m.UserId == user.UserID && m.CityId == inviteUser.CityID && m.AssignedByUserId == inviteUser.InvitedUserID);
+
+                if (mapping == null)
+                {
+                    var m = new UserCityMapping
+                    {
+                        UserId = user.UserID,
+                        CityId = inviteUser.CityID,
+                        AssignedByUserId = inviteUser.InvitedUserID,
+                        Role = user.Role
+                    };
+                    _context.UserCityMappings.Add(m);
+                }
+                else
+                {
+                    mapping.CityId = inviteUser.CityID;
+                    mapping.Role = user.Role;
+                    _context.UserCityMappings.Update(mapping);
+                }
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<object>.Success(new string[] { msg });
             }
             return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
         }
