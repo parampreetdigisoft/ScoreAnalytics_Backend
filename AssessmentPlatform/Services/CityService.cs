@@ -20,7 +20,7 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<City>> AddCityAsync(AddUpdateCityDto q)
         {
-            var existCity = await _context.Cities.FirstOrDefaultAsync(x => !x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
+            var existCity = await _context.Cities.FirstOrDefaultAsync(x => x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
             if(existCity != null)
             {
                 return ResultResponseDto<City>.Failure(new string[] { "City already exists" });

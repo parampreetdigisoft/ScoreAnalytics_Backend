@@ -1,17 +1,17 @@
-﻿using AssessmentPlatform.Common.Interface;
-using AssessmentPlatform.Common.Models;
-using AssessmentPlatform.Common.Models.settings;
-using AssessmentPlatform.Data;
-using AssessmentPlatform.Dtos.UserDtos;
-using AssessmentPlatform.IServices;
-using AssessmentPlatform.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using System.Data;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
+﻿using System.Data;
 using System.Text;
+using System.Security.Claims;
+using AssessmentPlatform.Data;
+using AssessmentPlatform.Models;
+using Microsoft.Extensions.Options;
+using AssessmentPlatform.IServices;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using AssessmentPlatform.Dtos.UserDtos;
+using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Common.Interface;
+using AssessmentPlatform.Common.Models.settings;
 
 namespace AssessmentPlatform.Services
 {
@@ -164,40 +164,47 @@ namespace AssessmentPlatform.Services
             {
                 return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
             }
-            var existingUser = await GetByEmailAysync(inviteUser.Email);
-            if (existingUser != null)
-            {
-                return ResultResponseDto<object>.Failure(new string[] { "User already exists." });
-            }
-            var user = Register(inviteUser.FullName, inviteUser.Email, inviteUser.Phone, inviteUser.Password, inviteUser.Role);
+            var user = await GetByEmailAysync(inviteUser.Email);
+
             if (user == null)
             {
-                return ResultResponseDto<object>.Failure(new string[] { "Failed to register user." });
+                user = Register(inviteUser.FullName, inviteUser.Email, inviteUser.Phone, inviteUser.Password, inviteUser.Role);
+                if (user == null)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "Failed to register user." });
+                }
+                user.CreatedBy = inviteUser.InvitedUserID;
             }
 
-            var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
-            var passwordToken = hash;
-            var token = passwordToken.Replace("+", " ");
-
-            string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
-            string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-            var isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
-            if (isMailSent)
+            bool isMailSent = false;
+            if (!user.IsEmailConfirmed)
             {
+                var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
+                var passwordToken = hash;
+                var token = passwordToken.Replace("+", " ");
+
+                string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
+                string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
                 user.ResetToken = token;
                 user.ResetTokenDate = DateTime.Now;
-                user.CreatedBy = inviteUser.InvitedUserID;
+            }
+
+            if (isMailSent || user.IsEmailConfirmed)
+            {
                 _context.Users.Update(user);
 
-                var mapping = new UserCityMapping
+                foreach (var id in inviteUser.CityID)
                 {
-                    UserId = user.UserID,
-                    CityId = inviteUser.CityID,
-                    AssignedByUserId = inviteUser.InvitedUserID,
-                    Role = user.Role
-                };
-                _context.UserCityMappings.Add(mapping);
-
+                    var mapping = new UserCityMapping
+                    {
+                        UserId = user.UserID,
+                        CityId = id,
+                        AssignedByUserId = inviteUser.InvitedUserID,
+                        Role = user.Role
+                    };
+                    _context.UserCityMappings.Add(mapping);
+                }
                 await _context.SaveChangesAsync();
 
                 return ResultResponseDto<object>.Success(new string[] { "Invitation sent successfully." });
@@ -252,25 +259,36 @@ namespace AssessmentPlatform.Services
                 user.CreatedBy = inviteUser.InvitedUserID;
                 _context.Users.Update(user);
 
-                var mapping = _context.UserCityMappings.FirstOrDefault(m => m.UserId == user.UserID && m.CityId == inviteUser.CityID && m.AssignedByUserId == inviteUser.InvitedUserID);
+                var existingMappings = _context.UserCityMappings
+                    .Where(m => m.UserId == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID)
+                    .ToList();
 
-                if (mapping == null)
+                var existingCityIds = existingMappings.Select(m => m.CityId).ToList();
+
+                var newCityIds = inviteUser.CityID;
+
+                // Add missing cities
+                var citiesToAdd = newCityIds.Except(existingCityIds).ToList();
+                foreach (var cityId in citiesToAdd)
                 {
-                    var m = new UserCityMapping
+                    var newMapping = new UserCityMapping
                     {
                         UserId = user.UserID,
-                        CityId = inviteUser.CityID,
+                        CityId = cityId,
                         AssignedByUserId = inviteUser.InvitedUserID,
                         Role = user.Role
                     };
-                    _context.UserCityMappings.Add(m);
+                    _context.UserCityMappings.Add(newMapping);
                 }
-                else
-                {
-                    mapping.CityId = inviteUser.CityID;
-                    mapping.Role = user.Role;
-                    _context.UserCityMappings.Update(mapping);
-                }
+
+                //Delete cities no longer in the new list
+                var citiesToDelete = existingMappings
+                    .Where(m => !newCityIds.Contains(m.CityId))
+                    .ToList();
+
+                _context.UserCityMappings.RemoveRange(citiesToDelete);
+
+                // Save all changes
                 await _context.SaveChangesAsync();
 
                 return ResultResponseDto<object>.Success(new string[] { msg });
