@@ -27,7 +27,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost("add")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> AddQuestion([FromBody] City q)
+        public async Task<IActionResult> AddQuestion([FromBody] AddUpdateCityDto q)
         {
             var result = await _cityService.AddCityAsync(q);
             return Ok(result);
@@ -35,10 +35,9 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPut("edit/{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> EditQuestion(int id, [FromBody] City q)
+        public async Task<IActionResult> EditQuestion(int id, [FromBody] AddUpdateCityDto q)
         {
             var result = await _cityService.EditCityAsync(id, q);
-            if (result == null) return NotFound();
             return Ok(result);
         }
 
@@ -47,8 +46,7 @@ namespace AssessmentPlatform.Controllers
         public async Task<IActionResult> DeleteQuestion(int id)
         {
             var success = await _cityService.DeleteCityAsync(id);
-            if (!success) return NotFound();
-            return Ok();
+            return Ok(success);
         }
 
         [HttpPost]
@@ -76,7 +74,6 @@ namespace AssessmentPlatform.Controllers
         public async Task<IActionResult> DeleteAssignCity(int id)
         {
             var result = await _cityService.DeleteAssingCity(id);
-
             return Ok(result);
         }
     }

@@ -119,7 +119,7 @@ namespace AssessmentPlatform.Services
         {
             var user = GetByEmail(email);
             await Task.Delay(100); // Simulate some delay for demonstration purposes
-            if (user == null || !VerifyPassword(password, user.PasswordHash))
+            if (user == null || !VerifyPassword(password, user.PasswordHash) || !user.IsEmailConfirmed)
             {
                 return null;
             }

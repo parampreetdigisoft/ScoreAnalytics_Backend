@@ -1,6 +1,7 @@
 ﻿using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
@@ -17,35 +18,55 @@ namespace AssessmentPlatform.Services
             _context = context;
         }
 
-        public async Task<City> AddCityAsync(City q)
+        public async Task<ResultResponseDto<City>> AddCityAsync(AddUpdateCityDto q)
         {
-            _context.Cities.Add(q);
+            var existCity = await _context.Cities.FirstOrDefaultAsync(x => !x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
+            if(existCity != null)
+            {
+                return ResultResponseDto<City>.Failure(new string[] { "City already exists" });
+            }
+            var city = new City
+            {
+                CityID=0,
+                CityName=q.CityName,
+                CreatedDate=DateTime.Now,
+                State = q.State,
+                Region = q.Region
+            };
+            _context.Cities.Add(city);
             await _context.SaveChangesAsync();
-            return q;
+
+            return ResultResponseDto<City>.Success(city, new string[] { "City added Successfully" });
         }
 
-        public async Task<bool> DeleteCityAsync(int id)
+        public async Task<ResultResponseDto<bool>> DeleteCityAsync(int id)
         {
             var q = await _context.Cities.FindAsync(id);
-            if (q == null) return false;
+            if (q == null) return ResultResponseDto<bool>.Failure(new string[] { "City not exists" });
+
             _context.Cities.Remove(q);
             await _context.SaveChangesAsync();
-            return true;
+            return ResultResponseDto<bool>.Success(true, new string[] { "City deleted Successfully" });
+
         }
 
-        public async Task<City> EditCityAsync(int id, City q)
+        public async Task<ResultResponseDto<City>> EditCityAsync(int id, AddUpdateCityDto q)
         {
+            var existCity = await _context.Cities.FirstOrDefaultAsync(x => !x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
+            if (existCity != null)
+            {
+                return ResultResponseDto<City>.Failure(new string[] { "City already exists" });
+            }
             var existing = await _context.Cities.FindAsync(id);
-            if (existing == null) return null;
+            if (existing == null) return ResultResponseDto<City>.Failure(new string[] { "City not exists" });
             existing.CityName = q.CityName;
             existing.UpdatedDate = DateTime.Now;
-            existing.PostalCode = q.PostalCode;
             existing.Region = q.Region;
             existing.State = q.State;
-            existing.IsActive = q.IsActive;
             _context.Cities.Update(existing);
             await _context.SaveChangesAsync();
-            return existing;
+           
+           return ResultResponseDto<City>.Success(existing,new string[] { "City edited Successfully" });
         }
         public async Task<PaginationResponse<City>> GetCitiesAsync(PaginationRequest request)
         {
@@ -60,10 +81,10 @@ namespace AssessmentPlatform.Services
 
             return response;
         }
-        public async Task<City> GetByIdAsync(int id)
+        public async Task<ResultResponseDto<City>> GetByIdAsync(int id)
         {
             var d = await _context.Cities.FirstAsync(x => x.CityID == id);
-            return d;
+            return await Task.FromResult(ResultResponseDto<City>.Success(d,new string[] { "get successfully" }));
         }
 
         public async Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int assignedByUserId)
