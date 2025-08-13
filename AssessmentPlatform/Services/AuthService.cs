@@ -105,6 +105,7 @@ namespace AssessmentPlatform.Services
             {
                 var hash = BCrypt.Net.BCrypt.HashPassword(password);
                 user.PasswordHash = hash;
+                user.IsEmailConfirmed = true;
                 _context.Users.Update(user);
                 await _context.SaveChangesAsync();
 
