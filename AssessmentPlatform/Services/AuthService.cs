@@ -89,7 +89,7 @@ namespace AssessmentPlatform.Services
                     _context.Users.Update(user);
                     await _context.SaveChangesAsync();
                 }
-                return ResultResponseDto<object>.Success(new string[] { "Please check your email for change password." });
+                return ResultResponseDto<object>.Success(new {},new string[] { "Please check your email for change password." });
 
             }
         }
@@ -108,7 +108,7 @@ namespace AssessmentPlatform.Services
                 _context.Users.Update(user);
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<object>.Success(new string[] { "Password updated successfully" });
+                return ResultResponseDto<object>.Success(new {},new string[] { "Password updated successfully" });
             }
             else
             {
@@ -299,7 +299,7 @@ namespace AssessmentPlatform.Services
                 // Save all changes
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<object>.Success(new string[] { msg });
+                return ResultResponseDto<object>.Success(new {},new string[] { msg });
             }
             return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
         }

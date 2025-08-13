@@ -25,19 +25,15 @@ namespace AssessmentPlatform.Services
         {
             var currentUser = _context.Users.First(u => u.UserID == request.UserID);
 
-            IQueryable<GetUserByRoleResponse> query;
-
-            query =
+            var query =
                 from u in _context.Users
                 where u.Role == (currentUser.Role == UserRole.Admin ? request.GetUserRole : UserRole.Evaluator) && u.Role != UserRole.Admin
                 join uc in _context.UserCityMappings.Where(x => !x.IsDeleted && (x.AssignedByUserId == request.UserID || currentUser.Role == UserRole.Admin))
                     on u.UserID equals uc.UserId into userCityJoin
                 from uc in userCityJoin.DefaultIfEmpty()
-
-                join ab in _context.Users 
+                join ab in _context.Users
                     on uc.AssignedByUserId equals ab.UserID into assignedByJoin
                 from ab in assignedByJoin.DefaultIfEmpty()
-
                 select new GetUserByRoleResponse
                 {
                     UserID = u.UserID,
@@ -49,16 +45,19 @@ namespace AssessmentPlatform.Services
                     IsDeleted = u.IsDeleted,
                     IsEmailConfirmed = u.IsEmailConfirmed,
                     CreatedAt = u.CreatedAt,
-                    CreatedByName = ab.FullName 
+                    CreatedByName = ab.FullName
                 };
 
-          
+
             // Apply pagination + search
             var response = await query.ApplyPaginationAsync(
                 request,
                 x => string.IsNullOrEmpty(request.SearchText) ||
                      x.Email.Contains(request.SearchText) ||
                      x.FullName.Contains(request.SearchText));
+
+
+            response.Data = response.Data.GroupBy(x => x.UserID).Select(g => g.FirstOrDefault());
 
             // Get all cities for fetched users in one query
             var userIds = response.Data.Select(x => x.UserID).ToList();

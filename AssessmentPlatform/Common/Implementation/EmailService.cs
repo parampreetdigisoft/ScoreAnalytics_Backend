@@ -33,6 +33,7 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 using var client = new SmtpClient(_smtpSettings.Host, _smtpSettings.Port)
                 {
+                    UseDefaultCredentials=false,
                     Credentials = new NetworkCredential(_smtpSettings.Username, _smtpSettings.Password),
                     EnableSsl = _smtpSettings.EnableSsl
                 };

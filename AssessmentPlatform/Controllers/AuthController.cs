@@ -42,12 +42,12 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost]
         [Route("changePassword")]
-        public IActionResult ChangePassword([FromBody] ChangedPasswordDto request)
+        public async Task<IActionResult> ChangePassword([FromBody] ChangedPasswordDto request)
         {
             if (request?.PasswordToken == null || request.Password == null)
                 return BadRequest("Invalid request data.");
 
-            var response = _authService.ChangePassword(request.PasswordToken, request.Password);
+            var response = await _authService.ChangePassword(request.PasswordToken, request.Password);
 
             if (response == null)
                 return StatusCode(500, "User registration failed due to a server error.");
@@ -58,12 +58,12 @@ namespace AssessmentPlatform.Controllers
         [HttpPost]
         [Route("InviteUser")]
         [Authorize]
-        public IActionResult InviteUser([FromBody] InviteUserDto request)
+        public async Task<IActionResult> InviteUser([FromBody] InviteUserDto request)
         {
             if (request?.Email == null)
                 return BadRequest("Invalid request data.");
 
-            var response = _authService.InviteUser(request);
+            var response = await _authService.InviteUser(request);
 
             if (response == null)
                 return StatusCode(500, "User Invitation failed due to a server error.");
@@ -74,12 +74,12 @@ namespace AssessmentPlatform.Controllers
         [HttpPost]
         [Route("UpdateInviteUser")]
         [Authorize]
-        public IActionResult UpdateInviteUser([FromBody] UpdateInviteUserDto request)
+        public async Task<IActionResult> UpdateInviteUser([FromBody] UpdateInviteUserDto request)
         {
             if (request?.Email == null)
                 return BadRequest("Invalid request data.");
 
-            var response = _authService.UpdateInviteUser(request);
+            var response = await _authService.UpdateInviteUser(request);
 
             if (response == null)
                 return StatusCode(500, "User Invitation failed due to a server error.");

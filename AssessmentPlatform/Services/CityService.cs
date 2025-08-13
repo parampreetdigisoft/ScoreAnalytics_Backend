@@ -134,7 +134,7 @@ namespace AssessmentPlatform.Services
 
             await _context.SaveChangesAsync();
 
-            return await Task.FromResult(ResultResponseDto<object>.Success(new string[] { "City assigned successfully" }));
+            return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "City assigned successfully" }));
         }
 
         public async Task<ResultResponseDto<object>> EditAssingCity(int id, int userId, int cityId, int assignedByUserId)
@@ -156,7 +156,7 @@ namespace AssessmentPlatform.Services
             _context.UserCityMappings.Update(userMapping);
             await _context.SaveChangesAsync();
 
-            return await Task.FromResult(ResultResponseDto<object>.Success(new string[] { "Assigned city updated successfully" }));
+            return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "Assigned city updated successfully" }));
         }
 
         public async Task<ResultResponseDto<object>> DeleteAssingCity(int id)
@@ -171,7 +171,7 @@ namespace AssessmentPlatform.Services
             _context.UserCityMappings.Update(userMapping);
             await _context.SaveChangesAsync();
 
-            return await Task.FromResult(ResultResponseDto<object>.Success(new string[] { "Assigned city deleted successfully" }));
+            return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "Assigned city deleted successfully" }));
         }
     }
 }
