@@ -54,7 +54,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                return await _context.Users.Where(u => u.Email == email).AsQueryable().FirstOrDefaultAsync();
+                return await _context.Users.Where(u => u.Email == email && !u.IsDeleted).AsQueryable().FirstOrDefaultAsync();
 
             }
             catch (Exception ex)
@@ -164,7 +164,7 @@ namespace AssessmentPlatform.Services
             {
                 return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
             }
-            var user = await GetByEmailAysync(inviteUser.Email);
+            var user =  GetByEmail(inviteUser.Email);
 
             if (user == null)
             {
@@ -174,6 +174,10 @@ namespace AssessmentPlatform.Services
                     return ResultResponseDto<object>.Failure(new string[] { "Failed to register user." });
                 }
                 user.CreatedBy = inviteUser.InvitedUserID;
+            }
+            if (user.Role != inviteUser.Role)
+            {
+                return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
             }
 
             bool isMailSent = false;
@@ -207,7 +211,7 @@ namespace AssessmentPlatform.Services
                 }
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<object>.Success(new string[] { "Invitation sent successfully." });
+                return ResultResponseDto<object>.Success(new {},new string[] { "Invitation sent successfully." });
             }
             return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
         }
@@ -223,6 +227,10 @@ namespace AssessmentPlatform.Services
             if (user == null)
             {
                 return ResultResponseDto<object>.Failure(new string[] { "User not found." });
+            }
+            if(user.Role != inviteUser.Role)
+            {
+                return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
             }
             bool isMailSent = true;
 

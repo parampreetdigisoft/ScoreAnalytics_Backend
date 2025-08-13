@@ -1,6 +1,6 @@
 ﻿namespace AssessmentPlatform.Common.Models
 {
-    public class ResultResponseDto<T>
+    public class ResultResponseDto<T> 
     {
         internal ResultResponseDto(bool succeeded, T result, IEnumerable<string> errors, IEnumerable<string> messages, int? returnId, bool? isExist)
         {
@@ -20,7 +20,7 @@
         public int? ReturnId { get; init; }
         public bool? IsExist { get; init; }
 
-        public static ResultResponseDto<T> Success(T result,IEnumerable<string>? messages = null,int? returnId = null)
+        public static ResultResponseDto<T> Success(T result=default,IEnumerable<string>? messages = null,int? returnId = null)
         {
             return new ResultResponseDto<T>(
                 succeeded: true,

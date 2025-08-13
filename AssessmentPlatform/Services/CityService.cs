@@ -3,6 +3,7 @@ using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
@@ -80,6 +81,29 @@ namespace AssessmentPlatform.Services
             );
 
             return response;
+        }
+        public async Task<ResultResponseDto<List<City>>> getAllCityByUserId(int userId)
+        {
+            var user = _context.Users.FirstOrDefault(x => x.UserID == userId);
+
+            IQueryable<City> cityQuery;
+
+            if (user != null && user.Role == UserRole.Admin)
+            {
+                cityQuery = from c in _context.Cities
+                            select c;
+            }
+            else
+            {
+                cityQuery = from c in _context.Cities
+                            join cm in _context.UserCityMappings
+                                .Where(x => !x.IsDeleted && x.UserId == userId)
+                                on c.CityID equals cm.CityId
+                            select c;
+            }
+            var result = await cityQuery.ToListAsync();
+
+           return ResultResponseDto<List<City>>.Success(result, new string[] { "get successfully" });
         }
         public async Task<ResultResponseDto<City>> GetByIdAsync(int id)
         {

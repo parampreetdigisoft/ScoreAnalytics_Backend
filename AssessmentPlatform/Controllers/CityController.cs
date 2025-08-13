@@ -21,6 +21,10 @@ namespace AssessmentPlatform.Controllers
         [Authorize]
         public async Task<IActionResult> GetCities([FromQuery] PaginationRequest request) => Ok(await _cityService.GetCitiesAsync(request));
 
+        [HttpGet("getAllCityByUserId/{userId}")]
+        [Authorize]
+        public async Task<IActionResult> getAllCityByUserId(int userId) => Ok(await _cityService.getAllCityByUserId(userId));
+
         [HttpGet("cities/{id}")]
         [Authorize]
         public async Task<IActionResult> GetCities(int id) => Ok(await _cityService.GetByIdAsync(id));

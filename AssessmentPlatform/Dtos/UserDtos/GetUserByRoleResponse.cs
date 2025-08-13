@@ -1,7 +1,9 @@
-﻿namespace AssessmentPlatform.Dtos.UserDtos
+﻿using AssessmentPlatform.Dtos.CityDto;
+
+namespace AssessmentPlatform.Dtos.UserDtos
 {
     public class GetUserByRoleResponse : PublicUserResponse
     {
-        public string? AssignCity { get; set; }
+        public List<AddUpdateCityDto> cities { get; set; } = new();
     }
 }
