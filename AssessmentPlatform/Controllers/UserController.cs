@@ -1,12 +1,14 @@
 using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class UserController : ControllerBase
     {
         private readonly IUserService _userService;

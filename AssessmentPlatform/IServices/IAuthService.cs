@@ -10,7 +10,7 @@ namespace AssessmentPlatform.IServices
         User GetByEmail(string email);
         Task<User?> GetByEmailAysync(string email);
         bool VerifyPassword(string password, string hash);
-        Task<UserResponseDto> Login(string email, string password);
+        Task<ResultResponseDto<UserResponseDto>> Login(string email, string password);
         Task<ResultResponseDto<object>> ForgotPassword(string email);
         Task<ResultResponseDto<object>> ChangePassword(string passwordToken, string password);
         Task<ResultResponseDto<object>> InviteUser(InviteUserDto inviteUser);

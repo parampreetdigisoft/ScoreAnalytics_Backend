@@ -71,9 +71,28 @@ namespace AssessmentPlatform.Services
         }
         public async Task<PaginationResponse<City>> GetCitiesAsync(PaginationRequest request)
         {
-            var query = _context.Cities.Where(p => p.IsActive); 
+            var user = _context.Users.FirstOrDefault(x => x.UserID == request.UserId);
+            if (user == null)
+            {
+                return new PaginationResponse<City>();
+            }
 
-            var response = await query.ApplyPaginationAsync(
+            IQueryable<City> cityQuery;
+
+            if (user.Role == UserRole.Admin)
+            {
+                cityQuery = from c in _context.Cities
+                            select c;
+            }
+            else
+            {
+                cityQuery = from c in _context.Cities
+                            join cm in _context.UserCityMappings
+                                .Where(x => !x.IsDeleted && x.UserId == request.UserId)
+                                on c.CityID equals cm.CityId
+                            select c;
+            }
+            var response = await cityQuery.ApplyPaginationAsync(
                 request,
                 x => string.IsNullOrEmpty(request.SearchText) ||
                      x.CityName.Contains(request.SearchText) ||
@@ -113,7 +132,7 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int assignedByUserId)
         {
-            if(_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId))
+            if(_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId && !x.IsDeleted))
             {
                 return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
             }

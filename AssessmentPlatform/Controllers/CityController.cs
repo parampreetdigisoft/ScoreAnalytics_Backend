@@ -27,7 +27,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet("cities/{id}")]
         [Authorize]
-        public async Task<IActionResult> GetCities(int id) => Ok(await _cityService.GetByIdAsync(id));
+        public async Task<IActionResult> GetByIdAsync(int id) => Ok(await _cityService.GetByIdAsync(id));
 
         [HttpPost("add")]
         [Authorize(Roles = "Admin")]

@@ -20,6 +20,7 @@
         public string? SortBy { get; set; }
         public string SortDirection { get; set; } = "asc";
         public string? SearchText { get; set; }
+        public int? UserId { get; set; } = 0;
     }
 
     public enum SortDirection

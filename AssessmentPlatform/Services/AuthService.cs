@@ -116,13 +116,18 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<object>.Failure(new string[] { "Link has been expired." });
             }
         }
-        public async Task<UserResponseDto> Login(string email, string password)
+        public async Task<ResultResponseDto<UserResponseDto>> Login(string email, string password)
         {
             var user = GetByEmail(email);
-            await Task.Delay(100); // Simulate some delay for demonstration purposes
-            if (user == null || !VerifyPassword(password, user.PasswordHash) || !user.IsEmailConfirmed)
+            if (user == null || !VerifyPassword(password, user.PasswordHash))
             {
-                return null;
+                return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
+            }
+            if(!user.IsEmailConfirmed || user.IsDeleted)
+            {
+                string message = $"Your mail is not confirmed or de-activated by super {(user.Role == UserRole.Analyst ? "Admin" : "Analyst")}";
+
+                return ResultResponseDto<UserResponseDto>.Failure(new string[] { message });
             }
             var claims = new[]
             {
@@ -156,7 +161,7 @@ namespace AssessmentPlatform.Services
                 ProfileImagePath = user.ProfileImagePath,
                 Token = token
             };
-            return response;
+            return await Task.FromResult(ResultResponseDto<UserResponseDto>.Success(response, new string[] { "Invitation sent successfully." }));
         }
 
         public async Task<ResultResponseDto<object>> InviteUser(InviteUserDto inviteUser)
@@ -193,6 +198,7 @@ namespace AssessmentPlatform.Services
                 isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
                 user.ResetToken = token;
                 user.ResetTokenDate = DateTime.Now;
+                user.IsDeleted = false;
             }
 
             if (isMailSent || user.IsEmailConfirmed)
@@ -236,13 +242,8 @@ namespace AssessmentPlatform.Services
             bool isMailSent = true;
 
             string msg = "User updated successfully";
-            if (user.Email != inviteUser.Email)
+            if (user.Email != inviteUser.Email || (!user.IsEmailConfirmed || user.IsDeleted))
             {
-                var existingUser = await GetByEmailAysync(inviteUser.Email);
-                if (existingUser != null)
-                {
-                    return ResultResponseDto<object>.Failure(new string[] { "User already exists." });
-                }
                 var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
                 var passwordToken = hash;
                 var token = passwordToken.Replace("+", " ");
@@ -257,6 +258,7 @@ namespace AssessmentPlatform.Services
                 user.IsEmailConfirmed = false;
                 user.ResetToken = token;
                 user.ResetTokenDate = DateTime.Now;
+                user.IsDeleted = false;
 
                 msg = "User updated and invitation sent successfully";
             }
@@ -269,7 +271,7 @@ namespace AssessmentPlatform.Services
                 _context.Users.Update(user);
 
                 var existingMappings = _context.UserCityMappings
-                    .Where(m => m.UserId == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID)
+                    .Where(m => m.UserId == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
                     .ToList();
 
                 var existingCityIds = existingMappings.Select(m => m.CityId).ToList();
@@ -294,8 +296,11 @@ namespace AssessmentPlatform.Services
                 var citiesToDelete = existingMappings
                     .Where(m => !newCityIds.Contains(m.CityId))
                     .ToList();
-
-                _context.UserCityMappings.RemoveRange(citiesToDelete);
+                foreach(var c in citiesToDelete)
+                {
+                    c.IsDeleted = true;
+                    _context.UserCityMappings.Update(c);
+                }
 
                 // Save all changes
                 await _context.SaveChangesAsync();
