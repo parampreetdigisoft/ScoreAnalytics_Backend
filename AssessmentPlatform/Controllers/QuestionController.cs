@@ -21,7 +21,7 @@ namespace AssessmentPlatform.Controllers
         [Authorize]
         public async Task<IActionResult> GetPillars() => Ok(await _questionService.GetPillarsAsync());
 
-        [HttpGet("questions")]
+        [HttpGet("getQuestions")]
         [Authorize]
         public async Task<IActionResult> GetQuestions([FromQuery] GetQuestionRequestDto requestDto) => Ok(await _questionService.GetQuestionsAsync(requestDto));
 

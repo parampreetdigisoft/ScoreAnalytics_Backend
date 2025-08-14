@@ -28,20 +28,13 @@ namespace AssessmentPlatform.Services
                     .Include(q => q.Pillar)
                 where !q.IsDeleted
                    && (!request.PillarID.HasValue || q.PillarID == request.PillarID.Value)
-                join c in _context.Cities.Where(city => city.IsActive)
-                    on q.CityID equals c.CityID into cityJoin
-                from c in cityJoin.DefaultIfEmpty()
-                where !request.CityID.HasValue || c.CityID == request.CityID.Value
                 select new GetQuestionRespones
                 {
                     QuestionID = q.QuestionID,
                     QuestionText = q.QuestionText,
                     PillarID = q.PillarID,
                     PillarName = q.Pillar.PillarName,
-                    DisplayOrder = q.DisplayOrder,
-                    CityID = c.CityID,
-                    CityName = c.CityName,
-                    State = c.State
+                    DisplayOrder = q.DisplayOrder
                 };
 
             var response = await query.ApplyPaginationAsync(request);
