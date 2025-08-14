@@ -309,5 +309,20 @@ namespace AssessmentPlatform.Services
             }
             return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
         }
+        public async Task<ResultResponseDto<object>> DeleteUser(int userId)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(m => m.UserID == userId && !m.IsDeleted);
+            if(user == null)
+            {
+                return ResultResponseDto<object>.Failure(new string[] { "User not exist" });
+            }
+
+            user.IsDeleted = true;
+
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+
+            return ResultResponseDto<object>.Success(new { }, new string[] { "User deleted successfully" });
+        }
     }
 }

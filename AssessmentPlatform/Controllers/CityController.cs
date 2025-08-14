@@ -72,12 +72,12 @@ namespace AssessmentPlatform.Controllers
             return Ok(result);
         }
 
-        [HttpDelete]
-        [Authorize(Roles = "Admin")]
-        [Route("assignCity/{id}")]
-        public async Task<IActionResult> DeleteAssignCity(int id)
+        [HttpPost]
+        [Authorize]
+        [Route("unAssignCity")]
+        public async Task<IActionResult> UnAssignCity([FromBody] UserCityUnMappingRequestDto requestDto)
         {
-            var result = await _cityService.DeleteAssingCity(id);
+            var result = await _cityService.UnAssignCity(requestDto);
             return Ok(result);
         }
     }

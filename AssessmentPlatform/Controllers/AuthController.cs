@@ -96,6 +96,14 @@ namespace AssessmentPlatform.Controllers
             var user = _authService.Register(req.FullName, req.Email, req.Phone, req.Password, req.Role);
             return Created($"/api/user/{user.UserID}", new { user.UserID, user.FullName, user.Email, user.Role });
         }
+
+        [HttpDelete("deleteUser/{userId}")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> DeleteUser(int userId)
+        {
+            var result = await _authService.DeleteUser(userId);
+            return Ok(result);
+        }
     }
 
     public class LoginRequest

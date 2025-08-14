@@ -15,6 +15,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<bool>> DeleteCityAsync(int id);
         Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int AssignedByUserId);
         Task<ResultResponseDto<object>> EditAssingCity(int id,int userId, int cityId, int AssignedByUserId);
-        Task<ResultResponseDto<object>> DeleteAssingCity(int id);
+        Task<ResultResponseDto<object>> UnAssignCity(UserCityUnMappingRequestDto requestDto);
     }
 }

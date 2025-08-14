@@ -27,7 +27,7 @@ namespace AssessmentPlatform.Services
 
             var query =
                 from u in _context.Users
-                where u.Role == (currentUser.Role == UserRole.Admin ? request.GetUserRole : UserRole.Evaluator) && u.Role != UserRole.Admin
+                where u.Role == (currentUser.Role == UserRole.Admin ? request.GetUserRole : UserRole.Evaluator) && !u.IsDeleted
                 join uc in _context.UserCityMappings.Where(x => !x.IsDeleted && (x.AssignedByUserId == request.UserID || currentUser.Role == UserRole.Admin))
                     on u.UserID equals uc.UserId into userCityJoin
                 from uc in userCityJoin.DefaultIfEmpty()
@@ -58,6 +58,7 @@ namespace AssessmentPlatform.Services
 
 
             response.Data = response.Data.GroupBy(x => x.UserID).Select(g => g.FirstOrDefault());
+            response.TotalRecords = response.Data.Count();
 
             // Get all cities for fetched users in one query
             var userIds = response.Data.Select(x => x.UserID).ToList();

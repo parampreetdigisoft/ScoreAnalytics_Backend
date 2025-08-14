@@ -178,16 +178,19 @@ namespace AssessmentPlatform.Services
             return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "Assigned city updated successfully" }));
         }
 
-        public async Task<ResultResponseDto<object>> DeleteAssingCity(int id)
+        public async Task<ResultResponseDto<object>> UnAssignCity(UserCityUnMappingRequestDto requestDto)
         {
-            var userMapping = _context.UserCityMappings.Find(id);
-            if (userMapping == null)
+            var userMapping = _context.UserCityMappings.Where(x => x.UserId == requestDto.UserId && x.AssignedByUserId == requestDto.AssignedByUserId && !x.IsDeleted).ToList();
+            if (userMapping == null && userMapping?.Count==0)
             {
-                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
+                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "user has no assign city" }));
+            }
+            foreach (var m in userMapping)
+            {
+                m.IsDeleted = true;
+                _context.UserCityMappings.Update(m);
             }
 
-            userMapping.IsDeleted = true;
-            _context.UserCityMappings.Update(userMapping);
             await _context.SaveChangesAsync();
 
             return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "Assigned city deleted successfully" }));
