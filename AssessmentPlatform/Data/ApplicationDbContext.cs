@@ -10,6 +10,7 @@ namespace AssessmentPlatform.Data
         public DbSet<User> Users { get; set; } = default!;
         public DbSet<Pillar> Pillars { get; set; } = default!;
         public DbSet<Question> Questions { get; set; } = default!;
+        public DbSet<QuestionOption> QuestionOptions { get; set; } = default!;
         public DbSet<AssessmentResponse> AssessmentResponses { get; set; } = default!;
         public DbSet<City> Cities { get; set; } = default!;
         public DbSet<UserCityMapping> UserCityMappings { get; set; } = default!;
@@ -21,6 +22,13 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<Pillar>().HasKey(uc => uc.PillarID);
 
             modelBuilder.Entity<Question>().HasKey(uc => uc.QuestionID);
+            modelBuilder.Entity<QuestionOption>().HasKey(qo => qo.OptionID);
+
+            modelBuilder.Entity<Question>()
+                .HasMany(q => q.QuestionOptions)
+                .WithOne(qo => qo.Question)
+                .HasForeignKey(qo => qo.QuestionID)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<AssessmentResponse>().HasKey(uc => uc.AssessmentID);
 

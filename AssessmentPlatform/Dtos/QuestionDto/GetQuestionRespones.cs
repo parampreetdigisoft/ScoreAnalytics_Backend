@@ -2,11 +2,8 @@
 
 namespace AssessmentPlatform.Dtos.QuestionDto
 {
-    public class GetQuestionRespones
+    public class GetQuestionRespones : AddUpdateQuestionDto
     {
-        public int QuestionID { get; set; }
-        public int PillarID { get; set; }
-        public string QuestionText { get; set; }
         public int DisplayOrder { get; set; }
         public string PillarName { get; set; }
     }

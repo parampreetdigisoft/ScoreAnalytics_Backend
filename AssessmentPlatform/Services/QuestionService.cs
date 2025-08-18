@@ -1,11 +1,11 @@
 using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.QuestionDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
-
 namespace AssessmentPlatform.Services
 {
     public class QuestionService : IQuestionService
@@ -26,6 +26,7 @@ namespace AssessmentPlatform.Services
             var query =
                 from q in _context.Questions
                     .Include(q => q.Pillar)
+                    .Include(o => o.QuestionOptions)
                 where !q.IsDeleted
                    && (!request.PillarID.HasValue || q.PillarID == request.PillarID.Value)
                 select new GetQuestionRespones
@@ -34,7 +35,8 @@ namespace AssessmentPlatform.Services
                     QuestionText = q.QuestionText,
                     PillarID = q.PillarID,
                     PillarName = q.Pillar.PillarName,
-                    DisplayOrder = q.DisplayOrder
+                    DisplayOrder = q.DisplayOrder,
+                    QuestionOptions = q.QuestionOptions.ToList()
                 };
 
             var response = await query.ApplyPaginationAsync(request);
@@ -65,10 +67,97 @@ namespace AssessmentPlatform.Services
             var q = await _context.Questions.FindAsync(id);
             if (q == null) return false;
 
-            q.IsDeleted = true; 
+            q.IsDeleted = true;
             _context.Questions.Update(q);
             await _context.SaveChangesAsync();
             return true;
         }
+
+        public async Task<ResultResponseDto<string>> AddUpdateQuestion(AddUpdateQuestionDto q)
+        {
+            try
+            {
+                var pillarQuestions = await _context.Questions
+                .Include(x => x.QuestionOptions)
+                .Where(x => x.PillarID == q.PillarID)
+                .ToListAsync();
+
+                var totalQuestions = pillarQuestions.Count;
+                var question = pillarQuestions.FirstOrDefault(x => x.QuestionID == q.QuestionID) ?? new Question();
+
+                // Common properties
+                question.IsDeleted = false;
+                question.QuestionText = q.QuestionText;
+                question.DisplayOrder = totalQuestions + 1;
+                question.PillarID = q.PillarID;
+
+                // Sync options (Add / Update / Delete)
+                var incomingOptions = q.QuestionOptions ?? new List<QuestionOption>();
+
+
+                foreach (var o in incomingOptions)
+                {
+                    var option = question.QuestionOptions.FirstOrDefault(x => x.OptionID == o.OptionID && x.OptionID >0 );
+
+                    if (option == null) // new option
+                    {
+                        option = new QuestionOption
+                        {
+                            OptionText = o.OptionText,
+                            DisplayOrder = (o.ScoreValue ?? -1) + 1,
+                            ScoreValue = o.ScoreValue,
+                            Question = question
+                        };
+                        question.QuestionOptions.Add(option);
+                    }
+                    else // update existing
+                    {
+                        option.OptionText = o.OptionText;
+                        option.DisplayOrder = (o.ScoreValue ?? -1) + 1;
+                        option.ScoreValue = o.ScoreValue;
+                    }
+                }
+                // Add default N/A and Unknown only for new question
+                if (question.QuestionID == 0)
+                {
+                    question.QuestionOptions.Add(new QuestionOption
+                    {
+                        DisplayOrder = 6,
+                        OptionText = "N/A",
+                        ScoreValue = null
+                    });
+                    question.QuestionOptions.Add(new QuestionOption
+                    {
+                        DisplayOrder = 7,
+                        OptionText = "Unknown",
+                        ScoreValue = null
+                    });
+                }
+
+                var optionIdsFromDto = incomingOptions.Select(x => x.OptionID).ToHashSet();
+                var optionsToRemove = question.QuestionOptions
+                    .Where(x => x.OptionID > 0 && x.ScoreValue !=null && !optionIdsFromDto.Contains(x.OptionID))
+                    .ToList();
+
+                foreach (var remove in optionsToRemove)
+                {
+                    _context.QuestionOptions.Remove(remove);
+                }
+
+                // Save Question
+                if (question.QuestionID > 0)
+                    _context.Questions.Update(question);
+                else
+                    _context.Questions.Add(question);
+
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<string>.Success("", new[] { question.QuestionID > 0 ? "Question updated successfully" : "Question saved successfully" });
+            }
+            catch (Exception ex)
+            {
+                return ResultResponseDto<string>.Failure(new[] { ex.Message });
+            }
+        }
     }
-} 
+}
