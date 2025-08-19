@@ -14,7 +14,7 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
         public int AssessmentID { get; set; }
         public int QuestionID { get; set; }
         public int QuestionOptionID { get; set; }
-        public ScoreValue Score { get; set; }
+        public ScoreValue? Score { get; set; }
         public string Justification { get; set; }
     }
 }

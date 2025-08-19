@@ -9,7 +9,7 @@ namespace AssessmentPlatform.Models
         public int AssessmentID { get; set; }
         public int QuestionID { get; set; }
         public int QuestionOptionID { get; set; }
-        public ScoreValue Score { get; set; }
+        public ScoreValue? Score { get; set; }
         public string Justification { get; set; } 
         public Assessment Assessment { get; set; } 
         public Question Question { get; set; } 
