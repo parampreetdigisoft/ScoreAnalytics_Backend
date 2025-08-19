@@ -7,4 +7,9 @@ namespace AssessmentPlatform.Dtos.QuestionDto
         public int DisplayOrder { get; set; }
         public string PillarName { get; set; }
     }
+    public class GetQuestionByCityRespones : GetQuestionRespones
+    {
+        public int AssessmentID { get; set; }
+        public int PillarDisplayOrder { get; set; }
+    }
 }

@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
+using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
-using AssessmentPlatform.IServices;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -49,6 +50,14 @@ namespace AssessmentPlatform.Controllers
             var success = await _responseService.DeleteAsync(id);
             if (!success) return NotFound();
             return Ok();
+        }
+
+        [HttpPost]
+        [Route("saveAssessment")]
+        public async Task<IActionResult> SaveAssessment([FromBody] AddAssessmentDto response)
+        {
+            var result = await _responseService.SaveAssessment(response);
+            return Ok(result);
         }
     }
 } 

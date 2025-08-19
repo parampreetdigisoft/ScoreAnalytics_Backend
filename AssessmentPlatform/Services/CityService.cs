@@ -69,28 +69,55 @@ namespace AssessmentPlatform.Services
            
            return ResultResponseDto<City>.Success(existing,new string[] { "City edited Successfully" });
         }
-        public async Task<PaginationResponse<City>> GetCitiesAsync(PaginationRequest request)
+        public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request)
         {
             var user = _context.Users.FirstOrDefault(x => x.UserID == request.UserId);
             if (user == null)
             {
-                return new PaginationResponse<City>();
+                return new PaginationResponse<CityResponseDto>();
             }
 
-            IQueryable<City> cityQuery;
+            IQueryable<CityResponseDto> cityQuery;
 
             if (user.Role == UserRole.Admin)
             {
-                cityQuery = from c in _context.Cities
-                            select c;
+                cityQuery = 
+                    from c in _context.Cities
+                    select new CityResponseDto
+                    {
+                        CityID = c.CityID,
+                        State = c.State,
+                        CityName = c.CityName,
+                        PostalCode = c.PostalCode,
+                        Region = c.Region,
+                        IsActive = c.IsActive,
+                        CreatedDate = c.CreatedDate,
+                        UpdatedDate = c.UpdatedDate,
+                        IsDeleted = c.IsDeleted
+                    }; 
             }
             else
             {
-                cityQuery = from c in _context.Cities
-                            join cm in _context.UserCityMappings
-                                .Where(x => !x.IsDeleted && x.UserId == request.UserId)
-                                on c.CityID equals cm.CityId
-                            select c;
+               cityQuery =
+                from c in _context.Cities
+                join cm in _context.UserCityMappings
+                    .Where(x => !x.IsDeleted && x.UserId == request.UserId)
+                    on c.CityID equals cm.CityId
+                join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                select new CityResponseDto
+                {
+                    CityID = c.CityID,
+                    State = c.State,
+                    CityName = c.CityName,
+                    PostalCode = c.PostalCode,
+                    Region = c.Region,
+                    IsActive = c.IsActive,
+                    CreatedDate = c.CreatedDate,
+                    UpdatedDate = c.UpdatedDate,
+                    IsDeleted = c.IsDeleted,
+                    AssignedBy = u.FullName
+                };
+                
             }
             var response = await cityQuery.ApplyPaginationAsync(
                 request,

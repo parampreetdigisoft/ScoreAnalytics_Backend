@@ -7,11 +7,11 @@ namespace AssessmentPlatform.Models
     {
         public int ResponseID { get; set; }
         public int AssessmentID { get; set; }
-        public int CityID { get; set; }
         public int QuestionID { get; set; }
-        public int UserID { get; set; }
+        public int QuestionOptionID { get; set; }
         public ScoreValue Score { get; set; }
-        public string Justification { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public string Justification { get; set; } 
+        public Assessment Assessment { get; set; } 
+        public Question Question { get; set; } 
     }
 } 

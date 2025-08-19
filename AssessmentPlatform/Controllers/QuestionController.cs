@@ -57,5 +57,10 @@ namespace AssessmentPlatform.Controllers
             if (!success) return NotFound();
             return Ok();
         }
+
+        [HttpGet("getQuestionsByCityId")]
+        [Authorize]
+        public async Task<IActionResult> GetQuestionsByCityIdAsync([FromQuery] CityPillerRequestDto requestDto) => Ok(await _questionService.GetQuestionsByCityIdAsync(requestDto));
+
     }
 }

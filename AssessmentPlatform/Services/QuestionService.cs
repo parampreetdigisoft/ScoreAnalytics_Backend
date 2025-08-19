@@ -88,7 +88,6 @@ namespace AssessmentPlatform.Services
                 // Common properties
                 question.IsDeleted = false;
                 question.QuestionText = q.QuestionText;
-                question.DisplayOrder = totalQuestions + 1;
                 question.PillarID = q.PillarID;
 
                 // Sync options (Add / Update / Delete)
@@ -97,7 +96,7 @@ namespace AssessmentPlatform.Services
 
                 foreach (var o in incomingOptions)
                 {
-                    var option = question.QuestionOptions.FirstOrDefault(x => x.OptionID == o.OptionID && x.OptionID >0 );
+                    var option = question.QuestionOptions.FirstOrDefault(x => x.OptionID == o.OptionID && x.OptionID > 0);
 
                     if (option == null) // new option
                     {
@@ -120,6 +119,8 @@ namespace AssessmentPlatform.Services
                 // Add default N/A and Unknown only for new question
                 if (question.QuestionID == 0)
                 {
+                    question.DisplayOrder = totalQuestions + 1;
+
                     question.QuestionOptions.Add(new QuestionOption
                     {
                         DisplayOrder = 6,
@@ -136,7 +137,7 @@ namespace AssessmentPlatform.Services
 
                 var optionIdsFromDto = incomingOptions.Select(x => x.OptionID).ToHashSet();
                 var optionsToRemove = question.QuestionOptions
-                    .Where(x => x.OptionID > 0 && x.ScoreValue !=null && !optionIdsFromDto.Contains(x.OptionID))
+                    .Where(x => x.OptionID > 0 && x.ScoreValue != null && !optionIdsFromDto.Contains(x.OptionID))
                     .ToList();
 
                 foreach (var remove in optionsToRemove)
@@ -152,12 +153,58 @@ namespace AssessmentPlatform.Services
 
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<string>.Success("", new[] { question.QuestionID > 0 ? "Question updated successfully" : "Question saved successfully" });
+                return ResultResponseDto<string>.Success("", new[] { q.QuestionID > 0 ? "Question updated successfully" : "Question saved successfully" });
             }
             catch (Exception ex)
             {
                 return ResultResponseDto<string>.Failure(new[] { ex.Message });
             }
         }
+
+        public async Task<ResultResponseDto<List<GetQuestionByCityRespones>>> GetQuestionsByCityIdAsync(CityPillerRequestDto request)
+        {
+            // Load assessment once (if exists)
+            var assessment = await _context.Assessments
+                .Where(a => a.UserID == request.UserID && a.CityID == request.CityID)
+                .FirstOrDefaultAsync();
+
+            // Get distinct answered pillar IDs
+            var answeredPillarIds = await _context.AssessmentResponses
+                .Where(r => r.Assessment.UserID == request.UserID && r.Assessment.CityID == request.CityID)
+                .Select(r => r.Question.PillarID)
+                .Distinct()
+                .ToListAsync();
+
+            // Get next unanswered pillar
+            var nextPillar = await _context.Pillars
+                .Include(p => p.Questions)
+                    .ThenInclude(q => q.QuestionOptions)
+                .Where(p => !answeredPillarIds.Contains(p.PillarID))
+                .OrderBy(p => p.DisplayOrder)
+                .FirstOrDefaultAsync();
+
+            if (nextPillar == null)
+            {
+                return ResultResponseDto<List<GetQuestionByCityRespones>>.Failure(new[] { "You have submitted assessment for this city" });
+            }
+
+            // Project questions
+            var questions = nextPillar.Questions
+            .OrderBy(q => q.DisplayOrder)
+            .Select(q => new GetQuestionByCityRespones
+            {
+                QuestionID = q.QuestionID,
+                QuestionText = q.QuestionText,
+                PillarID = q.PillarID,
+                PillarName = nextPillar.PillarName,  // avoid extra nav
+                DisplayOrder = q.DisplayOrder,
+                QuestionOptions = q.QuestionOptions.ToList(),
+                AssessmentID = assessment?.AssessmentID ?? 0,
+                PillarDisplayOrder = nextPillar.DisplayOrder
+            }).ToList();
+
+            return ResultResponseDto<List<GetQuestionByCityRespones>>.Success(questions, new[] { "get questions successfully" });
+        }
+
     }
 }

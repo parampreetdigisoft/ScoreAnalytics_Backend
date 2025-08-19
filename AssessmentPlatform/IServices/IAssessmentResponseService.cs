@@ -1,6 +1,8 @@
+using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.Models;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using AssessmentPlatform.Models;
 
 namespace AssessmentPlatform.IServices
 {
@@ -11,5 +13,6 @@ namespace AssessmentPlatform.IServices
         Task<AssessmentResponse> AddAsync(AssessmentResponse response);
         Task<AssessmentResponse> UpdateAsync(int id, AssessmentResponse response);
         Task<bool> DeleteAsync(int id);
+        Task<ResultResponseDto<string>> SaveAssessment(AddAssessmentDto request);
     }
 } 

@@ -7,7 +7,7 @@ namespace AssessmentPlatform.IServices
 {
     public interface ICityService
     {
-        Task<PaginationResponse<City>> GetCitiesAsync(PaginationRequest request);
+        Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request);
         Task<ResultResponseDto<List<City>>> getAllCityByUserId(int userId);
         Task<ResultResponseDto<City>> GetByIdAsync(int id);
         Task<ResultResponseDto<City>> AddCityAsync(AddUpdateCityDto q);

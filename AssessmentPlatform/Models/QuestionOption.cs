@@ -1,4 +1,6 @@
-﻿namespace AssessmentPlatform.Models
+﻿using System.Text.Json.Serialization;
+
+namespace AssessmentPlatform.Models
 {
     public class QuestionOption
     {
@@ -7,6 +9,7 @@
         public string OptionText { get; set; }
         public int? ScoreValue { get; set; }
         public int? DisplayOrder { get; set; }
+        [JsonIgnore]
         public Question? Question { get; set; }  
     }
 }

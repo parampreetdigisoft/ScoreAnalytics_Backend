@@ -15,5 +15,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<string>> AddUpdateQuestion(AddUpdateQuestionDto q);
         Task<Question> EditQuestionAsync(int id, Question q);
         Task<bool> DeleteQuestionAsync(int id);
+        Task<ResultResponseDto<List<GetQuestionByCityRespones>>> GetQuestionsByCityIdAsync(CityPillerRequestDto request);
     }
 } 
