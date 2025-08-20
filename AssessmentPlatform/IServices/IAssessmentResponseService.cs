@@ -1,8 +1,7 @@
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Models;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace AssessmentPlatform.IServices
 {
@@ -14,5 +13,7 @@ namespace AssessmentPlatform.IServices
         Task<AssessmentResponse> UpdateAsync(int id, AssessmentResponse response);
         Task<bool> DeleteAsync(int id);
         Task<ResultResponseDto<string>> SaveAssessment(AddAssessmentDto request);
+        Task<PaginationResponse<GetAssessmentResponseDto>> GetAssessmentResult(GetAssessmentRequestDto request);
+        Task<PaginationResponse<GetAssessmentQuestionResponseDto>> GetAssessmentQuestoin(GetAssessmentQuestoinRequestDto request);
     }
 } 

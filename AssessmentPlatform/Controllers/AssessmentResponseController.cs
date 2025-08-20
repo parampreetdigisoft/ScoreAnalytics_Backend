@@ -59,5 +59,22 @@ namespace AssessmentPlatform.Controllers
             var result = await _responseService.SaveAssessment(response);
             return Ok(result);
         }
+
+        [HttpGet]
+        [Route("getAssessmentResults")]
+        [Authorize]
+        public async Task<IActionResult> GetAssessmentResult([FromQuery] GetAssessmentRequestDto response)
+        {
+            var result = await _responseService.GetAssessmentResult(response);
+            return Ok(result);
+        }
+        [HttpGet]
+        [Route("getAssessmentQuestoins")]
+        [Authorize]
+        public async Task<IActionResult> GetAssessmentQuestoins([FromQuery] GetAssessmentQuestoinRequestDto response)
+        {
+            var result = await _responseService.GetAssessmentQuestoin(response);
+            return Ok(result);
+        }
     }
 } 
