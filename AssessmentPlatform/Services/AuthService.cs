@@ -170,6 +170,7 @@ namespace AssessmentPlatform.Services
             {
                 return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
             }
+            bool isExistingUser = true;
             var user =  GetByEmail(inviteUser.Email);
 
             if (user == null)
@@ -180,6 +181,7 @@ namespace AssessmentPlatform.Services
                     return ResultResponseDto<object>.Failure(new string[] { "Failed to register user." });
                 }
                 user.CreatedBy = inviteUser.InvitedUserID;
+                isExistingUser = false;
             }
             if (user.Role != inviteUser.Role)
             {
@@ -218,7 +220,22 @@ namespace AssessmentPlatform.Services
                 }
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<object>.Success(new {},new string[] { "Invitation sent successfully." });
+                string msg = string.Empty;
+
+                if (isExistingUser && !user.IsEmailConfirmed)
+                {
+                    msg = "This user already exists. An invitation has been sent to confirm their email and access the assigned city.";
+                }
+                else if (!isExistingUser)
+                {
+                    msg = "User added successfully. An invitation has been sent to access the assigned city.";
+                }
+                else
+                {
+                    msg = "This user already exists and now have access to the assigned city.";
+                }
+
+                return ResultResponseDto<object>.Success(new {},new string[] { msg });
             }
             return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
         }

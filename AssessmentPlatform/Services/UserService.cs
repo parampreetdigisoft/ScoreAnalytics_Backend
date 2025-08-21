@@ -24,16 +24,24 @@ namespace AssessmentPlatform.Services
         public async Task<PaginationResponse<GetUserByRoleResponse>> GetUserByRoleWithAssignedCity(GetUserByRoleRequestDto request)
         {
             var currentUser = _context.Users.First(u => u.UserID == request.UserID);
+  
+            var filteredMappings =
+                _context.UserCityMappings
+                    .Where(x => !x.IsDeleted &&
+                           (x.AssignedByUserId == request.UserID || currentUser.Role == UserRole.Admin));
 
+            // Build one-row-per-user by taking at most 1 mapping row per user
+            // NOTE: use a deterministic column to order (e.g., CreatedAt or primary key).
             var query =
                 from u in _context.Users
-                where u.Role == (currentUser.Role == UserRole.Admin ? request.GetUserRole : UserRole.Evaluator) && !u.IsDeleted
-                join uc in _context.UserCityMappings.Where(x => !x.IsDeleted && (x.AssignedByUserId == request.UserID || currentUser.Role == UserRole.Admin))
-                    on u.UserID equals uc.UserId into userCityJoin
-                from uc in userCityJoin.DefaultIfEmpty()
-                join ab in _context.Users
-                    on uc.AssignedByUserId equals ab.UserID into assignedByJoin
-                from ab in assignedByJoin.DefaultIfEmpty()
+                where u.Role == (currentUser.Role == UserRole.Admin ? request.GetUserRole : UserRole.Evaluator)
+                      && !u.IsDeleted
+                from uc in filteredMappings
+                            .Where(m => m.UserId == u.UserID)
+                            .Take(1)                              
+                from ab in _context.Users
+                            .Where(p => uc != null && p.UserID == uc.AssignedByUserId)
+                            .DefaultIfEmpty()
                 select new GetUserByRoleResponse
                 {
                     UserID = u.UserID,
@@ -41,11 +49,11 @@ namespace AssessmentPlatform.Services
                     Email = u.Email,
                     Phone = u.Phone,
                     Role = u.Role.ToString(),
-                    CreatedBy = uc.AssignedByUserId,
+                    CreatedBy = uc != null ? uc.AssignedByUserId : null,
                     IsDeleted = u.IsDeleted,
                     IsEmailConfirmed = u.IsEmailConfirmed,
                     CreatedAt = u.CreatedAt,
-                    CreatedByName = ab.FullName
+                    CreatedByName = ab != null ? ab.FullName : null
                 };
 
 
@@ -56,14 +64,10 @@ namespace AssessmentPlatform.Services
                      x.Email.Contains(request.SearchText) ||
                      x.FullName.Contains(request.SearchText));
 
-
-            response.Data = response.Data.GroupBy(x => x.UserID).Select(g => g.FirstOrDefault());
-            response.TotalRecords = response.Data.Count();
-
             // Get all cities for fetched users in one query
             var userIds = response.Data.Select(x => x.UserID).ToList();
             var cityMap = await _context.UserCityMappings
-            .Where(x => !x.IsDeleted && userIds.Contains(x.UserId))
+            .Where(x => !x.IsDeleted && userIds.Contains(x.UserId) && x.AssignedByUserId == request.UserID)
             .Join(_context.Cities,
                   cm => cm.CityId,
                   c => c.CityID,

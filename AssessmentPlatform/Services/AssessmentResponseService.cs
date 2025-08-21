@@ -61,7 +61,7 @@ namespace AssessmentPlatform.Services
                     .Include(x => x.Responses)
                     .FirstOrDefaultAsync(x =>
                         x.IsActive &&
-                        x.AssessmentID == request.AssessmentID &&
+                        (x.AssessmentID == request.AssessmentID || x.UserID == request.UserID) &&
                         x.CityID == request.CityID);
 
                 if (assessment == null)
