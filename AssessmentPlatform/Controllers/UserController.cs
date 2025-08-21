@@ -25,8 +25,12 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet]
-        [Route("GetUserByRole")]
-        public async Task<IActionResult> GetUserByRole([FromQuery] GetUserByRoleRequestDto request) => Ok(await _userService.GetUserByRole(request));
+        [Route("GetUserByRoleWithAssignedCity")]
+        public async Task<IActionResult> GetUserByRoleWithAssignedCity([FromQuery] GetUserByRoleRequestDto request) => Ok(await _userService.GetUserByRoleWithAssignedCity(request));
+
+        [HttpGet]
+        [Route("GetEvaluatorByAnalyst")]
+        public async Task<IActionResult> GetEvaluatorByAnalyst([FromQuery] GetAssignUserDto request) => Ok(await _userService.GetEvaluatorByAnalyst(request));
     }
 
     public class RegisterRequest

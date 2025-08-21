@@ -1,4 +1,5 @@
 using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
@@ -20,8 +21,7 @@ namespace AssessmentPlatform.Services
         {
             return _context.Users.FirstOrDefault(u => u.Email == email);
         }
-
-        public async Task<PaginationResponse<GetUserByRoleResponse>> GetUserByRole(GetUserByRoleRequestDto request)
+        public async Task<PaginationResponse<GetUserByRoleResponse>> GetUserByRoleWithAssignedCity(GetUserByRoleRequestDto request)
         {
             var currentUser = _context.Users.First(u => u.UserID == request.UserID);
 
@@ -67,7 +67,8 @@ namespace AssessmentPlatform.Services
             .Join(_context.Cities,
                   cm => cm.CityId,
                   c => c.CityID,
-                  (cm, c) => new {
+                  (cm, c) => new
+                  {
                       cm.UserId,
                       City = new AddUpdateCityDto
                       {
@@ -77,7 +78,7 @@ namespace AssessmentPlatform.Services
                           State = c.State
                       }
                   })
-            .ToListAsync(); 
+            .ToListAsync();
 
             var result = cityMap
                 .GroupBy(x => x.UserId)
@@ -90,6 +91,31 @@ namespace AssessmentPlatform.Services
             }
 
             return response;
+        }
+
+        public async Task<ResultResponseDto<List<PublicUserResponse>>> GetEvaluatorByAnalyst(GetAssignUserDto request)
+        {
+            var query =
+                from u in _context.Users
+                where !u.IsDeleted
+                join uc in _context.UserCityMappings.Where(x => !x.IsDeleted && x.AssignedByUserId == request.UserID && (!request.SearchedUserID.HasValue || x.UserId == request.SearchedUserID))
+                    on u.UserID equals uc.UserId
+                select new PublicUserResponse
+                {
+                    UserID = u.UserID,
+                    FullName = u.FullName,
+                    Email = u.Email,
+                    Phone = u.Phone,
+                    Role = u.Role.ToString(),
+                    CreatedBy = uc.AssignedByUserId,
+                    IsDeleted = u.IsDeleted,
+                    IsEmailConfirmed = u.IsEmailConfirmed,
+                    CreatedAt = u.CreatedAt
+                };
+
+            var users = await query.Distinct().ToListAsync();
+
+            return ResultResponseDto<List<PublicUserResponse>>.Success(users, new[] { "user get successfully" });
         }
 
     }

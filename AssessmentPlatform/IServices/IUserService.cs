@@ -8,6 +8,7 @@ namespace AssessmentPlatform.IServices
     public interface IUserService
     {
         User GetByEmail(string email);
-        Task<PaginationResponse<GetUserByRoleResponse>> GetUserByRole(GetUserByRoleRequestDto requestDto);
+        Task<PaginationResponse<GetUserByRoleResponse>> GetUserByRoleWithAssignedCity(GetUserByRoleRequestDto requestDto);
+        Task<ResultResponseDto<List<PublicUserResponse>>> GetEvaluatorByAnalyst(GetAssignUserDto requestDto);
     }
 } 
