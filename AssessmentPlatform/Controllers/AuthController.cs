@@ -104,6 +104,16 @@ namespace AssessmentPlatform.Controllers
             var result = await _authService.DeleteUser(userId);
             return Ok(result);
         }
+
+        [HttpPost("refreshToken")]
+        [Authorize]
+        public async Task<IActionResult> RefreshToken([FromBody] UserIdDto request)
+        {
+            var user = await _authService.RefreshToken(request.UserID);
+            if (user == null)
+                return Unauthorized();
+            return Ok(user);
+        }
     }
 
     public class LoginRequest

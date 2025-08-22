@@ -118,19 +118,24 @@ namespace AssessmentPlatform.Services
         }
         public async Task<ResultResponseDto<UserResponseDto>> Login(string email, string password)
         {
-            var user = GetByEmail(email);
+            var user = await GetByEmailAysync(email);
             if (user == null || !VerifyPassword(password, user.PasswordHash))
             {
                 return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
             }
-            if(!user.IsEmailConfirmed || user.IsDeleted)
+            var response = GetAuthorizedUserDetails(user);
+            return response;
+        }
+        public ResultResponseDto<UserResponseDto> GetAuthorizedUserDetails(User user)
+        {
+            if (!user.IsEmailConfirmed || user.IsDeleted)
             {
                 string message = $"Your mail is not confirmed or de-activated by super {(user.Role == UserRole.Analyst ? "Admin" : "Analyst")}";
 
                 return ResultResponseDto<UserResponseDto>.Failure(new string[] { message });
             }
-            var claims = new[]
-            {
+           var claims = new[]
+           {
                 new Claim(ClaimTypes.Name, user.Email),
                 new Claim(ClaimTypes.Role, user.Role.ToString())
             };
@@ -161,7 +166,7 @@ namespace AssessmentPlatform.Services
                 ProfileImagePath = user.ProfileImagePath,
                 Token = token
             };
-            return await Task.FromResult(ResultResponseDto<UserResponseDto>.Success(response, new string[] { "Invitation sent successfully." }));
+            return ResultResponseDto<UserResponseDto>.Success(response, new string[] { "Invitation sent successfully." });
         }
 
         public async Task<ResultResponseDto<object>> InviteUser(InviteUserDto inviteUser)
@@ -340,6 +345,18 @@ namespace AssessmentPlatform.Services
             await _context.SaveChangesAsync();
 
             return ResultResponseDto<object>.Success(new { }, new string[] { "User deleted successfully" });
+        }
+
+        public async Task<ResultResponseDto<UserResponseDto>> RefreshToken(int userId)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(x=>!x.IsDeleted && x.UserID == userId);
+            if (user == null)
+            {
+                return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
+            }
+            var response = GetAuthorizedUserDetails(user);
+
+            return await Task.FromResult(response);
         }
     }
 }

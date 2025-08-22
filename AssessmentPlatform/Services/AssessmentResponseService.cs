@@ -113,10 +113,11 @@ namespace AssessmentPlatform.Services
 
             if (!request.SubUserID.HasValue && user.Role != UserRole.Admin)
             {
-               
                 userIDs = _context.UserCityMappings
                     .Where(x => !x.IsDeleted && x.AssignedByUserId == user.UserID)
                     .Select(x => x.UserId).ToList();
+
+                if(user.Role != UserRole.Analyst)
                 userIDs.Add(user.UserID);
             }
             else
@@ -182,6 +183,7 @@ namespace AssessmentPlatform.Services
                 {
                     AssessmentID = request.AssessmentID,
                     PillerID = r.PillarID,
+                    PillarName = r.Question.Pillar.PillarName,
                     QuestoinID = r.QuestionID,
                     Score = r.Score,
                     UserID = user.UserID,
