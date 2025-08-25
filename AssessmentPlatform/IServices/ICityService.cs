@@ -10,7 +10,7 @@ namespace AssessmentPlatform.IServices
         Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request);
         Task<ResultResponseDto<List<City>>> getAllCityByUserId(int userId);
         Task<ResultResponseDto<City>> GetByIdAsync(int id);
-        Task<ResultResponseDto<City>> AddCityAsync(AddUpdateCityDto q);
+        Task<ResultResponseDto<string>> AddCityAsync(BulkAddCityDto q);
         Task<ResultResponseDto<City>> EditCityAsync(int id, AddUpdateCityDto q);
         Task<ResultResponseDto<bool>> DeleteCityAsync(int id);
         Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int AssignedByUserId);

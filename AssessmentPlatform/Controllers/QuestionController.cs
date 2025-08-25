@@ -40,6 +40,14 @@ namespace AssessmentPlatform.Controllers
             return Ok(result);
         }
 
+        [HttpPost("addBulkQuestions")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AddBulkQuestions([FromBody] AddBulkQuestionsDto q)
+        {
+            var result = await _questionService.AddBulkQuestion(q);
+            return Ok(result);
+        }
+
         [HttpPut("edit/{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> EditQuestion(int id, [FromBody] Question q)

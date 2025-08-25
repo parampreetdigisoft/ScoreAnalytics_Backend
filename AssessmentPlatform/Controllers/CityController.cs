@@ -31,7 +31,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost("add")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> AddQuestion([FromBody] AddUpdateCityDto q)
+        public async Task<IActionResult> AddQuestion([FromBody] BulkAddCityDto q)
         {
             var result = await _cityService.AddCityAsync(q);
             return Ok(result);

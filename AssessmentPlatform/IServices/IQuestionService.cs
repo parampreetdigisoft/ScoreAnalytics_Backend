@@ -13,6 +13,7 @@ namespace AssessmentPlatform.IServices
         Task<PaginationResponse<GetQuestionRespones>> GetQuestionsAsync(GetQuestionRequestDto requestDto);
         Task<Question> AddQuestionAsync(Question q);
         Task<ResultResponseDto<string>> AddUpdateQuestion(AddUpdateQuestionDto q);
+        Task<ResultResponseDto<string>> AddBulkQuestion(AddBulkQuestionsDto q);
         Task<Question> EditQuestionAsync(int id, Question q);
         Task<bool> DeleteQuestionAsync(int id);
         Task<ResultResponseDto<List<GetQuestionByCityRespones>>> GetQuestionsByCityIdAsync(CityPillerRequestDto request);

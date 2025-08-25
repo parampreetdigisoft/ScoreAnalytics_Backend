@@ -9,4 +9,8 @@ namespace AssessmentPlatform.Dtos.QuestionDto
         public string QuestionText { get; set; }
         public List<QuestionOption> QuestionOptions { get; set; }
     }
+    public class AddBulkQuestionsDto
+    {
+        public List<AddUpdateQuestionDto> Questions { get; set; }
+    }
 }

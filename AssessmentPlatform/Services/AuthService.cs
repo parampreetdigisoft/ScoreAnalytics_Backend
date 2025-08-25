@@ -358,5 +358,110 @@ namespace AssessmentPlatform.Services
 
             return await Task.FromResult(response);
         }
+
+        public async Task<ResultResponseDto<object>> InviteBulkUser(InviteBulkUserDto inviteUserList)
+        {
+            try
+            {
+                if (inviteUserList?.users == null || !inviteUserList.users.Any())
+                {
+                    return ResultResponseDto<object>.Failure(new[] { "No users provided." });
+                }
+
+                // 1. Bulk fetch all users by email
+                var emails = inviteUserList.users.Select(u => u.Email).ToList();
+                var existingUsers = await _context.Users
+                    .Where(u => emails.Contains(u.Email))
+                    .ToDictionaryAsync(u => u.Email, u => u);
+
+                // Collect new users & city mappings
+                var newUsers = new List<User>();
+                var newMappings = new List<UserCityMapping>();
+                var emailTasks = new List<Task>();
+
+                foreach (var inviteUser in inviteUserList.users)
+                {
+                    if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
+                    {
+                        return ResultResponseDto<object>.Failure(new[] { "Invalid request data." });
+                    }
+
+                    // 2. Try get existing user
+                    existingUsers.TryGetValue(inviteUser.Email, out var user);
+
+                    // 3. Register if not exists
+                    if (user == null)
+                    {
+                        user = new User
+                        {
+                            FullName = inviteUser.FullName,
+                            Email = inviteUser.Email,
+                            Phone = inviteUser.Phone,
+                            PasswordHash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Password),
+                            Role = inviteUser.Role,
+                            CreatedBy = inviteUser.InvitedUserID,
+                            IsDeleted = false
+                        };
+                        newUsers.Add(user);
+                        existingUsers[inviteUser.Email] = user; // add to dictionary for later mapping
+                    }
+
+                    if (user.Role != inviteUser.Role)
+                    {
+                        return ResultResponseDto<object>.Failure(new[] { $"User {inviteUser.Email} already has a different role." });
+                    }
+
+                    // 5. Handle email invitation
+                    if (!user.IsEmailConfirmed)
+                    {
+                        var token = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email).Replace("+", " ");
+                        string resetLink = $"{_appSettings.ApplicationUrl}/auth/reset-password?PasswordToken={token}";
+
+                        emailTasks.Add(_emailService.SendEmailAsync(
+                            inviteUser.Email,
+                            $"Invitation to Assessment Platform as a {inviteUser.Role}",
+                            "~/Views/EmailTemplates/ChangePassword.cshtml",
+                            new { ResetPasswordUrl = resetLink }
+                        ));
+
+                        user.ResetToken = token;
+                        user.ResetTokenDate = DateTime.Now;
+                        user.IsDeleted = false;
+                    }
+
+                    // 6. Collect city mappings
+                    var existingCityIds = _context.UserCityMappings
+                        .Where(m => m.UserId == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
+                        .Select(m => m.CityId)
+                        .ToList();
+
+                    var citiesToAdd = inviteUser.CityID.Except(existingCityIds).ToList();
+                    foreach (var cityId in citiesToAdd)
+                    {
+                        newMappings.Add(new UserCityMapping
+                        {
+                            UserId = user.UserID,
+                            CityId = cityId,
+                            AssignedByUserId = inviteUser.InvitedUserID,
+                            Role = user.Role
+                        });
+                    }
+                }
+
+                // 7. Save all DB changes at once
+                if (newUsers.Any()) await _context.Users.AddRangeAsync(newUsers);
+                if (newMappings.Any()) await _context.UserCityMappings.AddRangeAsync(newMappings);
+                await _context.SaveChangesAsync();
+
+                // 8. Send all emails in parallel
+                if (emailTasks.Any()) await Task.WhenAll(emailTasks);
+
+                return ResultResponseDto<object>.Success(new { }, new[] { "Users will get invitation link to see assigned cities." });
+            }
+            catch (Exception ex) 
+            {
+                return ResultResponseDto<object>.Failure(new[] { ex.Message });
+            }
+        }
     }
 }

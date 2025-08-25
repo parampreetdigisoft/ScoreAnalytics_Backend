@@ -160,6 +160,76 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { ex.Message });
             }
         }
+        public async Task<ResultResponseDto<string>> AddBulkQuestion(AddBulkQuestionsDto payload)
+        {
+            try
+            {
+                var newQuestions = new List<Question>();
+
+                foreach (var q in payload.Questions)
+                {
+                    var pillarQuestions = await _context.Questions
+                        .Where(x => x.PillarID == q.PillarID && !x.IsDeleted)
+                        .ToListAsync();
+                    if(pillarQuestions.Any(x=>x.QuestionText == q.QuestionText && x.PillarID == q.PillarID))
+                    {
+                        continue;
+                    }
+
+                    var totalQuestions = pillarQuestions.Count;
+
+                    var question = new Question
+                    {
+                        IsDeleted = false,
+                        QuestionText = q.QuestionText,
+                        PillarID = q.PillarID,
+                        DisplayOrder = totalQuestions + 1,
+                        QuestionOptions = new List<QuestionOption>()
+                    };
+
+                    // Add provided options
+                    foreach (var o in q.QuestionOptions)
+                    {
+                        var option = new QuestionOption
+                        {
+                            OptionText = o.OptionText,
+                            DisplayOrder = (o.ScoreValue ?? -1) + 1,
+                            ScoreValue = o.ScoreValue
+                        };
+                        question.QuestionOptions.Add(option);
+                    }
+
+                    // Add default options (N/A & Unknown)
+                    question.QuestionOptions.Add(new QuestionOption
+                    {
+                        DisplayOrder = 6,
+                        OptionText = "N/A",
+                        ScoreValue = null
+                    });
+                    question.QuestionOptions.Add(new QuestionOption
+                    {
+                        DisplayOrder = 7,
+                        OptionText = "Unknown",
+                        ScoreValue = null
+                    });
+
+                    newQuestions.Add(question);
+                }
+
+                // Add all questions in bulk
+                if(newQuestions.Count > 0)
+                {
+                    await _context.Questions.AddRangeAsync(newQuestions);
+                    await _context.SaveChangesAsync();
+                }
+
+                return ResultResponseDto<string>.Success("", new[] { newQuestions.Count + " Questions imported successfully" });
+            }
+            catch (Exception ex)
+            {
+                return ResultResponseDto<string>.Failure(new[] { ex.Message });
+            }
+        }
 
         public async Task<ResultResponseDto<List<GetQuestionByCityRespones>>> GetQuestionsByCityIdAsync(CityPillerRequestDto request)
         {

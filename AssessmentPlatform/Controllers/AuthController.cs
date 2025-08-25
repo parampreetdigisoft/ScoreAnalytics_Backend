@@ -70,6 +70,21 @@ namespace AssessmentPlatform.Controllers
 
             return Ok(response);
         }
+        [HttpPost]
+        [Route("InviteBulkUser")]
+        [Authorize]
+        public async Task<IActionResult> InviteBulkUser([FromBody] InviteUserDto request)
+        {
+            if (request?.Email == null)
+                return BadRequest("Invalid request data.");
+
+            var response = await _authService.InviteBulkUser(request);
+
+            if (response == null)
+                return StatusCode(500, "User Invitation failed due to a server error.");
+
+            return Ok(response);
+        }
 
         [HttpPost]
         [Route("UpdateInviteUser")]

@@ -19,25 +19,72 @@ namespace AssessmentPlatform.Services
             _context = context;
         }
 
-        public async Task<ResultResponseDto<City>> AddCityAsync(AddUpdateCityDto q)
+        public async Task<ResultResponseDto<string>> AddCityAsync(BulkAddCityDto request)
         {
-            var existCity = await _context.Cities.FirstOrDefaultAsync(x => x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
-            if(existCity != null)
+            // Normalize input list
+            var inputCities = request.Cities
+                .Select(c => new { CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim() })
+                .Distinct()
+                .ToList();
+
+            // Get already existing cities (match by CityName + State)
+            var existingCities = await _context.Cities
+                .Where(x => x.IsActive && !x.IsDeleted &&
+                            inputCities.Select(c => c.CityName.ToLower()).Contains(x.CityName.ToLower()) &&
+                            inputCities.Select(c => c.State.ToLower()).Contains(x.State.ToLower()))
+                .Select(x => new { x.CityName, x.State })
+                .ToListAsync();
+
+            var existingCityNames = existingCities
+                .Select(x => $"{x.CityName}, {x.State}")
+                .ToList();
+
+            // Filter out cities that already exist
+            var newCities = inputCities
+                .Where(c => !existingCities.Any(e =>
+                    e.CityName.Equals(c.CityName, StringComparison.OrdinalIgnoreCase) &&
+                    e.State.Equals(c.State, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            // Add only non-existing cities
+            foreach (var cityDto in newCities)
             {
-                return ResultResponseDto<City>.Failure(new string[] { "City already exists" });
+                var city = new City
+                {
+                    CityID = 0,
+                    CityName = cityDto.CityName,
+                    State = cityDto.State,
+                    Region = cityDto.Region,
+                    CreatedDate = DateTime.Now,
+                    IsActive = true,
+                    IsDeleted = false
+                };
+                _context.Cities.Add(city);
             }
-            var city = new City
-            {
-                CityID=0,
-                CityName=q.CityName,
-                CreatedDate=DateTime.Now,
-                State = q.State,
-                Region = q.Region
-            };
-            _context.Cities.Add(city);
+
             await _context.SaveChangesAsync();
 
-            return ResultResponseDto<City>.Success(city, new string[] { "City added Successfully" });
+            // Build response message
+            if (existingCityNames.Any() && newCities.Any())
+            {
+                return ResultResponseDto<string>.Success(
+                    "",
+                    new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
+                );
+            }
+            else if (existingCityNames.Any())
+            {
+                return ResultResponseDto<string>.Failure(
+                    new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
+                );
+            }
+            else
+            {
+                return ResultResponseDto<string>.Success(
+                    "",
+                    new string[] { $"City added successfully" }
+                );
+            }
         }
 
         public async Task<ResultResponseDto<bool>> DeleteCityAsync(int id)
