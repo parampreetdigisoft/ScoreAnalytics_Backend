@@ -14,6 +14,6 @@ namespace AssessmentPlatform.IServices
         Task<bool> DeleteAsync(int id);
         Task<ResultResponseDto<string>> SaveAssessment(AddAssessmentDto request);
         Task<PaginationResponse<GetAssessmentResponseDto>> GetAssessmentResult(GetAssessmentRequestDto request);
-        Task<PaginationResponse<GetAssessmentQuestionResponseDto>> GetAssessmentQuestoin(GetAssessmentQuestoinRequestDto request);
+        Task<PaginationResponse<GetAssessmentQuestionResponseDto>> GetAssessmentQuestion(GetAssessmentQuestoinRequestDto request);
     }
 } 

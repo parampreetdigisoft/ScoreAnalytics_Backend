@@ -50,7 +50,7 @@ namespace AssessmentPlatform.Data
 
             modelBuilder.Entity<City>().HasKey(uc => uc.CityID);
 
-            modelBuilder.Entity<UserCityMapping>().HasKey(uc => uc.Id);
+            modelBuilder.Entity<UserCityMapping>().HasKey(uc => uc.UserCityMappingID);
 
 
             base.OnModelCreating(modelBuilder);

@@ -73,10 +73,8 @@ namespace AssessmentPlatform.Controllers
         [HttpPost]
         [Route("InviteBulkUser")]
         [Authorize]
-        public async Task<IActionResult> InviteBulkUser([FromBody] InviteUserDto request)
+        public async Task<IActionResult> InviteBulkUser([FromBody] InviteBulkUserDto request)
         {
-            if (request?.Email == null)
-                return BadRequest("Invalid request data.");
 
             var response = await _authService.InviteBulkUser(request);
 

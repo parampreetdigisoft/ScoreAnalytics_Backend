@@ -216,8 +216,8 @@ namespace AssessmentPlatform.Services
                 {
                     var mapping = new UserCityMapping
                     {
-                        UserId = user.UserID,
-                        CityId = id,
+                        UserID = user.UserID,
+                        CityID = id,
                         AssignedByUserId = inviteUser.InvitedUserID,
                         Role = user.Role
                     };
@@ -293,10 +293,10 @@ namespace AssessmentPlatform.Services
                 _context.Users.Update(user);
 
                 var existingMappings = _context.UserCityMappings
-                    .Where(m => m.UserId == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
+                    .Where(m => m.UserID == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
                     .ToList();
 
-                var existingCityIds = existingMappings.Select(m => m.CityId).ToList();
+                var existingCityIds = existingMappings.Select(m => m.CityID).ToList();
 
                 var newCityIds = inviteUser.CityID;
 
@@ -306,8 +306,8 @@ namespace AssessmentPlatform.Services
                 {
                     var newMapping = new UserCityMapping
                     {
-                        UserId = user.UserID,
-                        CityId = cityId,
+                        UserID = user.UserID,
+                        CityID = cityId,
                         AssignedByUserId = inviteUser.InvitedUserID,
                         Role = user.Role
                     };
@@ -316,7 +316,7 @@ namespace AssessmentPlatform.Services
 
                 //Delete cities no longer in the new list
                 var citiesToDelete = existingMappings
-                    .Where(m => !newCityIds.Contains(m.CityId))
+                    .Where(m => !newCityIds.Contains(m.CityID))
                     .ToList();
                 foreach(var c in citiesToDelete)
                 {
@@ -400,10 +400,11 @@ namespace AssessmentPlatform.Services
                             PasswordHash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Password),
                             Role = inviteUser.Role,
                             CreatedBy = inviteUser.InvitedUserID,
-                            IsDeleted = false
+                            IsDeleted = false,
                         };
-                        newUsers.Add(user);
+                        _context.Users.Add(user);
                         existingUsers[inviteUser.Email] = user; // add to dictionary for later mapping
+                        await _context.SaveChangesAsync();
                     }
 
                     if (user.Role != inviteUser.Role)
@@ -431,8 +432,8 @@ namespace AssessmentPlatform.Services
 
                     // 6. Collect city mappings
                     var existingCityIds = _context.UserCityMappings
-                        .Where(m => m.UserId == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
-                        .Select(m => m.CityId)
+                        .Where(m => m.UserID == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
+                        .Select(m => m.CityID)
                         .ToList();
 
                     var citiesToAdd = inviteUser.CityID.Except(existingCityIds).ToList();
@@ -440,16 +441,15 @@ namespace AssessmentPlatform.Services
                     {
                         newMappings.Add(new UserCityMapping
                         {
-                            UserId = user.UserID,
-                            CityId = cityId,
+                            UserID = user.UserID,
+                            CityID = cityId,
                             AssignedByUserId = inviteUser.InvitedUserID,
                             Role = user.Role
                         });
                     }
                 }
 
-                // 7. Save all DB changes at once
-                if (newUsers.Any()) await _context.Users.AddRangeAsync(newUsers);
+
                 if (newMappings.Any()) await _context.UserCityMappings.AddRangeAsync(newMappings);
                 await _context.SaveChangesAsync();
 

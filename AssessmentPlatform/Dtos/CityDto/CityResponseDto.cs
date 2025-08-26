@@ -6,4 +6,8 @@ namespace AssessmentPlatform.Dtos.CityDto
     {
         public string? AssignedBy { get; set; }
     }
+    public class UserCityMappingResponseDto : CityResponseDto
+    {
+        public int UserCityMappingID { get; set; }
+    }
 }

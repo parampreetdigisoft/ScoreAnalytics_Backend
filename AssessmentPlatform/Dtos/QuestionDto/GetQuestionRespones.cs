@@ -12,4 +12,13 @@ namespace AssessmentPlatform.Dtos.QuestionDto
         public int AssessmentID { get; set; }
         public int PillarDisplayOrder { get; set; }
     }
+    public class GetPillarQuestionByCityRespones 
+    {
+        public int AssessmentID { get; set; }
+        public int UserCityMappingID { get; set; }
+        public int PillarDisplayOrder { get; set; }
+        public string PillarName { get; set; }
+        public string Description { get; set; }
+        public List<AddUpdateQuestionDto> Questions { get; set; }
+    }
 }

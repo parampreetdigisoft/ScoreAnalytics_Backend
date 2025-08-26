@@ -231,19 +231,22 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<List<GetQuestionByCityRespones>>> GetQuestionsByCityIdAsync(CityPillerRequestDto request)
+        public async Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request)
         {
             // Load assessment once (if exists)
+            var answeredPillarIds = new List<int>();
             var assessment = await _context.Assessments
-                .Where(a => a.UserID == request.UserID && a.CityID == request.CityID)
+                .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.IsActive)
                 .FirstOrDefaultAsync();
-
-            // Get distinct answered pillar IDs
-            var answeredPillarIds = await _context.AssessmentResponses
-                .Where(r => r.Assessment.UserID == request.UserID && r.Assessment.CityID == request.CityID)
+            if(assessment != null)
+            {
+                 answeredPillarIds = await _context.AssessmentResponses
+                .Where(r => r.AssessmentID == assessment.AssessmentID)
                 .Select(r => r.Question.PillarID)
                 .Distinct()
                 .ToListAsync();
+            }
+
 
             // Get next unanswered pillar
             var nextPillar = await _context.Pillars
@@ -253,27 +256,33 @@ namespace AssessmentPlatform.Services
                 .OrderBy(p => p.DisplayOrder)
                 .FirstOrDefaultAsync();
 
-            if (nextPillar == null)
+            if (nextPillar == null || nextPillar?.Questions == null)
             {
-                return ResultResponseDto<List<GetQuestionByCityRespones>>.Failure(new[] { "You have submitted assessment for this city" });
+                return ResultResponseDto<GetPillarQuestionByCityRespones>.Failure(new[] { "You have submitted assessment for this city" });
             }
 
             // Project questions
             var questions = nextPillar.Questions
             .OrderBy(q => q.DisplayOrder)
-            .Select(q => new GetQuestionByCityRespones
+            .Select(q => new AddUpdateQuestionDto
             {
                 QuestionID = q.QuestionID,
                 QuestionText = q.QuestionText,
                 PillarID = q.PillarID,
-                PillarName = nextPillar.PillarName,  // avoid extra nav
-                DisplayOrder = q.DisplayOrder,
                 QuestionOptions = q.QuestionOptions.ToList(),
-                AssessmentID = assessment?.AssessmentID ?? 0,
-                PillarDisplayOrder = nextPillar.DisplayOrder
             }).ToList();
 
-            return ResultResponseDto<List<GetQuestionByCityRespones>>.Success(questions, new[] { "get questions successfully" });
+
+            var result = new GetPillarQuestionByCityRespones
+            {
+                AssessmentID = assessment?.AssessmentID ?? 0,
+                UserCityMappingID = request.UserCityMappingID,
+                PillarDisplayOrder = nextPillar.DisplayOrder,
+                PillarName = nextPillar.PillarName,
+                Description = nextPillar.Description,
+                Questions = questions
+            };
+            return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
         }
 
     }

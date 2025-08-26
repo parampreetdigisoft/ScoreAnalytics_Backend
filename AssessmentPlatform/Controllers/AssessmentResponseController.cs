@@ -73,8 +73,8 @@ namespace AssessmentPlatform.Controllers
         [Authorize]
         public async Task<IActionResult> GetAssessmentQuestoins([FromQuery] GetAssessmentQuestoinRequestDto response)
         {
-            var result = await _responseService.GetAssessmentQuestoin(response);
+            var result = await _responseService.GetAssessmentQuestion(response);
             return Ok(result);
         }
     }
-} 
+}

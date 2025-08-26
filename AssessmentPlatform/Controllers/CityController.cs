@@ -31,7 +31,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost("add")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> AddQuestion([FromBody] BulkAddCityDto q)
+        public async Task<IActionResult> AddCity([FromBody] BulkAddCityDto q)
         {
             var result = await _cityService.AddCityAsync(q);
             return Ok(result);
@@ -39,7 +39,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPut("edit/{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> EditQuestion(int id, [FromBody] AddUpdateCityDto q)
+        public async Task<IActionResult> EditCity(int id, [FromBody] AddUpdateCityDto q)
         {
             var result = await _cityService.EditCityAsync(id, q);
             return Ok(result);
@@ -47,7 +47,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpDelete("delete/{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> DeleteQuestion(int id)
+        public async Task<IActionResult> DeleteCity(int id)
         {
             var success = await _cityService.DeleteCityAsync(id);
             return Ok(success);

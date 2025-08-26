@@ -148,8 +148,8 @@ namespace AssessmentPlatform.Services
                cityQuery =
                 from c in _context.Cities
                 join cm in _context.UserCityMappings
-                    .Where(x => !x.IsDeleted && x.UserId == request.UserId)
-                    on c.CityID equals cm.CityId
+                    .Where(x => !x.IsDeleted && x.UserID == request.UserId)
+                    on c.CityID equals cm.CityID
                 join u in _context.Users on cm.AssignedByUserId equals u.UserID
                 select new CityResponseDto
                 {
@@ -175,28 +175,60 @@ namespace AssessmentPlatform.Services
 
             return response;
         }
-        public async Task<ResultResponseDto<List<City>>> getAllCityByUserId(int userId)
+        public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByUserId(int userId)
         {
             var user = _context.Users.FirstOrDefault(x => x.UserID == userId);
 
-            IQueryable<City> cityQuery;
-
-            if (user != null && user.Role == UserRole.Admin)
+            if (user == null)
             {
-                cityQuery = from c in _context.Cities
-                            select c;
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
+            }
+
+            IQueryable<UserCityMappingResponseDto> cityQuery;
+
+            if (user.Role == UserRole.Admin)
+            {
+                cityQuery =
+                    from c in _context.Cities
+                    select new UserCityMappingResponseDto
+                    {
+                        CityID = c.CityID,
+                        State = c.State,
+                        CityName = c.CityName,
+                        PostalCode = c.PostalCode,
+                        Region = c.Region,
+                        IsActive = c.IsActive,
+                        CreatedDate = c.CreatedDate,
+                        UpdatedDate = c.UpdatedDate,
+                        IsDeleted = c.IsDeleted
+                    };
             }
             else
             {
-                cityQuery = from c in _context.Cities
-                            join cm in _context.UserCityMappings
-                                .Where(x => !x.IsDeleted && x.UserId == userId)
-                                on c.CityID equals cm.CityId
-                            select c;
+                cityQuery =
+                 from c in _context.Cities
+                 join cm in _context.UserCityMappings
+                     .Where(x => !x.IsDeleted && x.UserID == userId)
+                     on c.CityID equals cm.CityID
+                 join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                 select new UserCityMappingResponseDto
+                 {
+                     CityID = c.CityID,
+                     State = c.State,
+                     CityName = c.CityName,
+                     PostalCode = c.PostalCode,
+                     Region = c.Region,
+                     IsActive = c.IsActive,
+                     CreatedDate = c.CreatedDate,
+                     UpdatedDate = c.UpdatedDate,
+                     IsDeleted = c.IsDeleted,
+                     AssignedBy = u.FullName,
+                     UserCityMappingID = cm.UserCityMappingID
+                 };
             }
             var result = await cityQuery.ToListAsync();
 
-           return ResultResponseDto<List<City>>.Success(result, new string[] { "get successfully" });
+           return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "get successfully" });
         }
         public async Task<ResultResponseDto<City>> GetByIdAsync(int id)
         {
@@ -206,7 +238,7 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int assignedByUserId)
         {
-            if(_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId && !x.IsDeleted))
+            if(_context.UserCityMappings.Any(x => x.UserID == userId && x.CityID == cityId && x.AssignedByUserId == assignedByUserId && !x.IsDeleted))
             {
                 return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
             }
@@ -218,8 +250,8 @@ namespace AssessmentPlatform.Services
             }
             var mapping = new UserCityMapping
             {
-                UserId = userId,
-                CityId = cityId,
+                UserID = userId,
+                CityID = cityId,
                 AssignedByUserId = assignedByUserId,
                 Role = user.Role
             };
@@ -232,7 +264,7 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<object>> EditAssingCity(int id, int userId, int cityId, int assignedByUserId)
         {
-            if (_context.UserCityMappings.Any(x => x.UserId == userId && x.CityId == cityId && x.AssignedByUserId == assignedByUserId))
+            if (_context.UserCityMappings.Any(x => x.UserID == userId && x.CityID == cityId && x.AssignedByUserId == assignedByUserId))
             {
                 return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
             }
@@ -243,8 +275,8 @@ namespace AssessmentPlatform.Services
                 return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
             }
 
-            userMapping.UserId = userId;
-            userMapping.CityId = cityId;
+            userMapping.UserID = userId;
+            userMapping.CityID = cityId;
             userMapping.AssignedByUserId = assignedByUserId;
             _context.UserCityMappings.Update(userMapping);
             await _context.SaveChangesAsync();
@@ -254,7 +286,7 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<object>> UnAssignCity(UserCityUnMappingRequestDto requestDto)
         {
-            var userMapping = _context.UserCityMappings.Where(x => x.UserId == requestDto.UserId && x.AssignedByUserId == requestDto.AssignedByUserId && !x.IsDeleted).ToList();
+            var userMapping = _context.UserCityMappings.Where(x => x.UserID == requestDto.UserId && x.AssignedByUserId == requestDto.AssignedByUserId && !x.IsDeleted).ToList();
             if (userMapping == null && userMapping?.Count==0)
             {
                 return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "user has no assign city" }));

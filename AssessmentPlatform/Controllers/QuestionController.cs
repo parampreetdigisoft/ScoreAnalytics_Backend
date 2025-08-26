@@ -66,7 +66,7 @@ namespace AssessmentPlatform.Controllers
             return Ok();
         }
 
-        [HttpGet("getQuestionsByCityId")]
+        [HttpGet("getQuestionsByCityMappingId")]
         [Authorize]
         public async Task<IActionResult> GetQuestionsByCityIdAsync([FromQuery] CityPillerRequestDto requestDto) => Ok(await _questionService.GetQuestionsByCityIdAsync(requestDto));
 

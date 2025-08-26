@@ -37,7 +37,7 @@ namespace AssessmentPlatform.Services
                 where u.Role == (currentUser.Role == UserRole.Admin ? request.GetUserRole : UserRole.Evaluator)
                       && !u.IsDeleted
                 from uc in filteredMappings
-                            .Where(m => m.UserId == u.UserID)
+                            .Where(m => m.UserID == u.UserID)
                             .Take(1)                              
                 from ab in _context.Users
                             .Where(p => uc != null && p.UserID == uc.AssignedByUserId)
@@ -67,13 +67,13 @@ namespace AssessmentPlatform.Services
             // Get all cities for fetched users in one query
             var userIds = response.Data.Select(x => x.UserID).ToList();
             var cityMap = await _context.UserCityMappings
-            .Where(x => !x.IsDeleted && userIds.Contains(x.UserId) && x.AssignedByUserId == request.UserID)
+            .Where(x => !x.IsDeleted && userIds.Contains(x.UserID) && x.AssignedByUserId == request.UserID)
             .Join(_context.Cities,
-                  cm => cm.CityId,
+                  cm => cm.CityID,
                   c => c.CityID,
                   (cm, c) => new
                   {
-                      cm.UserId,
+                      cm.UserID,
                       City = new AddUpdateCityDto
                       {
                           CityID = c.CityID,
@@ -85,7 +85,7 @@ namespace AssessmentPlatform.Services
             .ToListAsync();
 
             var result = cityMap
-                .GroupBy(x => x.UserId)
+                .GroupBy(x => x.UserID)
                 .ToDictionary(g => g.Key, g => g.Select(x => x.City).ToList());
 
             foreach (var item in response.Data)
@@ -102,8 +102,8 @@ namespace AssessmentPlatform.Services
             var query =
                 from u in _context.Users
                 where !u.IsDeleted
-                join uc in _context.UserCityMappings.Where(x => !x.IsDeleted && x.AssignedByUserId == request.UserID && (!request.SearchedUserID.HasValue || x.UserId == request.SearchedUserID))
-                    on u.UserID equals uc.UserId
+                join uc in _context.UserCityMappings.Where(x => !x.IsDeleted && x.AssignedByUserId == request.UserID && (!request.SearchedUserID.HasValue || x.UserID == request.SearchedUserID))
+                    on u.UserID equals uc.UserID
                 select new PublicUserResponse
                 {
                     UserID = u.UserID,

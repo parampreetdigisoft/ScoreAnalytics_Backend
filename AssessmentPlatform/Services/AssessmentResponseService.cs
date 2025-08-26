@@ -61,17 +61,22 @@ namespace AssessmentPlatform.Services
                     .Include(x => x.Responses)
                     .FirstOrDefaultAsync(x =>
                         x.IsActive &&
-                        (x.AssessmentID == request.AssessmentID || x.UserID == request.UserID) &&
-                        x.CityID == request.CityID);
+                        (x.AssessmentID == request.AssessmentID || x.UserCityMappingID == request.UserCityMappingID) );
 
                 if (assessment == null)
                 {
+                    var ucm = await _context.UserCityMappings
+                        .FirstOrDefaultAsync(x=> x.UserCityMappingID == request.UserCityMappingID);
+                    if (ucm == null)
+                    {
+                        return ResultResponseDto<string>.Failure(new[] { "City is not assigned" });
+                    }
                     assessment = new Assessment
                     {
-                        CityID = request.CityID,
-                        UserID = request.UserID,
+                        UserCityMappingID = ucm.UserCityMappingID,
                         CreatedAt = DateTime.UtcNow,
                         IsActive = true,
+                        UserCityMapping = ucm,
                         Responses = new List<AssessmentResponse>()
                     };
                     _context.Assessments.Add(assessment);
@@ -109,35 +114,33 @@ namespace AssessmentPlatform.Services
             var user = _context.Users.FirstOrDefault(x=>x.UserID == request.UserId);
             if (user == null) return null;
 
-            var userIDs = new List<int>();
+            var userCityMappingIDs = new List<int>();
 
-            if (!request.SubUserID.HasValue && user.Role != UserRole.Admin)
+            //analyst can search by city and evaluator, admin can search by role and city
+            if (user.Role != UserRole.Admin)
             {
-                userIDs = _context.UserCityMappings
-                    .Where(x => !x.IsDeleted && x.AssignedByUserId == user.UserID)
-                    .Select(x => x.UserId).ToList();
+                userCityMappingIDs = _context.UserCityMappings
+                    .Where(x => !x.IsDeleted 
+                    && request.SubUserID.HasValue ? x.UserID == request.SubUserID : x.AssignedByUserId == user.UserID // analyst case
+                    || (user.Role == UserRole.Evaluator && x.UserID == request.UserId) // for evaluator 
+                    )
+                    .Select(x => x.UserCityMappingID).ToList();
+            }
 
-                if(user.Role != UserRole.Analyst)
-                userIDs.Add(user.UserID);
-            }
-            else
-            {
-                userIDs.Add(request.SubUserID ?? 0);
-            }
             var query =
                 from a in _context.Assessments
                     .Include(q => q.Responses)
                 where a.IsActive
-                      && (!request.CityID.HasValue || a.CityID == request.CityID.Value)
-                       && (user.Role == UserRole.Admin || userIDs.Contains(a.UserID))
+                      && (!request.CityID.HasValue || a.UserCityMapping.CityID == request.CityID.Value)
+                       && (user.Role == UserRole.Admin || userCityMappingIDs.Contains(a.UserCityMappingID))
                 join c in _context.Cities
                     .Where(x => !x.IsDeleted
                              && (!request.CityID.HasValue || x.CityID == request.CityID.Value))
-                    on a.CityID equals c.CityID
+                    on a.UserCityMapping.CityID equals c.CityID
                 join u in _context.Users
                     .Where(x => !x.IsDeleted
                              && (!request.Role.HasValue || x.Role == request.Role.Value))
-                    on a.UserID equals u.UserID
+                    on a.UserCityMapping.UserID equals u.UserID
                 select new GetAssessmentResponseDto
                 {
                     AssessmentID = a.AssessmentID,
@@ -166,7 +169,7 @@ namespace AssessmentPlatform.Services
             return response;
         }
 
-        public async Task<PaginationResponse<GetAssessmentQuestionResponseDto>> GetAssessmentQuestoin(GetAssessmentQuestoinRequestDto request)
+        public async Task<PaginationResponse<GetAssessmentQuestionResponseDto>> GetAssessmentQuestion(GetAssessmentQuestoinRequestDto request)
         {
             var user = _context.Users.FirstOrDefault(x => x.UserID == request.UserId);
             if (user == null) return null;
