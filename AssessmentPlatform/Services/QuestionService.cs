@@ -5,6 +5,7 @@ using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.QuestionDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 namespace AssessmentPlatform.Services
 {
@@ -285,5 +286,179 @@ namespace AssessmentPlatform.Services
             return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
         }
 
+        public async Task<Tuple<string, byte[]>> ExportAssessment(int userCityMappingID)
+        {
+            var fileName = (from m in _context.UserCityMappings
+                          join c in _context.Cities on m.CityID equals c.CityID
+                          join u in _context.Users on m.AssignedByUserId equals u.UserID
+                          where m.UserCityMappingID == userCityMappingID
+                          select new
+                          {
+                              CityName = c.CityName,
+                              FullName = u.FullName
+                          }).FirstOrDefault();
+
+            var sheetName = fileName?.CityName + "_" + fileName?.FullName;
+
+            // Load assessment once (if exists)
+            var answeredPillarIds = new List<int>();
+            var assessment = await _context.Assessments
+                .Where(a => a.UserCityMappingID == userCityMappingID && a.IsActive)
+                .FirstOrDefaultAsync();
+            if (assessment != null)
+            {
+                answeredPillarIds = await _context.AssessmentResponses
+               .Where(r => r.AssessmentID == assessment.AssessmentID)
+               .Select(r => r.Question.PillarID)
+               .Distinct()
+               .ToListAsync();
+            }
+
+
+            // Get next unanswered pillar
+            var nextPillars = await _context.Pillars
+                .Include(p => p.Questions)
+                    .ThenInclude(q => q.QuestionOptions)
+                .Where(p => !answeredPillarIds.Contains(p.PillarID))
+                .OrderBy(p => p.DisplayOrder)
+                .ToListAsync();
+
+            if (nextPillars == null || nextPillars?.Count == 0)
+            {
+                return null;
+            }
+
+            var byteArray = MakePillarSheet(nextPillars, userCityMappingID);
+
+            return new (sheetName, byteArray);
+        }
+        private  byte[] MakePillarSheet(List<Pillar> pillars, int userCityMappingID)
+        {
+            using (var workbook = new XLWorkbook())
+            {
+
+                foreach (var pillar in pillars)
+                {
+                    var name = GetValidSheetName(pillar.PillarName);
+                    var ws = workbook.Worksheets.Add(name);
+                    ws.Columns().Width = 10;
+                    ws.Column(1).Width = 18;
+                    ws.Column(3).Width = 35;
+                    ws.Column(5).Width = 120;
+                    var protection = ws.Protect();
+
+                    // allow user to resize (format) columns
+                    protection.AllowedElements =
+                       XLSheetProtectionElements.FormatColumns |
+                       XLSheetProtectionElements.SelectLockedCells |
+                       XLSheetProtectionElements.SelectUnlockedCells;
+
+
+
+                    int row = 0;
+                    var q = pillar?.Questions?.ToList() ?? new();
+                    for (var i = 0; i < q.Count; i++)
+                    {
+                        ++row;
+                        ws.Row(row).Style.Font.Bold = true;
+                        ws.Cell(row, 1).Value = "UserCityMappingID";
+                        ws.Cell(row, 2).Value = "PillarID";
+                        ws.Cell(row, 3).Value = "PillarName";
+                        ws.Cell(row, 4).Value = "QuestionID";
+                        ws.Cell(row, 5).Value = "QuestionText";
+                        var headerRange = ws.Range(row, 1, row, 5);
+                        headerRange.Style.Font.Bold = true;
+                        headerRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
+                        headerRange.Style.Font.FontColor = XLColor.White;
+                        headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                        ++row;
+                        ws.Cell(row, 1).Value = userCityMappingID;
+                        ws.Cell(row, 2).Value = q[i].PillarID;
+                        ws.Cell(row, 3).Value = pillar?.PillarName;
+                        ws.Cell(row, 4).Value = q[i].QuestionID;
+                        ws.Cell(row, 5).Value = q[i].QuestionText;
+
+                        ++row;
+                        ws.Row(row).Style.Font.Bold = true;
+                        ws.Cell(row, 2).Value = "S.No";
+                        ws.Cell(row, 3).Value = "OptionID";
+                        ws.Cell(row, 4).Value = "ScoreValue";
+                        ws.Cell(row, 5).Value = "OptionText";
+
+                        var opt = q[i].QuestionOptions.ToList() ?? new();
+                        for (int j = 0; j < opt.Count; j++)
+                        {
+                            ++row;
+                            ws.Cell(row, 2).Value = j + 1;
+                            ws.Cell(row, 3).Value = opt[j].OptionID;
+                            ws.Cell(row, 4).Value = opt[j].ScoreValue;
+                            ws.Cell(row, 5).Value = opt[j].OptionText;
+                        }
+                        ++row;
+                        ws.Row(row).Style.Font.Bold = true;
+                        ws.Cell(row, 2).Value = "Your Assessment";
+                        ws.Cell(row, 3).Value = "OptionID";
+                        ws.Cell(row, 4).Value = "ScoreValue";
+                        ws.Cell(row, 5).Value = "Comment";
+
+                        ++row;
+                        var ansHeader = ws.Range(row, 2, row, 2);
+                        ansHeader.Style.Fill.BackgroundColor = XLColor.Green;
+                        ansHeader.Style.Font.FontColor = XLColor.White;
+                        ansHeader.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        ws.Cell(row, 3).Style.Protection.SetLocked(false); 
+                        ws.Cell(row, 4).Style.Protection.SetLocked(false); 
+                        ws.Cell(row, 5).Style.Protection.SetLocked(false);
+
+                        var dvOptionId = ws.Cell(row, 3).GetDataValidation();
+                        var values = opt.OrderBy(x => x.OptionID).ToList();
+
+                        if (values.Any())
+                        {
+                            dvOptionId.WholeNumber.Between(values.First().OptionID, values.Last().OptionID);
+                        }
+                        else
+                        {
+                            dvOptionId.WholeNumber.Between(0, 0);
+                            dvOptionId.IgnoreBlanks = true;
+                        }
+
+                        var dvScore = ws.Cell(row, 4).GetDataValidation();
+                        dvScore.WholeNumber.Between(0, 4);
+                        var dvComment = ws.Cell(row, 5).GetDataValidation();
+                        dvComment.TextLength.Between(1, 10000);
+
+                        ws.Cell(row, 2).Value = "Answer";
+                        ws.Cell(row, 3).Value = "";
+                        ws.Cell(row, 4).Value = "";
+                        ws.Cell(row, 5).Value = "";
+                        ++row;
+                    }
+                }
+                using (var stream = new MemoryStream())
+                {
+                    workbook.SaveAs(stream);
+                    var content = stream.ToArray();
+                    return content;
+                }
+            }
+        }
+        private string GetValidSheetName(string safeName)
+        {
+            // Trim to 31 characters
+            if (safeName.Length > 31)
+                safeName = safeName.Substring(0, 31);
+
+            // Remove illegal characters
+            foreach (char c in System.IO.Path.GetInvalidFileNameChars())
+            {
+                safeName = safeName.Replace(c.ToString(), "");
+            }
+            safeName = safeName.Replace("[", "").Replace("]", "").Replace(":", "")
+                               .Replace("*", "").Replace("?", "").Replace("/", "").Replace("\\", "");
+
+            return safeName;
+        }
     }
 }

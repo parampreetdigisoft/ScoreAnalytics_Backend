@@ -3,7 +3,6 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -75,6 +74,16 @@ namespace AssessmentPlatform.Controllers
         {
             var result = await _responseService.GetAssessmentQuestion(response);
             return Ok(result);
+        }
+        [HttpPost("ImportAssessment")]
+        [Authorize]
+        public async Task<IActionResult> ImportAssessmentAsync(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("No file uploaded.");
+
+            var content = await _responseService.ImportAssessmentAsync(file);
+            return Ok(content);
         }
     }
 }

@@ -17,5 +17,6 @@ namespace AssessmentPlatform.IServices
         Task<Question> EditQuestionAsync(int id, Question q);
         Task<bool> DeleteQuestionAsync(int id);
         Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request);
+        Task<Tuple<string,byte[]>> ExportAssessment(int userCityMappingID);
     }
 } 

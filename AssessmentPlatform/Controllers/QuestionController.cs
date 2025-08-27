@@ -69,6 +69,16 @@ namespace AssessmentPlatform.Controllers
         [HttpGet("getQuestionsByCityMappingId")]
         [Authorize]
         public async Task<IActionResult> GetQuestionsByCityIdAsync([FromQuery] CityPillerRequestDto requestDto) => Ok(await _questionService.GetQuestionsByCityIdAsync(requestDto));
+        
+        [HttpGet("ExportAssessment/{userCityMappingID}")]
+        [Authorize]
+        public async Task<IActionResult> ExportAssessment(int userCityMappingID)
+        {
+            var content = await _questionService.ExportAssessment(userCityMappingID);
 
+            return File(content.Item2 ?? new byte[1],
+               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+               content.Item1);
+        }
     }
 }
