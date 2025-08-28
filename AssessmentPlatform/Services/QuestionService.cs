@@ -73,7 +73,6 @@ namespace AssessmentPlatform.Services
             await _context.SaveChangesAsync();
             return true;
         }
-
         public async Task<ResultResponseDto<string>> AddUpdateQuestion(AddUpdateQuestionDto q)
         {
             try
@@ -231,7 +230,6 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { ex.Message });
             }
         }
-
         public async Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request)
         {
             // Load assessment once (if exists)
@@ -285,7 +283,6 @@ namespace AssessmentPlatform.Services
             };
             return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
         }
-
         public async Task<Tuple<string, byte[]>> ExportAssessment(int userCityMappingID)
         {
             var fileName = (from m in _context.UserCityMappings
