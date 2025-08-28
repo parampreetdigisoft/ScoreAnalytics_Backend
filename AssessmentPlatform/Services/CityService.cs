@@ -301,5 +301,53 @@ namespace AssessmentPlatform.Services
 
             return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "Assigned city deleted successfully" }));
         }
+        public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> GetCityByUserIdForAssessment(int userId)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userId);
+
+            if (user == null)
+            {
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
+            }
+
+            // Get distinct UserCityMappings for the user where responses < 14
+            var userCityMappingIds = _context.Assessments
+                .Where(a => !a.UserCityMapping.IsDeleted && a.UserCityMapping.UserID == userId)
+                .Where(a => a.Responses.Select(r => r.PillarID).Distinct().Count() == 14)
+                .Select(a => a.UserCityMappingID)
+                .Distinct();
+
+            // Project into response DTO
+            var cityQuery =
+                 from c in _context.Cities
+                 join cm in _context.UserCityMappings
+                     .Where(x => !x.IsDeleted && x.UserID == userId && !userCityMappingIds.Contains(x.UserCityMappingID))
+                     on c.CityID equals cm.CityID
+                 join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                 select new UserCityMappingResponseDto
+                 {
+                     CityID = c.CityID,
+                     State = c.State,
+                     CityName = c.CityName,
+                     PostalCode = c.PostalCode,
+                     Region = c.Region,
+                     IsActive = c.IsActive,
+                     CreatedDate = c.CreatedDate,
+                     UpdatedDate = c.UpdatedDate,
+                     IsDeleted = c.IsDeleted,
+                     AssignedBy = u.FullName,
+                     UserCityMappingID = cm.UserCityMappingID
+                 };
+
+            var result = await cityQuery.ToListAsync();
+
+            if (!result.Any())
+            {
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "No city is found for assessment" });
+            }
+
+            return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "Retrieved successfully" });
+        }
+
     }
 }

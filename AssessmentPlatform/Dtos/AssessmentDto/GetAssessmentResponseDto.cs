@@ -11,5 +11,7 @@
         public int UserID { get; set; }
         public string UserName { get; set; }
         public decimal Score { get; set; }
+        public string AssignedByUser { get; set; }
+        public int AssignedByUserId { get; set; }
     }
 }

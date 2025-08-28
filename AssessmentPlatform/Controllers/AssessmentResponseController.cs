@@ -77,12 +77,12 @@ namespace AssessmentPlatform.Controllers
         }
         [HttpPost("ImportAssessment")]
         [Authorize]
-        public async Task<IActionResult> ImportAssessmentAsync(IFormFile file)
+        public async Task<IActionResult> ImportAssessmentAsync(IFormFile file, [FromForm] int userID)
         {
             if (file == null || file.Length == 0)
                 return BadRequest("No file uploaded.");
 
-            var content = await _responseService.ImportAssessmentAsync(file);
+            var content = await _responseService.ImportAssessmentAsync(file, userID);
             return Ok(content);
         }
     }

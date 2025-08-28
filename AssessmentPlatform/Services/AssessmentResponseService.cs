@@ -138,6 +138,9 @@ namespace AssessmentPlatform.Services
                     .Where(x => !x.IsDeleted
                              && (!request.Role.HasValue || x.Role == request.Role.Value))
                     on a.UserCityMapping.UserID equals u.UserID
+                join createdBy in _context.Users.Where(x=>!x.IsDeleted)
+                  on a.UserCityMapping.AssignedByUserId equals createdBy.UserID
+
                 select new GetAssessmentResponseDto
                 {
                     AssessmentID = a.AssessmentID,
@@ -149,7 +152,9 @@ namespace AssessmentPlatform.Services
                     UserName = u.FullName,
                     Score = a.Responses
                              .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-                             .Sum(r => (int?)r.Score ?? 0)
+                             .Sum(r => (int?)r.Score ?? 0),
+                    AssignedByUser = createdBy.FullName,
+                    AssignedByUserId = createdBy.UserID
                 };
 
             var response = await query.ApplyPaginationAsync(request);
@@ -198,7 +203,7 @@ namespace AssessmentPlatform.Services
 
             return response;
         }
-        public async Task<ResultResponseDto<string>> ImportAssessmentAsync(IFormFile file)
+        public async Task<ResultResponseDto<string>> ImportAssessmentAsync(IFormFile file, int userID)
         {
             try
             {
@@ -208,6 +213,7 @@ namespace AssessmentPlatform.Services
                     await file.CopyToAsync(stream);
                     using (var workbook = new XLWorkbook(stream))
                     {
+                        bool isValidFile = false;
                         foreach (var ws in workbook.Worksheets)
                         {
                             int userCityMappingID = 0;
@@ -222,6 +228,16 @@ namespace AssessmentPlatform.Services
                                     // Metadata row is next
                                     var metaRow = row + 1;
                                     userCityMappingID = ws.Cell(metaRow, 1).GetValue<int>();
+
+                                    if (!isValidFile)
+                                    {
+                                        isValidFile = _context.UserCityMappings.Any(x => !x.IsDeleted && x.UserID == userID && x.UserCityMappingID == userCityMappingID);
+                                        if (!isValidFile)
+                                        {
+                                            return ResultResponseDto<string>.Failure(new[] { "Invalid file you uploaded" });
+                                        }
+                                    }
+
                                     pillarID = ws.Cell(metaRow, 2).GetValue<int>();
                                     var pillarName = ws.Cell(metaRow, 3).GetString();
                                     questionID = ws.Cell(metaRow, 4).GetValue<int>();

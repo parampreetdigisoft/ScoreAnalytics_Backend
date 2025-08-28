@@ -80,5 +80,14 @@ namespace AssessmentPlatform.Controllers
             var result = await _cityService.UnAssignCity(requestDto);
             return Ok(result);
         }
+
+        [HttpGet]
+        [Authorize]
+        [Route("getCityByUserIdForAssessment/{userId}")]
+        public async Task<IActionResult> GetCityByUserIdForAssessment(int userId)
+        {
+            var result = await _cityService.GetCityByUserIdForAssessment(userId);
+            return Ok(result);
+        }
     }
 }

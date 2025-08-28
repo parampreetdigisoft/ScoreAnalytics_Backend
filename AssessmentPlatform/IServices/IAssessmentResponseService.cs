@@ -15,6 +15,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<string>> SaveAssessment(AddAssessmentDto request);
         Task<PaginationResponse<GetAssessmentResponseDto>> GetAssessmentResult(GetAssessmentRequestDto request);
         Task<PaginationResponse<GetAssessmentQuestionResponseDto>> GetAssessmentQuestion(GetAssessmentQuestoinRequestDto request);
-        Task<ResultResponseDto<string>> ImportAssessmentAsync(IFormFile file);
+        Task<ResultResponseDto<string>> ImportAssessmentAsync(IFormFile file,int userID);
     }
 } 
