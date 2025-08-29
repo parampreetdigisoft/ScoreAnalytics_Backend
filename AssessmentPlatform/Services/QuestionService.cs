@@ -239,9 +239,9 @@ namespace AssessmentPlatform.Services
                 .FirstOrDefaultAsync();
             if(assessment != null)
             {
-                 answeredPillarIds = await _context.AssessmentResponses
+                 answeredPillarIds = await _context.PillarAssessments
                 .Where(r => r.AssessmentID == assessment.AssessmentID)
-                .Select(r => r.Question.PillarID)
+                .Select(r => r.PillarID)
                 .Distinct()
                 .ToListAsync();
             }
@@ -304,13 +304,12 @@ namespace AssessmentPlatform.Services
                 .FirstOrDefaultAsync();
             if (assessment != null)
             {
-                answeredPillarIds = await _context.AssessmentResponses
+                answeredPillarIds = await _context.PillarAssessments
                .Where(r => r.AssessmentID == assessment.AssessmentID)
-               .Select(r => r.Question.PillarID)
+               .Select(r => r.PillarID)
                .Distinct()
                .ToListAsync();
             }
-
 
             // Get next unanswered pillar
             var nextPillars = await _context.Pillars

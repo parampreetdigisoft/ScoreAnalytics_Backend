@@ -312,8 +312,7 @@ namespace AssessmentPlatform.Services
 
             // Get distinct UserCityMappings for the user where responses < 14
             var userCityMappingIds = _context.Assessments
-                .Where(a => !a.UserCityMapping.IsDeleted && a.UserCityMapping.UserID == userId)
-                .Where(a => a.Responses.Select(r => r.PillarID).Distinct().Count() == 14)
+                .Where(a => !a.UserCityMapping.IsDeleted && a.UserCityMapping.UserID == userId && a.PillarAssessments.Count() == 14)
                 .Select(a => a.UserCityMappingID)
                 .Distinct();
 

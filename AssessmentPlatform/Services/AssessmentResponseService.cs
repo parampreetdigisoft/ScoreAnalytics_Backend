@@ -53,11 +53,13 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var saveResponse = 0;
                 var assessment = await _context.Assessments
-                    .Include(x => x.Responses)
+                    .Include(x => x.PillarAssessments)
+                    .ThenInclude(x=>x.Responses)
                     .FirstOrDefaultAsync(x =>
                         x.IsActive &&
-                        (x.AssessmentID == request.AssessmentID || x.UserCityMappingID == request.UserCityMappingID) );
+                        (x.AssessmentID == request.AssessmentID || x.UserCityMappingID == request.UserCityMappingID));
 
                 if (assessment == null)
                 {
@@ -70,36 +72,44 @@ namespace AssessmentPlatform.Services
                     assessment = new Assessment
                     {
                         UserCityMappingID = ucm.UserCityMappingID,
-                        CreatedAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.Now,
+                        UpdatedAt = DateTime.Now,
                         IsActive = true,
-                        UserCityMapping = ucm,
-                        Responses = new List<AssessmentResponse>()
+                        UserCityMapping = ucm
                     };
                     _context.Assessments.Add(assessment);
                 }
-                var pillarIds = assessment.Responses.Select(x=>x.PillarID).Distinct().ToList();
-                var newPillarsResponse = request.Responses.Where(x=> !pillarIds.Contains(x.PillarID));
-                // Add responses
-                foreach (var response in newPillarsResponse)
+                var pillarIds = assessment.PillarAssessments.Select(x=>x.PillarID).Distinct().ToList();
+                var pillarsResposnes = request.Responses.Where(x=> !pillarIds.Contains(x.PillarID)).GroupBy(x => x.PillarID);
+
+                foreach (var p in pillarsResposnes)
                 {
-                    var r = new AssessmentResponse
+                    var newPillarAssessment = new PillarAssessment
                     {
-                        QuestionID = response.QuestionID,
-                        QuestionOptionID = response.QuestionOptionID,
-                        Justification = response.Justification,
-                        Score = response.Score,
-                        Assessment = assessment,
-                        PillarID = response.PillarID,
+                        PillarID = p.Key,
+                        AssessmentID = assessment.AssessmentID,
+                        Assessment = assessment
                     };
-                    assessment.Responses.Add(r);
+                    var d = p.ToList();
+                    foreach (var response in d)
+                    {
+                        var r = new AssessmentResponse
+                        {
+                            QuestionID = response.QuestionID,
+                            QuestionOptionID = response.QuestionOptionID,
+                            Justification = response.Justification,
+                            Score = response.Score,
+                        };
+                        newPillarAssessment.Responses.Add(r);
+                    }
+                    assessment.PillarAssessments.Add(newPillarAssessment);
+                    assessment.UpdatedAt = DateTime.Now;
+                    saveResponse++;
                 }
 
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<string>.Success(
-                    "",
-                    new[] { "Assessment saved successfully" }
-                );
+                return ResultResponseDto<string>.Success("",new[] { "Assessment saved successfully" }, saveResponse );
             }
             catch (Exception ex)
             {
@@ -126,7 +136,8 @@ namespace AssessmentPlatform.Services
 
             var query =
                 from a in _context.Assessments
-                    .Include(q => q.Responses)
+                    .Include(q => q.PillarAssessments)
+                    .ThenInclude(q=>q.Responses)
                 where a.IsActive
                       && (!request.CityID.HasValue || a.UserCityMapping.CityID == request.CityID.Value)
                        && (user.Role == UserRole.Admin || userCityMappingIDs.Contains(a.UserCityMappingID))
@@ -150,7 +161,7 @@ namespace AssessmentPlatform.Services
                     State = c.State,
                     UserID = u.UserID,
                     UserName = u.FullName,
-                    Score = a.Responses
+                    Score = a.PillarAssessments.SelectMany(x=>x.Responses)
                              .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
                              .Sum(r => (int?)r.Score ?? 0),
                     AssignedByUser = createdBy.FullName,
@@ -177,16 +188,18 @@ namespace AssessmentPlatform.Services
 
             var userIDs = new List<int>();
             var query = _context.Assessments
-                .Include(a => a.Responses)
+                .Include(a => a.PillarAssessments)
+                .ThenInclude(pa=>pa.Responses)
                     .ThenInclude(r => r.Question)
                         .ThenInclude(q => q.QuestionOptions)
                 .Where(a => a.AssessmentID == request.AssessmentID)
-                .SelectMany(a => a.Responses)
-                .Where(x=> !request.PillarID.HasValue || x.PillarID == request.PillarID.Value)
+                .SelectMany(a => a.PillarAssessments)
+                .Where(x => !request.PillarID.HasValue || x.PillarID == request.PillarID.Value)
+                .SelectMany(x=>x.Responses)
                 .Select(r => new GetAssessmentQuestionResponseDto
                 {
                     AssessmentID = request.AssessmentID,
-                    PillerID = r.PillarID,
+                    PillerID = r.PillarAssessment.PillarID,
                     PillarName = r.Question.Pillar.PillarName,
                     QuestoinID = r.QuestionID,
                     Score = r.Score,
