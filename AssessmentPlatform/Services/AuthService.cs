@@ -21,12 +21,14 @@ namespace AssessmentPlatform.Services
         private readonly AppSettings _appSettings;
         private readonly JwtSetting _jwtSetting;
         private readonly IEmailService _emailService;
-        public AuthService(ApplicationDbContext context, IOptions<AppSettings> appSettings, IEmailService emailService, IOptions<JwtSetting> jwtSetting)
+        private readonly IAppLogger _appLogger;
+        public AuthService(ApplicationDbContext context, IOptions<AppSettings> appSettings, IEmailService emailService, IOptions<JwtSetting> jwtSetting, IAppLogger appLogger)
         {
             _context = context;
             _appSettings = appSettings.Value;
             _emailService = emailService;
             _jwtSetting = jwtSetting.Value;
+            _appLogger = appLogger;
         }
 
         public User Register(string fullName, string email, string phn, string password, UserRole role)
@@ -59,7 +61,7 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex)
             {
-
+                await _appLogger.LogAsync("Error", "Error fetching user", ex?.Message);
             }
             return null;
         }
@@ -121,6 +123,7 @@ namespace AssessmentPlatform.Services
             var user = await GetByEmailAysync(email);
             if (user == null || !VerifyPassword(password, user.PasswordHash))
             {
+                await _appLogger.LogAsync("Error login " + user?.ToString(), "Invalid request data.");
                 return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
             }
             var response = GetAuthorizedUserDetails(user);
@@ -460,6 +463,7 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex) 
             {
+                await _appLogger.LogAsync("Error", "Error fetching user", ex);
                 return ResultResponseDto<object>.Failure(new[] { ex.Message });
             }
         }

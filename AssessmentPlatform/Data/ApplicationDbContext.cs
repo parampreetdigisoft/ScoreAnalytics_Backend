@@ -16,6 +16,7 @@ namespace AssessmentPlatform.Data
         public DbSet<PillarAssessment> PillarAssessments { get; set; } = default!;
         public DbSet<City> Cities { get; set; } = default!;
         public DbSet<UserCityMapping> UserCityMappings { get; set; } = default!;
+        public DbSet<AppLogs> AppLogs { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

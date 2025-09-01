@@ -1,5 +1,6 @@
 using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Interface;
+using AssessmentPlatform.Common.Middlware;
 using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.IServices;
@@ -44,6 +45,7 @@ namespace AssessmentPlatform
             services.AddScoped<ICityService, CityService>();
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IAuthService, AuthService>();
+            services.AddScoped<IAppLogger, AppLogger>();
 
 
             services.AddCors(options =>
@@ -133,6 +135,7 @@ namespace AssessmentPlatform
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            app.UseMiddleware<ErrorLoggingMiddleware>();
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
