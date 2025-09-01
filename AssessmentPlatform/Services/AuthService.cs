@@ -61,7 +61,7 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error", "Error fetching user", ex?.Message);
+                await _appLogger.LogAsync("Error", "Error fetching user", ex);
             }
             return null;
         }
