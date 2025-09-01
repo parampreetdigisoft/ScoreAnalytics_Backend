@@ -348,5 +348,47 @@ namespace AssessmentPlatform.Services
             return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "Retrieved successfully" });
         }
 
+        public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory()
+        {
+            var cityHistory = new CityHistoryDto();
+
+            // 1️⃣ Get city-related counts in a single round trip
+            var cityQuery = await (
+                from c in _context.Cities
+                where !c.IsDeleted && c.IsActive
+                join uc in _context.UserCityMappings.Where(x => !x.IsDeleted)
+                    on c.CityID equals uc.CityID into cityMappings
+                from uc in cityMappings.DefaultIfEmpty()
+                join a in _context.Assessments.Where(x => x.IsActive)
+                    on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
+                from a in cityAssessments.DefaultIfEmpty()
+                select new
+                {
+                    c.CityID,
+                    HasMapping = uc != null,
+                    IsCompleted = a != null && a.PillarAssessments.Count == 14
+                }
+            ).ToListAsync();
+
+            cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
+            cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
+            cityHistory.CompeleteCity = cityQuery.Where(x => x.IsCompleted).Select(x => x.CityID).Distinct().Count();
+            cityHistory.InprocessCity = cityHistory.ActiveCity - cityHistory.CompeleteCity;
+
+            // 2️⃣ Get evaluators & analysts in a single query
+            var userCounts = await _context.Users
+                .Where(u => !u.IsDeleted && (u.Role == UserRole.Evaluator || u.Role == UserRole.Analyst))
+                .GroupBy(u => u.Role)
+                .Select(g => new { Role = g.Key, Count = g.Count() })
+                .ToListAsync();
+
+            cityHistory.TotalEvaluator = userCounts.FirstOrDefault(x => x.Role == UserRole.Evaluator)?.Count ?? 0;
+            cityHistory.TotalAnalyst = userCounts.FirstOrDefault(x => x.Role == UserRole.Analyst)?.Count ?? 0;
+
+            return ResultResponseDto<CityHistoryDto>.Success(
+                cityHistory,
+                new List<string> { "Get history successfully" }
+            );
+        }
     }
 }

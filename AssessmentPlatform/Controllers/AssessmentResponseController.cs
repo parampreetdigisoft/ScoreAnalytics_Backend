@@ -85,5 +85,14 @@ namespace AssessmentPlatform.Controllers
             var content = await _responseService.ImportAssessmentAsync(file, userID);
             return Ok(content);
         }
+
+        [HttpGet]
+        [Route("getCityQuestionHistory/{cityID}")]
+        [Authorize]
+        public async Task<IActionResult> GetCityQuestionHistory(int cityID)
+        {
+            var result = await _responseService.GetCityQuestionHistory(cityID);
+            return Ok(result);
+        }
     }
 }

@@ -89,5 +89,14 @@ namespace AssessmentPlatform.Controllers
             var result = await _cityService.GetCityByUserIdForAssessment(userId);
             return Ok(result);
         }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        [Route("getCityHistory")]
+        public async Task<IActionResult> GetCityHistory()
+        {
+            var result = await _cityService.GetCityHistory();
+            return Ok(result);
+        }
     }
 }
