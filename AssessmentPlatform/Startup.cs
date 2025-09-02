@@ -26,16 +26,20 @@ namespace AssessmentPlatform
             // Controllers
             services.AddControllers();
 
-            // DbContext - SQL Server
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(
                     Configuration.GetConnectionString("DefaultConnection"),
-                    sqlOptions => sqlOptions.CommandTimeout(180) // Timeout in seconds
+                    sqlOptions =>
+                    {
+                        sqlOptions.CommandTimeout(180);
+                        sqlOptions.EnableRetryOnFailure(
+                            maxRetryCount: 3,             // retry 3 times
+                            maxRetryDelay: TimeSpan.FromSeconds(5),
+                            errorNumbersToAdd: null
+                        );
+                    }
                 )
             );
-
-            //services.AddDbContext<ApplicationDbContext>(options =>
-            //        options.UseInMemoryDatabase("AssessmentDB"));
 
             // Dependency Injection for Services
             services.AddScoped<IQuestionService, QuestionService>();
@@ -52,10 +56,13 @@ namespace AssessmentPlatform
             {
                 options.AddPolicy("AllowAngularApp", builder =>
                 {
-                    builder.WithOrigins("http://localhost:4200")
-                           .AllowAnyHeader()
-                           .AllowAnyMethod()
-                           .AllowCredentials();
+                    builder.WithOrigins(
+                        "http://localhost:4200",
+                        "http://3.128.142.109:4200"
+                        )
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
                 });
             });
             var appSettingsSection = Configuration.GetSection("AppSettings");
