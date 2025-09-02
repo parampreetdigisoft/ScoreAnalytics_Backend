@@ -54,16 +54,7 @@ namespace AssessmentPlatform.Services
         }
         public async Task<User?> GetByEmailAysync(string email)
         {
-            try
-            {
-                return await _context.Users.Where(u => u.Email == email && !u.IsDeleted).AsQueryable().FirstOrDefaultAsync();
-
-            }
-            catch (Exception ex)
-            {
-                await _appLogger.LogAsync("Error", "Error fetching user", ex);
-            }
-            return null;
+            return await _context.Users.Where(u => u.Email == email && !u.IsDeleted).AsQueryable().FirstOrDefaultAsync();
         }
         public bool VerifyPassword(string password, string hash)
         {
@@ -120,14 +111,23 @@ namespace AssessmentPlatform.Services
         }
         public async Task<ResultResponseDto<UserResponseDto>> Login(string email, string password)
         {
-            var user = await GetByEmailAysync(email);
-            if (user == null || !VerifyPassword(password, user.PasswordHash))
+            try
             {
-                await _appLogger.LogAsync("Error login " + user?.ToString(), "Invalid request data.");
-                return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
+                var user = await GetByEmailAysync(email);
+                if (user == null || !VerifyPassword(password, user.PasswordHash))
+                {
+                    await _appLogger.LogAsync("Error login " + user?.ToString(), "Invalid request data.");
+                    return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
+                }
+                var response = GetAuthorizedUserDetails(user);
+                return response;
             }
-            var response = GetAuthorizedUserDetails(user);
-            return response;
+            catch (Exception ex)
+            {
+                //await _appLogger.LogAsync("Error login", "Error fetching user", ex);
+                return ResultResponseDto<UserResponseDto>.Failure(new string[] { ex.Message });
+            }
+
         }
         public ResultResponseDto<UserResponseDto> GetAuthorizedUserDetails(User user)
         {
