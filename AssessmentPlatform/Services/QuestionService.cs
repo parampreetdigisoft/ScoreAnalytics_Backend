@@ -12,19 +12,31 @@ namespace AssessmentPlatform.Services
     public class QuestionService : IQuestionService
     {
         private readonly ApplicationDbContext _context;
-        public QuestionService(ApplicationDbContext context)
+        private readonly IAppLogger _appLogger;
+        public QuestionService(ApplicationDbContext context, IAppLogger appLogger)
         {
             _context = context;
+            _appLogger = appLogger;
         }
 
         public async Task<List<Pillar>> GetPillarsAsync()
         {
-            return await _context.Pillars.OrderBy(p => p.DisplayOrder).ToListAsync();
+            try
+            {
+                return await _context.Pillars.OrderBy(p => p.DisplayOrder).ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in GetPillarsAsync", ex);
+                return new List<Pillar>();
+            }
         }
 
         public async Task<PaginationResponse<GetQuestionRespones>> GetQuestionsAsync(GetQuestionRequestDto request)
         {
-            var query =
+            try
+            {
+                var query =
                 from q in _context.Questions
                     .Include(q => q.Pillar)
                     .Include(o => o.QuestionOptions)
@@ -40,38 +52,68 @@ namespace AssessmentPlatform.Services
                     QuestionOptions = q.QuestionOptions.ToList()
                 };
 
-            var response = await query.ApplyPaginationAsync(request);
+                var response = await query.ApplyPaginationAsync(request);
 
-            return response;
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in GetQuestionsAsync", ex);
+                return new PaginationResponse<GetQuestionRespones>();
+            }
         }
 
         public async Task<Question> AddQuestionAsync(Question q)
         {
-            _context.Questions.Add(q);
-            await _context.SaveChangesAsync();
-            return q;
+            try
+            {
+                _context.Questions.Add(q);
+                await _context.SaveChangesAsync();
+                return q;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in AddQuestionAsync", ex);
+                return new Question();
+            }
         }
 
         public async Task<Question> EditQuestionAsync(int id, Question q)
         {
-            var existing = await _context.Questions.FindAsync(id);
-            if (existing == null) return null;
-            existing.QuestionText = q.QuestionText;
-            existing.PillarID = q.PillarID;
-            existing.DisplayOrder = q.DisplayOrder;
-            await _context.SaveChangesAsync();
-            return existing;
+            try
+            {
+                var existing = await _context.Questions.FindAsync(id);
+                if (existing == null) return null;
+                existing.QuestionText = q.QuestionText;
+                existing.PillarID = q.PillarID;
+                existing.DisplayOrder = q.DisplayOrder;
+                await _context.SaveChangesAsync();
+                return existing;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure", ex);
+                return new Question();
+            }
         }
 
         public async Task<bool> DeleteQuestionAsync(int id)
         {
-            var q = await _context.Questions.FindAsync(id);
-            if (q == null) return false;
+            try
+            {
+                var q = await _context.Questions.FindAsync(id);
+                if (q == null) return false;
 
-            q.IsDeleted = true;
-            _context.Questions.Update(q);
-            await _context.SaveChangesAsync();
-            return true;
+                q.IsDeleted = true;
+                _context.Questions.Update(q);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure", ex);
+                return true;
+            }
         }
         public async Task<ResultResponseDto<string>> AddUpdateQuestion(AddUpdateQuestionDto q)
         {
@@ -157,7 +199,8 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex)
             {
-                return ResultResponseDto<string>.Failure(new[] { ex.Message });
+                await _appLogger.LogAsync("Error Occure in AddUpdateQuestion", ex);
+                return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
             }
         }
         public async Task<ResultResponseDto<string>> AddBulkQuestion(AddBulkQuestionsDto payload)
@@ -171,7 +214,7 @@ namespace AssessmentPlatform.Services
                     var pillarQuestions = await _context.Questions
                         .Where(x => x.PillarID == q.PillarID && !x.IsDeleted)
                         .ToListAsync();
-                    if(pillarQuestions.Any(x=>x.QuestionText == q.QuestionText && x.PillarID == q.PillarID))
+                    if (pillarQuestions.Any(x => x.QuestionText == q.QuestionText && x.PillarID == q.PillarID))
                     {
                         continue;
                     }
@@ -217,7 +260,7 @@ namespace AssessmentPlatform.Services
                 }
 
                 // Add all questions in bulk
-                if(newQuestions.Count > 0)
+                if (newQuestions.Count > 0)
                 {
                     await _context.Questions.AddRangeAsync(newQuestions);
                     await _context.SaveChangesAsync();
@@ -227,108 +270,126 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex)
             {
-                return ResultResponseDto<string>.Failure(new[] { ex.Message });
+                await _appLogger.LogAsync("Error Occure in AddBulkQuestion", ex);
+                return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
             }
         }
         public async Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request)
         {
-            // Load assessment once (if exists)
-            var answeredPillarIds = new List<int>();
-            var assessment = await _context.Assessments
-                .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.IsActive)
-                .FirstOrDefaultAsync();
-            if(assessment != null)
+            try
             {
-                 answeredPillarIds = await _context.PillarAssessments
-                .Where(r => r.AssessmentID == assessment.AssessmentID)
-                .Select(r => r.PillarID)
-                .Distinct()
-                .ToListAsync();
+                // Load assessment once (if exists)
+                var answeredPillarIds = new List<int>();
+                var assessment = await _context.Assessments
+                    .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.IsActive)
+                    .FirstOrDefaultAsync();
+                if (assessment != null)
+                {
+                    answeredPillarIds = await _context.PillarAssessments
+                   .Where(r => r.AssessmentID == assessment.AssessmentID)
+                   .Select(r => r.PillarID)
+                   .Distinct()
+                   .ToListAsync();
+                }
+
+
+                // Get next unanswered pillar
+                var nextPillar = await _context.Pillars
+                    .Include(p => p.Questions)
+                        .ThenInclude(q => q.QuestionOptions)
+                    .Where(p => !answeredPillarIds.Contains(p.PillarID))
+                    .OrderBy(p => p.DisplayOrder)
+                    .FirstOrDefaultAsync();
+
+                if (nextPillar == null || nextPillar?.Questions == null)
+                {
+                    return ResultResponseDto<GetPillarQuestionByCityRespones>.Failure(new[] { "You have submitted assessment for this city" });
+                }
+
+                // Project questions
+                var questions = nextPillar.Questions
+                .OrderBy(q => q.DisplayOrder)
+                .Select(q => new AddUpdateQuestionDto
+                {
+                    QuestionID = q.QuestionID,
+                    QuestionText = q.QuestionText,
+                    PillarID = q.PillarID,
+                    QuestionOptions = q.QuestionOptions.ToList(),
+                }).ToList();
+
+
+                var result = new GetPillarQuestionByCityRespones
+                {
+                    AssessmentID = assessment?.AssessmentID ?? 0,
+                    UserCityMappingID = request.UserCityMappingID,
+                    PillarDisplayOrder = nextPillar.DisplayOrder,
+                    PillarName = nextPillar.PillarName,
+                    Description = nextPillar.Description,
+                    Questions = questions
+                };
+                return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
             }
-
-
-            // Get next unanswered pillar
-            var nextPillar = await _context.Pillars
-                .Include(p => p.Questions)
-                    .ThenInclude(q => q.QuestionOptions)
-                .Where(p => !answeredPillarIds.Contains(p.PillarID))
-                .OrderBy(p => p.DisplayOrder)
-                .FirstOrDefaultAsync();
-
-            if (nextPillar == null || nextPillar?.Questions == null)
+            catch (Exception ex)
             {
-                return ResultResponseDto<GetPillarQuestionByCityRespones>.Failure(new[] { "You have submitted assessment for this city" });
+                await _appLogger.LogAsync("Error Occure in GetQuestionsByCityIdAsync", ex);
+                return ResultResponseDto<GetPillarQuestionByCityRespones>.Failure(new string[] { "There is an error please try later" });
             }
-
-            // Project questions
-            var questions = nextPillar.Questions
-            .OrderBy(q => q.DisplayOrder)
-            .Select(q => new AddUpdateQuestionDto
-            {
-                QuestionID = q.QuestionID,
-                QuestionText = q.QuestionText,
-                PillarID = q.PillarID,
-                QuestionOptions = q.QuestionOptions.ToList(),
-            }).ToList();
-
-
-            var result = new GetPillarQuestionByCityRespones
-            {
-                AssessmentID = assessment?.AssessmentID ?? 0,
-                UserCityMappingID = request.UserCityMappingID,
-                PillarDisplayOrder = nextPillar.DisplayOrder,
-                PillarName = nextPillar.PillarName,
-                Description = nextPillar.Description,
-                Questions = questions
-            };
-            return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
         }
         public async Task<Tuple<string, byte[]>> ExportAssessment(int userCityMappingID)
         {
-            var fileName = (from m in _context.UserCityMappings
-                          join c in _context.Cities on m.CityID equals c.CityID
-                          join u in _context.Users on m.AssignedByUserId equals u.UserID
-                          where m.UserCityMappingID == userCityMappingID
-                          select new
-                          {
-                              CityName = c.CityName,
-                              FullName = u.FullName
-                          }).FirstOrDefault();
-
-            var sheetName = fileName?.CityName + "_" + fileName?.FullName;
-
-            // Load assessment once (if exists)
-            var answeredPillarIds = new List<int>();
-            var assessment = await _context.Assessments
-                .Where(a => a.UserCityMappingID == userCityMappingID && a.IsActive)
-                .FirstOrDefaultAsync();
-            if (assessment != null)
+            try
             {
-                answeredPillarIds = await _context.PillarAssessments
-               .Where(r => r.AssessmentID == assessment.AssessmentID)
-               .Select(r => r.PillarID)
-               .Distinct()
-               .ToListAsync();
+
+                var fileName = (from m in _context.UserCityMappings
+                                join c in _context.Cities on m.CityID equals c.CityID
+                                join u in _context.Users on m.AssignedByUserId equals u.UserID
+                                where m.UserCityMappingID == userCityMappingID
+                                select new
+                                {
+                                    CityName = c.CityName,
+                                    FullName = u.FullName
+                                }).FirstOrDefault();
+
+                var sheetName = fileName?.CityName + "_" + fileName?.FullName;
+
+                // Load assessment once (if exists)
+                var answeredPillarIds = new List<int>();
+                var assessment = await _context.Assessments
+                    .Where(a => a.UserCityMappingID == userCityMappingID && a.IsActive)
+                    .FirstOrDefaultAsync();
+                if (assessment != null)
+                {
+                    answeredPillarIds = await _context.PillarAssessments
+                   .Where(r => r.AssessmentID == assessment.AssessmentID)
+                   .Select(r => r.PillarID)
+                   .Distinct()
+                   .ToListAsync();
+                }
+
+                // Get next unanswered pillar
+                var nextPillars = await _context.Pillars
+                    .Include(p => p.Questions)
+                        .ThenInclude(q => q.QuestionOptions)
+                    .Where(p => !answeredPillarIds.Contains(p.PillarID))
+                    .OrderBy(p => p.DisplayOrder)
+                    .ToListAsync();
+
+                if (nextPillars == null || nextPillars?.Count == 0)
+                {
+                    return null;
+                }
+
+                var byteArray = MakePillarSheet(nextPillars, userCityMappingID);
+
+                return new(sheetName, byteArray);
             }
-
-            // Get next unanswered pillar
-            var nextPillars = await _context.Pillars
-                .Include(p => p.Questions)
-                    .ThenInclude(q => q.QuestionOptions)
-                .Where(p => !answeredPillarIds.Contains(p.PillarID))
-                .OrderBy(p => p.DisplayOrder)
-                .ToListAsync();
-
-            if (nextPillars == null || nextPillars?.Count == 0)
+            catch (Exception ex)
             {
-                return null;
+                await _appLogger.LogAsync("Error Occure in ExportAssessment", ex);
+                return new Tuple<string, byte[]>("", Array.Empty<byte>());
             }
-
-            var byteArray = MakePillarSheet(nextPillars, userCityMappingID);
-
-            return new (sheetName, byteArray);
         }
-        private  byte[] MakePillarSheet(List<Pillar> pillars, int userCityMappingID)
+        private byte[] MakePillarSheet(List<Pillar> pillars, int userCityMappingID)
         {
             using (var workbook = new XLWorkbook())
             {
@@ -403,8 +464,8 @@ namespace AssessmentPlatform.Services
                         ansHeader.Style.Fill.BackgroundColor = XLColor.Green;
                         ansHeader.Style.Font.FontColor = XLColor.White;
                         ansHeader.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        ws.Cell(row, 3).Style.Protection.SetLocked(false); 
-                        ws.Cell(row, 4).Style.Protection.SetLocked(false); 
+                        ws.Cell(row, 3).Style.Protection.SetLocked(false);
+                        ws.Cell(row, 4).Style.Protection.SetLocked(false);
                         ws.Cell(row, 5).Style.Protection.SetLocked(false);
 
                         var dvOptionId = ws.Cell(row, 3).GetDataValidation();

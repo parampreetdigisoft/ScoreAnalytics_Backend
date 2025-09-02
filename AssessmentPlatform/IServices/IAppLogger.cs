@@ -2,6 +2,6 @@
 {
     public interface IAppLogger
     {
-        Task LogAsync(string level, string message, Exception ex = null);
+        Task LogAsync(string message, Exception ex = null);
     }
 }

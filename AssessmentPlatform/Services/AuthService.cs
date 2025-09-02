@@ -54,7 +54,15 @@ namespace AssessmentPlatform.Services
         }
         public async Task<User?> GetByEmailAysync(string email)
         {
-            return await _context.Users.Where(u => u.Email == email && !u.IsDeleted).AsQueryable().FirstOrDefaultAsync();
+            try
+            {
+                return await _context.Users.Where(u => u.Email == email && !u.IsDeleted).AsQueryable().FirstOrDefaultAsync();
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("GetByEmailAysync", ex);
+            }
+            return null;
         }
         public bool VerifyPassword(string password, string hash)
         {
@@ -62,51 +70,68 @@ namespace AssessmentPlatform.Services
         }
         public async Task<ResultResponseDto<object>> ForgotPassword(string email)
         {
-            var user = GetByEmail(email);
-            if (user == null)
+            try
             {
-                return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
-            }
-            else
-            {
-                var hash = BCrypt.Net.BCrypt.HashPassword(email);
-                var passwordToken = hash;
-                var token = passwordToken.Replace("+", " ");
-
-                string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-                var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
-                if (isMailSent)
+                var user = GetByEmail(email);
+                if (user == null)
                 {
-                    user.ResetToken = token;
-                    user.ResetTokenDate = DateTime.Now;
-                    _context.Users.Update(user);
-                    await _context.SaveChangesAsync();
+                    return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
                 }
-                return ResultResponseDto<object>.Success(new {},new string[] { "Please check your email for change password." });
+                else
+                {
+                    var hash = BCrypt.Net.BCrypt.HashPassword(email);
+                    var passwordToken = hash;
+                    var token = passwordToken.Replace("+", " ");
+
+                    string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                    var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
+                    if (isMailSent)
+                    {
+                        user.ResetToken = token;
+                        user.ResetTokenDate = DateTime.Now;
+                        _context.Users.Update(user);
+                        await _context.SaveChangesAsync();
+                    }
+                    return ResultResponseDto<object>.Success(new { }, new string[] { "Please check your email for change password." });
+
+                }
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("ForgotPassword", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
 
             }
         }
         public async Task<ResultResponseDto<object>> ChangePassword(string passwordToken, string password)
         {
-            var user = await _context.Users.Where(u => u.ResetToken == passwordToken).FirstOrDefaultAsync();
+            try
+            {
+                var user = await _context.Users.Where(u => u.ResetToken == passwordToken).FirstOrDefaultAsync();
 
-            if (user == null)
-            {
-                return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
-            }
-            if (_appSettings.LinkValidHours >= (DateTime.Now - user.ResetTokenDate).Hours)
-            {
-                var hash = BCrypt.Net.BCrypt.HashPassword(password);
-                user.PasswordHash = hash;
-                user.IsEmailConfirmed = true;
-                _context.Users.Update(user);
-                await _context.SaveChangesAsync();
+                if (user == null)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
+                }
+                if (_appSettings.LinkValidHours >= (DateTime.Now - user.ResetTokenDate).Hours)
+                {
+                    var hash = BCrypt.Net.BCrypt.HashPassword(password);
+                    user.PasswordHash = hash;
+                    user.IsEmailConfirmed = true;
+                    _context.Users.Update(user);
+                    await _context.SaveChangesAsync();
 
-                return ResultResponseDto<object>.Success(new {},new string[] { "Password updated successfully" });
+                    return ResultResponseDto<object>.Success(new { }, new string[] { "Password updated successfully" });
+                }
+                else
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "Link has been expired." });
+                }
             }
-            else
+            catch (Exception ex)
             {
-                return ResultResponseDto<object>.Failure(new string[] { "Link has been expired." });
+                await _appLogger.LogAsync("Error change password", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
             }
         }
         public async Task<ResultResponseDto<UserResponseDto>> Login(string email, string password)
@@ -116,7 +141,6 @@ namespace AssessmentPlatform.Services
                 var user = await GetByEmailAysync(email);
                 if (user == null || !VerifyPassword(password, user.PasswordHash))
                 {
-                    await _appLogger.LogAsync("Error login " + user?.ToString(), "Invalid request data.");
                     return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
                 }
                 var response = GetAuthorizedUserDetails(user);
@@ -124,7 +148,7 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex)
             {
-                //await _appLogger.LogAsync("Error login", "Error fetching user", ex);
+                await _appLogger.LogAsync("Error login", ex);
                 return ResultResponseDto<UserResponseDto>.Failure(new string[] { ex.Message });
             }
 
@@ -137,8 +161,8 @@ namespace AssessmentPlatform.Services
 
                 return ResultResponseDto<UserResponseDto>.Failure(new string[] { message });
             }
-           var claims = new[]
-           {
+            var claims = new[]
+            {
                 new Claim(ClaimTypes.Name, user.Email),
                 new Claim(ClaimTypes.Role, user.Role.ToString())
             };
@@ -174,192 +198,227 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<object>> InviteUser(InviteUserDto inviteUser)
         {
-            if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
+            try
             {
-                return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
-            }
-            bool isExistingUser = true;
-            var user =  GetByEmail(inviteUser.Email);
+                if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
+                }
+                bool isExistingUser = true;
+                var user = GetByEmail(inviteUser.Email);
 
-            if (user == null)
-            {
-                user = Register(inviteUser.FullName, inviteUser.Email, inviteUser.Phone, inviteUser.Password, inviteUser.Role);
                 if (user == null)
                 {
-                    return ResultResponseDto<object>.Failure(new string[] { "Failed to register user." });
-                }
-                user.CreatedBy = inviteUser.InvitedUserID;
-                isExistingUser = false;
-            }
-            if (user.Role != inviteUser.Role)
-            {
-                return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
-            }
-
-            bool isMailSent = false;
-            if (!user.IsEmailConfirmed)
-            {
-                var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
-                var passwordToken = hash;
-                var token = passwordToken.Replace("+", " ");
-
-                string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
-                string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-                isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
-                user.ResetToken = token;
-                user.ResetTokenDate = DateTime.Now;
-                user.IsDeleted = false;
-            }
-
-            if (isMailSent || user.IsEmailConfirmed)
-            {
-                _context.Users.Update(user);
-
-                foreach (var id in inviteUser.CityID)
-                {
-                    var mapping = new UserCityMapping
+                    user = Register(inviteUser.FullName, inviteUser.Email, inviteUser.Phone, inviteUser.Password, inviteUser.Role);
+                    if (user == null)
                     {
-                        UserID = user.UserID,
-                        CityID = id,
-                        AssignedByUserId = inviteUser.InvitedUserID,
-                        Role = user.Role
-                    };
-                    _context.UserCityMappings.Add(mapping);
+                        return ResultResponseDto<object>.Failure(new string[] { "Failed to register user." });
+                    }
+                    user.CreatedBy = inviteUser.InvitedUserID;
+                    isExistingUser = false;
                 }
-                await _context.SaveChangesAsync();
-
-                string msg = string.Empty;
-
-                if (isExistingUser && !user.IsEmailConfirmed)
+                if (user.Role != inviteUser.Role)
                 {
-                    msg = "This user already exists. An invitation has been sent to confirm their email and access the assigned city.";
-                }
-                else if (!isExistingUser)
-                {
-                    msg = "User added successfully. An invitation has been sent to access the assigned city.";
-                }
-                else
-                {
-                    msg = "This user already exists and now have access to the assigned city.";
+                    return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
                 }
 
-                return ResultResponseDto<object>.Success(new {},new string[] { msg });
+                bool isMailSent = false;
+                if (!user.IsEmailConfirmed)
+                {
+                    var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
+                    var passwordToken = hash;
+                    var token = passwordToken.Replace("+", " ");
+
+                    string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
+                    string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                    isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
+                    user.ResetToken = token;
+                    user.ResetTokenDate = DateTime.Now;
+                    user.IsDeleted = false;
+                }
+
+                if (isMailSent || user.IsEmailConfirmed)
+                {
+                    _context.Users.Update(user);
+
+                    foreach (var id in inviteUser.CityID)
+                    {
+                        var mapping = new UserCityMapping
+                        {
+                            UserID = user.UserID,
+                            CityID = id,
+                            AssignedByUserId = inviteUser.InvitedUserID,
+                            Role = user.Role
+                        };
+                        _context.UserCityMappings.Add(mapping);
+                    }
+                    await _context.SaveChangesAsync();
+
+                    string msg = string.Empty;
+
+                    if (isExistingUser && !user.IsEmailConfirmed)
+                    {
+                        msg = "This user already exists. An invitation has been sent to confirm their email and access the assigned city.";
+                    }
+                    else if (!isExistingUser)
+                    {
+                        msg = "User added successfully. An invitation has been sent to access the assigned city.";
+                    }
+                    else
+                    {
+                        msg = "This user already exists and now have access to the assigned city.";
+                    }
+
+                    return ResultResponseDto<object>.Success(new { }, new string[] { msg });
+                }
+                return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
             }
-            return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
+            }
         }
 
         public async Task<ResultResponseDto<object>> UpdateInviteUser(UpdateInviteUserDto inviteUser)
         {
-            if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
+            try
             {
-                return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
-            }
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == inviteUser.UserID);
 
-            if (user == null)
-            {
-                return ResultResponseDto<object>.Failure(new string[] { "User not found." });
-            }
-            if(user.Role != inviteUser.Role)
-            {
-                return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
-            }
-            bool isMailSent = true;
 
-            string msg = "User updated successfully";
-            if (user.Email != inviteUser.Email || (!user.IsEmailConfirmed || user.IsDeleted))
-            {
-                var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
-                var passwordToken = hash;
-                var token = passwordToken.Replace("+", " ");
-
-                string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
-                string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-                isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
-
-                var passwordHash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Password);
-                user.Email = inviteUser.Email;
-                user.PasswordHash = passwordHash;
-                user.IsEmailConfirmed = false;
-                user.ResetToken = token;
-                user.ResetTokenDate = DateTime.Now;
-                user.IsDeleted = false;
-
-                msg = "User updated and invitation sent successfully";
-            }
-
-            if (isMailSent)
-            {
-                user.FullName = inviteUser.FullName;
-                user.Phone = inviteUser.Phone;
-                user.CreatedBy = inviteUser.InvitedUserID;
-                _context.Users.Update(user);
-
-                var existingMappings = _context.UserCityMappings
-                    .Where(m => m.UserID == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
-                    .ToList();
-
-                var existingCityIds = existingMappings.Select(m => m.CityID).ToList();
-
-                var newCityIds = inviteUser.CityID;
-
-                // Add missing cities
-                var citiesToAdd = newCityIds.Except(existingCityIds).ToList();
-                foreach (var cityId in citiesToAdd)
+                if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
                 {
-                    var newMapping = new UserCityMapping
+                    return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
+                }
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == inviteUser.UserID);
+
+                if (user == null)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "User not found." });
+                }
+                if (user.Role != inviteUser.Role)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
+                }
+                bool isMailSent = true;
+
+                string msg = "User updated successfully";
+                if (user.Email != inviteUser.Email || (!user.IsEmailConfirmed || user.IsDeleted))
+                {
+                    var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
+                    var passwordToken = hash;
+                    var token = passwordToken.Replace("+", " ");
+
+                    string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
+                    string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                    isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
+
+                    var passwordHash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Password);
+                    user.Email = inviteUser.Email;
+                    user.PasswordHash = passwordHash;
+                    user.IsEmailConfirmed = false;
+                    user.ResetToken = token;
+                    user.ResetTokenDate = DateTime.Now;
+                    user.IsDeleted = false;
+
+                    msg = "User updated and invitation sent successfully";
+                }
+
+                if (isMailSent)
+                {
+                    user.FullName = inviteUser.FullName;
+                    user.Phone = inviteUser.Phone;
+                    user.CreatedBy = inviteUser.InvitedUserID;
+                    _context.Users.Update(user);
+
+                    var existingMappings = _context.UserCityMappings
+                        .Where(m => m.UserID == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
+                        .ToList();
+
+                    var existingCityIds = existingMappings.Select(m => m.CityID).ToList();
+
+                    var newCityIds = inviteUser.CityID;
+
+                    // Add missing cities
+                    var citiesToAdd = newCityIds.Except(existingCityIds).ToList();
+                    foreach (var cityId in citiesToAdd)
                     {
-                        UserID = user.UserID,
-                        CityID = cityId,
-                        AssignedByUserId = inviteUser.InvitedUserID,
-                        Role = user.Role
-                    };
-                    _context.UserCityMappings.Add(newMapping);
+                        var newMapping = new UserCityMapping
+                        {
+                            UserID = user.UserID,
+                            CityID = cityId,
+                            AssignedByUserId = inviteUser.InvitedUserID,
+                            Role = user.Role
+                        };
+                        _context.UserCityMappings.Add(newMapping);
+                    }
+
+                    //Delete cities no longer in the new list
+                    var citiesToDelete = existingMappings
+                        .Where(m => !newCityIds.Contains(m.CityID))
+                        .ToList();
+                    foreach (var c in citiesToDelete)
+                    {
+                        c.IsDeleted = true;
+                        _context.UserCityMappings.Update(c);
+                    }
+
+                    // Save all changes
+                    await _context.SaveChangesAsync();
+
+                    return ResultResponseDto<object>.Success(new { }, new string[] { msg });
                 }
-
-                //Delete cities no longer in the new list
-                var citiesToDelete = existingMappings
-                    .Where(m => !newCityIds.Contains(m.CityID))
-                    .ToList();
-                foreach(var c in citiesToDelete)
-                {
-                    c.IsDeleted = true;
-                    _context.UserCityMappings.Update(c);
-                }
-
-                // Save all changes
-                await _context.SaveChangesAsync();
-
-                return ResultResponseDto<object>.Success(new {},new string[] { msg });
+                return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
             }
-            return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in UpdateInviteUser", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
+            }
         }
         public async Task<ResultResponseDto<object>> DeleteUser(int userId)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(m => m.UserID == userId && !m.IsDeleted);
-            if(user == null)
+            try
             {
-                return ResultResponseDto<object>.Failure(new string[] { "User not exist" });
+
+                var user = await _context.Users.FirstOrDefaultAsync(m => m.UserID == userId && !m.IsDeleted);
+                if (user == null)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "User not exist" });
+                }
+
+                user.IsDeleted = true;
+
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<object>.Success(new { }, new string[] { "User deleted successfully" });
             }
-
-            user.IsDeleted = true;
-
-            _context.Users.Update(user);
-            await _context.SaveChangesAsync();
-
-            return ResultResponseDto<object>.Success(new { }, new string[] { "User deleted successfully" });
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in DeleteUser", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
+            }
         }
 
         public async Task<ResultResponseDto<UserResponseDto>> RefreshToken(int userId)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(x=>!x.IsDeleted && x.UserID == userId);
-            if (user == null)
+            try
             {
-                return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
-            }
-            var response = GetAuthorizedUserDetails(user);
+                var user = await _context.Users.FirstOrDefaultAsync(x => !x.IsDeleted && x.UserID == userId);
+                if (user == null)
+                {
+                    return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
+                }
+                var response = GetAuthorizedUserDetails(user);
 
-            return await Task.FromResult(response);
+                return await Task.FromResult(response);
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure RefreshToken", ex);
+                return ResultResponseDto<UserResponseDto>.Failure(new string[] { "There is an error please try later" });
+            }
         }
 
         public async Task<ResultResponseDto<object>> InviteBulkUser(InviteBulkUserDto inviteUserList)
@@ -461,9 +520,9 @@ namespace AssessmentPlatform.Services
 
                 return ResultResponseDto<object>.Success(new { }, new[] { "Users will get invitation link to see assigned cities." });
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error", "Error fetching user", ex);
+                await _appLogger.LogAsync("Invite Bulk User", ex);
                 return ResultResponseDto<object>.Failure(new[] { ex.Message });
             }
         }

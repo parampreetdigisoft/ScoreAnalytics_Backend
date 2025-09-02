@@ -2,7 +2,7 @@ using System;
 
 namespace AssessmentPlatform.Models
 {
-    public enum UserRole { Admin=1, Analyst=2, Evaluator=3, CityUser=4 }
+    public enum UserRole { Admin = 1, Analyst = 2, Evaluator = 3, CityUser = 4 }
     public class User
     {
         public int UserID { get; set; }
@@ -19,4 +19,4 @@ namespace AssessmentPlatform.Models
         public bool IsEmailConfirmed { get; set; } = false;
         public string? ProfileImagePath { get; set; }
     }
-} 
+}

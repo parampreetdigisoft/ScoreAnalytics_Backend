@@ -3,7 +3,6 @@ using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
-using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
@@ -14,381 +13,475 @@ namespace AssessmentPlatform.Services
     public class CityService : ICityService
     {
         private readonly ApplicationDbContext _context;
-        public CityService(ApplicationDbContext context)
+        private readonly IAppLogger _appLogger;
+        public CityService(ApplicationDbContext context, IAppLogger appLogger)
         {
             _context = context;
+            _appLogger = appLogger;
         }
 
         public async Task<ResultResponseDto<string>> AddCityAsync(BulkAddCityDto request)
         {
-            // Normalize input list
-            var inputCities = request.Cities
-                .Select(c => new { CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim() })
-                .Distinct()
-                .ToList();
-
-            // Get already existing cities (match by CityName + State)
-            var existingCities = await _context.Cities
-                .Where(x => x.IsActive && !x.IsDeleted &&
-                            inputCities.Select(c => c.CityName.ToLower()).Contains(x.CityName.ToLower()) &&
-                            inputCities.Select(c => c.State.ToLower()).Contains(x.State.ToLower()))
-                .Select(x => new { x.CityName, x.State })
-                .ToListAsync();
-
-            var existingCityNames = existingCities
-                .Select(x => $"{x.CityName}, {x.State}")
-                .ToList();
-
-            // Filter out cities that already exist
-            var newCities = inputCities
-                .Where(c => !existingCities.Any(e =>
-                    e.CityName.Equals(c.CityName, StringComparison.OrdinalIgnoreCase) &&
-                    e.State.Equals(c.State, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
-
-            // Add only non-existing cities
-            foreach (var cityDto in newCities)
+            try
             {
-                var city = new City
+                // Normalize input list
+                var inputCities = request.Cities
+                    .Select(c => new { CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim() })
+                    .Distinct()
+                    .ToList();
+
+                // Get already existing cities (match by CityName + State)
+                var existingCities = await _context.Cities
+                    .Where(x => x.IsActive && !x.IsDeleted &&
+                                inputCities.Select(c => c.CityName.ToLower()).Contains(x.CityName.ToLower()) &&
+                                inputCities.Select(c => c.State.ToLower()).Contains(x.State.ToLower()))
+                    .Select(x => new { x.CityName, x.State })
+                    .ToListAsync();
+
+                var existingCityNames = existingCities
+                    .Select(x => $"{x.CityName}, {x.State}")
+                    .ToList();
+
+                // Filter out cities that already exist
+                var newCities = inputCities
+                    .Where(c => !existingCities.Any(e =>
+                        e.CityName.Equals(c.CityName, StringComparison.OrdinalIgnoreCase) &&
+                        e.State.Equals(c.State, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                // Add only non-existing cities
+                foreach (var cityDto in newCities)
                 {
-                    CityID = 0,
-                    CityName = cityDto.CityName,
-                    State = cityDto.State,
-                    Region = cityDto.Region,
-                    CreatedDate = DateTime.Now,
-                    IsActive = true,
-                    IsDeleted = false
-                };
-                _context.Cities.Add(city);
-            }
+                    var city = new City
+                    {
+                        CityID = 0,
+                        CityName = cityDto.CityName,
+                        State = cityDto.State,
+                        Region = cityDto.Region,
+                        CreatedDate = DateTime.Now,
+                        IsActive = true,
+                        IsDeleted = false
+                    };
+                    _context.Cities.Add(city);
+                }
 
-            await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync();
 
-            // Build response message
-            if (existingCityNames.Any() && newCities.Any())
-            {
-                return ResultResponseDto<string>.Success(
-                    "",
-                    new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
-                );
+                // Build response message
+                if (existingCityNames.Any() && newCities.Any())
+                {
+                    return ResultResponseDto<string>.Success(
+                        "",
+                        new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
+                    );
+                }
+                else if (existingCityNames.Any())
+                {
+                    return ResultResponseDto<string>.Failure(
+                        new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
+                    );
+                }
+                else
+                {
+                    return ResultResponseDto<string>.Success(
+                        "",
+                        new string[] { $"City added successfully" }
+                    );
+                }
             }
-            else if (existingCityNames.Any())
+            catch (Exception ex)
             {
-                return ResultResponseDto<string>.Failure(
-                    new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
-                );
-            }
-            else
-            {
-                return ResultResponseDto<string>.Success(
-                    "",
-                    new string[] { $"City added successfully" }
-                );
+                await _appLogger.LogAsync("Error Occure in AddCityAsync", ex);
+                return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
             }
         }
 
         public async Task<ResultResponseDto<bool>> DeleteCityAsync(int id)
         {
-            var q = await _context.Cities.FindAsync(id);
-            if (q == null) return ResultResponseDto<bool>.Failure(new string[] { "City not exists" });
+            try
+            {
+                var q = await _context.Cities.FindAsync(id);
+                if (q == null) return ResultResponseDto<bool>.Failure(new string[] { "City not exists" });
 
-            _context.Cities.Remove(q);
-            await _context.SaveChangesAsync();
-            return ResultResponseDto<bool>.Success(true, new string[] { "City deleted Successfully" });
-
+                _context.Cities.Remove(q);
+                await _context.SaveChangesAsync();
+                return ResultResponseDto<bool>.Success(true, new string[] { "City deleted Successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in DeleteCityAsync", ex);
+                return ResultResponseDto<bool>.Failure(new string[] { "There is an error please try later" });
+            }
         }
 
         public async Task<ResultResponseDto<City>> EditCityAsync(int id, AddUpdateCityDto q)
         {
-            var existCity = await _context.Cities.FirstOrDefaultAsync(x => !x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
-            if (existCity != null)
+
+            try
             {
-                return ResultResponseDto<City>.Failure(new string[] { "City already exists" });
+                var existCity = await _context.Cities.FirstOrDefaultAsync(x => !x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
+                if (existCity != null)
+                {
+                    return ResultResponseDto<City>.Failure(new string[] { "City already exists" });
+                }
+                var existing = await _context.Cities.FindAsync(id);
+                if (existing == null) return ResultResponseDto<City>.Failure(new string[] { "City not exists" });
+                existing.CityName = q.CityName;
+                existing.UpdatedDate = DateTime.Now;
+                existing.Region = q.Region;
+                existing.State = q.State;
+                _context.Cities.Update(existing);
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<City>.Success(existing, new string[] { "City edited Successfully" });
             }
-            var existing = await _context.Cities.FindAsync(id);
-            if (existing == null) return ResultResponseDto<City>.Failure(new string[] { "City not exists" });
-            existing.CityName = q.CityName;
-            existing.UpdatedDate = DateTime.Now;
-            existing.Region = q.Region;
-            existing.State = q.State;
-            _context.Cities.Update(existing);
-            await _context.SaveChangesAsync();
-           
-           return ResultResponseDto<City>.Success(existing,new string[] { "City edited Successfully" });
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in EditCityAsync", ex);
+                return ResultResponseDto<City>.Failure(new string[] { "There is an error please try later" });
+            }
+
         }
         public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request)
         {
-            var user = _context.Users.FirstOrDefault(x => x.UserID == request.UserId);
-            if (user == null)
+            try
             {
+                var user = _context.Users.FirstOrDefault(x => x.UserID == request.UserId);
+                if (user == null)
+                {
+                    return new PaginationResponse<CityResponseDto>();
+                }
+
+                IQueryable<CityResponseDto> cityQuery;
+
+                if (user.Role == UserRole.Admin)
+                {
+                    cityQuery =
+                        from c in _context.Cities
+                        select new CityResponseDto
+                        {
+                            CityID = c.CityID,
+                            State = c.State,
+                            CityName = c.CityName,
+                            PostalCode = c.PostalCode,
+                            Region = c.Region,
+                            IsActive = c.IsActive,
+                            CreatedDate = c.CreatedDate,
+                            UpdatedDate = c.UpdatedDate,
+                            IsDeleted = c.IsDeleted
+                        };
+                }
+                else
+                {
+                    cityQuery =
+                     from c in _context.Cities
+                     join cm in _context.UserCityMappings
+                         .Where(x => !x.IsDeleted && x.UserID == request.UserId)
+                         on c.CityID equals cm.CityID
+                     join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                     select new CityResponseDto
+                     {
+                         CityID = c.CityID,
+                         State = c.State,
+                         CityName = c.CityName,
+                         PostalCode = c.PostalCode,
+                         Region = c.Region,
+                         IsActive = c.IsActive,
+                         CreatedDate = c.CreatedDate,
+                         UpdatedDate = c.UpdatedDate,
+                         IsDeleted = c.IsDeleted,
+                         AssignedBy = u.FullName
+                     };
+
+                }
+                var response = await cityQuery.ApplyPaginationAsync(
+                    request,
+                    x => string.IsNullOrEmpty(request.SearchText) ||
+                         x.CityName.Contains(request.SearchText) ||
+                         x.State.Contains(request.SearchText)
+                );
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in GetCitiesAsync", ex);
                 return new PaginationResponse<CityResponseDto>();
             }
-
-            IQueryable<CityResponseDto> cityQuery;
-
-            if (user.Role == UserRole.Admin)
-            {
-                cityQuery = 
-                    from c in _context.Cities
-                    select new CityResponseDto
-                    {
-                        CityID = c.CityID,
-                        State = c.State,
-                        CityName = c.CityName,
-                        PostalCode = c.PostalCode,
-                        Region = c.Region,
-                        IsActive = c.IsActive,
-                        CreatedDate = c.CreatedDate,
-                        UpdatedDate = c.UpdatedDate,
-                        IsDeleted = c.IsDeleted
-                    }; 
-            }
-            else
-            {
-               cityQuery =
-                from c in _context.Cities
-                join cm in _context.UserCityMappings
-                    .Where(x => !x.IsDeleted && x.UserID == request.UserId)
-                    on c.CityID equals cm.CityID
-                join u in _context.Users on cm.AssignedByUserId equals u.UserID
-                select new CityResponseDto
-                {
-                    CityID = c.CityID,
-                    State = c.State,
-                    CityName = c.CityName,
-                    PostalCode = c.PostalCode,
-                    Region = c.Region,
-                    IsActive = c.IsActive,
-                    CreatedDate = c.CreatedDate,
-                    UpdatedDate = c.UpdatedDate,
-                    IsDeleted = c.IsDeleted,
-                    AssignedBy = u.FullName
-                };
-                
-            }
-            var response = await cityQuery.ApplyPaginationAsync(
-                request,
-                x => string.IsNullOrEmpty(request.SearchText) ||
-                     x.CityName.Contains(request.SearchText) ||
-                     x.State.Contains(request.SearchText)
-            );
-
-            return response;
         }
         public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByUserId(int userId)
         {
-            var user = _context.Users.FirstOrDefault(x => x.UserID == userId);
-
-            if (user == null)
+            try
             {
-                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
+                var user = _context.Users.FirstOrDefault(x => x.UserID == userId);
+
+                if (user == null)
+                {
+                    return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
+                }
+
+                IQueryable<UserCityMappingResponseDto> cityQuery;
+
+                if (user.Role == UserRole.Admin)
+                {
+                    cityQuery =
+                        from c in _context.Cities
+                        select new UserCityMappingResponseDto
+                        {
+                            CityID = c.CityID,
+                            State = c.State,
+                            CityName = c.CityName,
+                            PostalCode = c.PostalCode,
+                            Region = c.Region,
+                            IsActive = c.IsActive,
+                            CreatedDate = c.CreatedDate,
+                            UpdatedDate = c.UpdatedDate,
+                            IsDeleted = c.IsDeleted
+                        };
+                }
+                else
+                {
+                    cityQuery =
+                     from c in _context.Cities
+                     join cm in _context.UserCityMappings
+                         .Where(x => !x.IsDeleted && x.UserID == userId)
+                         on c.CityID equals cm.CityID
+                     join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                     select new UserCityMappingResponseDto
+                     {
+                         CityID = c.CityID,
+                         State = c.State,
+                         CityName = c.CityName,
+                         PostalCode = c.PostalCode,
+                         Region = c.Region,
+                         IsActive = c.IsActive,
+                         CreatedDate = c.CreatedDate,
+                         UpdatedDate = c.UpdatedDate,
+                         IsDeleted = c.IsDeleted,
+                         AssignedBy = u.FullName,
+                         UserCityMappingID = cm.UserCityMappingID
+                     };
+                }
+                var result = await cityQuery.ToListAsync();
+
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "get successfully" });
             }
-
-            IQueryable<UserCityMappingResponseDto> cityQuery;
-
-            if (user.Role == UserRole.Admin)
+            catch (Exception ex)
             {
-                cityQuery =
-                    from c in _context.Cities
-                    select new UserCityMappingResponseDto
-                    {
-                        CityID = c.CityID,
-                        State = c.State,
-                        CityName = c.CityName,
-                        PostalCode = c.PostalCode,
-                        Region = c.Region,
-                        IsActive = c.IsActive,
-                        CreatedDate = c.CreatedDate,
-                        UpdatedDate = c.UpdatedDate,
-                        IsDeleted = c.IsDeleted
-                    };
+                await _appLogger.LogAsync("Error Occure in getAllCityByUserId", ex);
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "There is an error please try later" });
             }
-            else
-            {
-                cityQuery =
-                 from c in _context.Cities
-                 join cm in _context.UserCityMappings
-                     .Where(x => !x.IsDeleted && x.UserID == userId)
-                     on c.CityID equals cm.CityID
-                 join u in _context.Users on cm.AssignedByUserId equals u.UserID
-                 select new UserCityMappingResponseDto
-                 {
-                     CityID = c.CityID,
-                     State = c.State,
-                     CityName = c.CityName,
-                     PostalCode = c.PostalCode,
-                     Region = c.Region,
-                     IsActive = c.IsActive,
-                     CreatedDate = c.CreatedDate,
-                     UpdatedDate = c.UpdatedDate,
-                     IsDeleted = c.IsDeleted,
-                     AssignedBy = u.FullName,
-                     UserCityMappingID = cm.UserCityMappingID
-                 };
-            }
-            var result = await cityQuery.ToListAsync();
-
-           return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "get successfully" });
         }
         public async Task<ResultResponseDto<City>> GetByIdAsync(int id)
         {
-            var d = await _context.Cities.FirstAsync(x => x.CityID == id);
-            return await Task.FromResult(ResultResponseDto<City>.Success(d,new string[] { "get successfully" }));
+            try
+            {
+                var d = await _context.Cities.FirstAsync(x => x.CityID == id);
+                return await Task.FromResult(ResultResponseDto<City>.Success(d, new string[] { "get successfully" }));
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in GetByIdAsync", ex);
+                return ResultResponseDto<City>.Failure(new string[] { "There is an error please try later" });
+            }
         }
 
         public async Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int assignedByUserId)
         {
-            if(_context.UserCityMappings.Any(x => x.UserID == userId && x.CityID == cityId && x.AssignedByUserId == assignedByUserId && !x.IsDeleted))
+            try
             {
-                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
+                if (_context.UserCityMappings.Any(x => x.UserID == userId && x.CityID == cityId && x.AssignedByUserId == assignedByUserId && !x.IsDeleted))
+                {
+                    return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
+                }
+                var user = _context.Users.Find(userId);
+
+                if (user == null)
+                {
+                    return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
+                }
+                var mapping = new UserCityMapping
+                {
+                    UserID = userId,
+                    CityID = cityId,
+                    AssignedByUserId = assignedByUserId,
+                    Role = user.Role
+                };
+                _context.UserCityMappings.Add(mapping);
+
+                await _context.SaveChangesAsync();
+
+                return await Task.FromResult(ResultResponseDto<object>.Success(new { }, new string[] { "City assigned successfully" }));
             }
-            var user = _context.Users.Find(userId);
-
-            if (user == null)
+            catch (Exception ex)
             {
-                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
+                await _appLogger.LogAsync("Error Occure in AssingCityToUser", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
             }
-            var mapping = new UserCityMapping
-            {
-                UserID = userId,
-                CityID = cityId,
-                AssignedByUserId = assignedByUserId,
-                Role = user.Role
-            };
-            _context.UserCityMappings.Add(mapping);
-
-            await _context.SaveChangesAsync();
-
-            return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "City assigned successfully" }));
         }
 
         public async Task<ResultResponseDto<object>> EditAssingCity(int id, int userId, int cityId, int assignedByUserId)
         {
-            if (_context.UserCityMappings.Any(x => x.UserID == userId && x.CityID == cityId && x.AssignedByUserId == assignedByUserId))
+            try
             {
-                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" }));
-            }
-            var userMapping = _context.UserCityMappings.Find(id);
 
-            if (userMapping == null)
+                if (_context.UserCityMappings.Any(x => x.UserID == userId && x.CityID == cityId && x.AssignedByUserId == assignedByUserId))
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "City already assigned to user" });
+                }
+                var userMapping = _context.UserCityMappings.Find(id);
+
+                if (userMapping == null)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
+                }
+
+                userMapping.UserID = userId;
+                userMapping.CityID = cityId;
+                userMapping.AssignedByUserId = assignedByUserId;
+                _context.UserCityMappings.Update(userMapping);
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<object>.Success(new { }, new string[] { "Assigned city updated successfully" });
+            }
+            catch (Exception ex)
             {
-                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "Invalid request data." }));
+                await _appLogger.LogAsync("Error Occure", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
             }
-
-            userMapping.UserID = userId;
-            userMapping.CityID = cityId;
-            userMapping.AssignedByUserId = assignedByUserId;
-            _context.UserCityMappings.Update(userMapping);
-            await _context.SaveChangesAsync();
-
-            return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "Assigned city updated successfully" }));
         }
 
         public async Task<ResultResponseDto<object>> UnAssignCity(UserCityUnMappingRequestDto requestDto)
         {
-            var userMapping = _context.UserCityMappings.Where(x => x.UserID == requestDto.UserId && x.AssignedByUserId == requestDto.AssignedByUserId && !x.IsDeleted).ToList();
-            if (userMapping == null && userMapping?.Count==0)
+            try
             {
-                return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "user has no assign city" }));
+                var userMapping = _context.UserCityMappings.Where(x => x.UserID == requestDto.UserId && x.AssignedByUserId == requestDto.AssignedByUserId && !x.IsDeleted).ToList();
+                if (userMapping == null && userMapping?.Count == 0)
+                {
+                    return await Task.FromResult(ResultResponseDto<object>.Failure(new string[] { "user has no assign city" }));
+                }
+                foreach (var m in userMapping)
+                {
+                    m.IsDeleted = true;
+                    _context.UserCityMappings.Update(m);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<object>.Success(new { }, new string[] { "Assigned city deleted successfully" });
             }
-            foreach (var m in userMapping)
+            catch (Exception ex)
             {
-                m.IsDeleted = true;
-                _context.UserCityMappings.Update(m);
+                await _appLogger.LogAsync("Error Occure in UnAssignCity", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
             }
-
-            await _context.SaveChangesAsync();
-
-            return await Task.FromResult(ResultResponseDto<object>.Success(new {},new string[] { "Assigned city deleted successfully" }));
         }
         public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> GetCityByUserIdForAssessment(int userId)
         {
-            var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userId);
-
-            if (user == null)
+            try
             {
-                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
+
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userId);
+
+                if (user == null)
+                {
+                    return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
+                }
+
+                // Get distinct UserCityMappings for the user where responses < 14
+                var userCityMappingIds = _context.Assessments
+                    .Where(a => !a.UserCityMapping.IsDeleted && a.UserCityMapping.UserID == userId && a.PillarAssessments.Count() == 14)
+                    .Select(a => a.UserCityMappingID)
+                    .Distinct();
+
+                // Project into response DTO
+                var cityQuery =
+                     from c in _context.Cities
+                     join cm in _context.UserCityMappings
+                         .Where(x => !x.IsDeleted && x.UserID == userId && !userCityMappingIds.Contains(x.UserCityMappingID))
+                         on c.CityID equals cm.CityID
+                     join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                     select new UserCityMappingResponseDto
+                     {
+                         CityID = c.CityID,
+                         State = c.State,
+                         CityName = c.CityName,
+                         PostalCode = c.PostalCode,
+                         Region = c.Region,
+                         IsActive = c.IsActive,
+                         CreatedDate = c.CreatedDate,
+                         UpdatedDate = c.UpdatedDate,
+                         IsDeleted = c.IsDeleted,
+                         AssignedBy = u.FullName,
+                         UserCityMappingID = cm.UserCityMappingID
+                     };
+
+                var result = await cityQuery.ToListAsync();
+
+                if (!result.Any())
+                {
+                    return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "No city is found for assessment" });
+                }
+
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "Retrieved successfully" });
             }
-
-            // Get distinct UserCityMappings for the user where responses < 14
-            var userCityMappingIds = _context.Assessments
-                .Where(a => !a.UserCityMapping.IsDeleted && a.UserCityMapping.UserID == userId && a.PillarAssessments.Count() == 14)
-                .Select(a => a.UserCityMappingID)
-                .Distinct();
-
-            // Project into response DTO
-            var cityQuery =
-                 from c in _context.Cities
-                 join cm in _context.UserCityMappings
-                     .Where(x => !x.IsDeleted && x.UserID == userId && !userCityMappingIds.Contains(x.UserCityMappingID))
-                     on c.CityID equals cm.CityID
-                 join u in _context.Users on cm.AssignedByUserId equals u.UserID
-                 select new UserCityMappingResponseDto
-                 {
-                     CityID = c.CityID,
-                     State = c.State,
-                     CityName = c.CityName,
-                     PostalCode = c.PostalCode,
-                     Region = c.Region,
-                     IsActive = c.IsActive,
-                     CreatedDate = c.CreatedDate,
-                     UpdatedDate = c.UpdatedDate,
-                     IsDeleted = c.IsDeleted,
-                     AssignedBy = u.FullName,
-                     UserCityMappingID = cm.UserCityMappingID
-                 };
-
-            var result = await cityQuery.ToListAsync();
-
-            if (!result.Any())
+            catch (Exception ex)
             {
-                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "No city is found for assessment" });
+                await _appLogger.LogAsync("Error Occure in GetCityByUserIdForAssessment", ex);
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "There is an error please try later" });
             }
-
-            return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "Retrieved successfully" });
         }
 
         public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory()
         {
-            var cityHistory = new CityHistoryDto();
+            try
+            {
+                var cityHistory = new CityHistoryDto();
 
-            // 1️⃣ Get city-related counts in a single round trip
-            var cityQuery = await (
-                from c in _context.Cities
-                where !c.IsDeleted && c.IsActive
-                join uc in _context.UserCityMappings.Where(x => !x.IsDeleted)
-                    on c.CityID equals uc.CityID into cityMappings
-                from uc in cityMappings.DefaultIfEmpty()
-                join a in _context.Assessments.Where(x => x.IsActive)
-                    on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
-                from a in cityAssessments.DefaultIfEmpty()
-                select new
-                {
-                    c.CityID,
-                    HasMapping = uc != null,
-                    IsCompleted = a != null && a.PillarAssessments.Count == 14
-                }
-            ).ToListAsync();
+                // 1️⃣ Get city-related counts in a single round trip
+                var cityQuery = await (
+                    from c in _context.Cities
+                    where !c.IsDeleted && c.IsActive
+                    join uc in _context.UserCityMappings.Where(x => !x.IsDeleted)
+                        on c.CityID equals uc.CityID into cityMappings
+                    from uc in cityMappings.DefaultIfEmpty()
+                    join a in _context.Assessments.Where(x => x.IsActive)
+                        on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
+                    from a in cityAssessments.DefaultIfEmpty()
+                    select new
+                    {
+                        c.CityID,
+                        HasMapping = uc != null,
+                        IsCompleted = a != null && a.PillarAssessments.Count == 14
+                    }
+                ).ToListAsync();
 
-            cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
-            cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
-            cityHistory.CompeleteCity = cityQuery.Where(x => x.IsCompleted).Select(x => x.CityID).Distinct().Count();
-            cityHistory.InprocessCity = cityHistory.ActiveCity - cityHistory.CompeleteCity;
+                cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
+                cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
+                cityHistory.CompeleteCity = cityQuery.Where(x => x.IsCompleted).Select(x => x.CityID).Distinct().Count();
+                cityHistory.InprocessCity = cityHistory.ActiveCity - cityHistory.CompeleteCity;
 
-            // 2️⃣ Get evaluators & analysts in a single query
-            var userCounts = await _context.Users
-                .Where(u => !u.IsDeleted && (u.Role == UserRole.Evaluator || u.Role == UserRole.Analyst))
-                .GroupBy(u => u.Role)
-                .Select(g => new { Role = g.Key, Count = g.Count() })
-                .ToListAsync();
+                // 2️⃣ Get evaluators & analysts in a single query
+                var userCounts = await _context.Users
+                    .Where(u => !u.IsDeleted && (u.Role == UserRole.Evaluator || u.Role == UserRole.Analyst))
+                    .GroupBy(u => u.Role)
+                    .Select(g => new { Role = g.Key, Count = g.Count() })
+                    .ToListAsync();
 
-            cityHistory.TotalEvaluator = userCounts.FirstOrDefault(x => x.Role == UserRole.Evaluator)?.Count ?? 0;
-            cityHistory.TotalAnalyst = userCounts.FirstOrDefault(x => x.Role == UserRole.Analyst)?.Count ?? 0;
+                cityHistory.TotalEvaluator = userCounts.FirstOrDefault(x => x.Role == UserRole.Evaluator)?.Count ?? 0;
+                cityHistory.TotalAnalyst = userCounts.FirstOrDefault(x => x.Role == UserRole.Analyst)?.Count ?? 0;
 
-            return ResultResponseDto<CityHistoryDto>.Success(
-                cityHistory,
-                new List<string> { "Get history successfully" }
-            );
+                return ResultResponseDto<CityHistoryDto>.Success(
+                    cityHistory,
+                    new List<string> { "Get history successfully" }
+                );
+
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in GetCityHistory", ex);
+                return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "There is an error please try later" });
+            }
         }
     }
 }

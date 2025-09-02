@@ -42,6 +42,7 @@ namespace AssessmentPlatform
             );
 
             // Dependency Injection for Services
+            services.AddHttpContextAccessor();
             services.AddScoped<IQuestionService, QuestionService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPillarService, PillarService>();
