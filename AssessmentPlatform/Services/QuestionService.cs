@@ -324,6 +324,7 @@ namespace AssessmentPlatform.Services
                     UserCityMappingID = request.UserCityMappingID,
                     PillarDisplayOrder = nextPillar.DisplayOrder,
                     PillarName = nextPillar.PillarName,
+                    PillarID = nextPillar.PillarID,
                     Description = nextPillar.Description,
                     Questions = questions
                 };

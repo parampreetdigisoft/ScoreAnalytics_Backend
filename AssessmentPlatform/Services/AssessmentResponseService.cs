@@ -124,19 +124,15 @@ namespace AssessmentPlatform.Services
                     };
                     _context.Assessments.Add(assessment);
                 }
-                var pillarIds = assessment.PillarAssessments.Select(x => x.PillarID).Distinct().ToList();
-                var pillarsResposnes = request.Responses.Where(x => !pillarIds.Contains(x.PillarID)).GroupBy(x => x.PillarID);
-
-                foreach (var p in pillarsResposnes)
+                if(request.PillarID > 0 && !assessment.PillarAssessments.Any(x=>x.PillarID == request.PillarID))
                 {
                     var newPillarAssessment = new PillarAssessment
                     {
-                        PillarID = p.Key,
+                        PillarID = request.PillarID,
                         AssessmentID = assessment.AssessmentID,
                         Assessment = assessment
                     };
-                    var d = p.ToList();
-                    foreach (var response in d)
+                    foreach (var response in request.Responses)
                     {
                         var r = new AssessmentResponse
                         {
@@ -151,10 +147,14 @@ namespace AssessmentPlatform.Services
                     assessment.UpdatedAt = DateTime.Now;
                     saveResponse++;
                 }
+                else
+                {
+                    return ResultResponseDto<string>.Failure(new[] { "Pillar response is not saved you may provided wrong details" });
+                }
 
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<string>.Success("", new[] { "Assessment saved successfully" }, saveResponse);
+                return ResultResponseDto<string>.Success("", new[] { "Assessment saved successfully" }, 1);
             }
             catch (Exception ex)
             {
@@ -348,7 +348,6 @@ namespace AssessmentPlatform.Services
                                             assesmentResponseList.Add(new AddAssesmentResponseDto
                                             {
                                                 AssessmentID = 0,
-                                                PillarID = pillarID,
                                                 QuestionID = questionID,
                                                 QuestionOptionID = optionId.GetValueOrDefault(),
                                                 Score = score != null ? (ScoreValue)score : null,
@@ -360,12 +359,13 @@ namespace AssessmentPlatform.Services
                                 }
                                 row++;
                             }
-                            if (assesmentResponseList.Count > 0)
-                            {
+                           if(userCityMappingID > 0 && pillarID > 0)
+                           {
                                 var assessment = new AddAssessmentDto
                                 {
                                     AssessmentID = 0,
                                     UserCityMappingID = userCityMappingID,
+                                    PillarID = pillarID,
                                     Responses = assesmentResponseList
                                 };
 
@@ -375,13 +375,7 @@ namespace AssessmentPlatform.Services
                                     return response;
                                 }
                                 recordSaved++;
-                            }
-                            else
-                            {
-                                return ResultResponseDto<string>.Success("", new[] { recordSaved > 0
-                                    ? recordSaved + " Pillars Assessment saved successfully"
-                                    : "Please fill the sheet in sequece to submit the assessment" });
-                            }
+                           }
                         }
                     }
                 }
