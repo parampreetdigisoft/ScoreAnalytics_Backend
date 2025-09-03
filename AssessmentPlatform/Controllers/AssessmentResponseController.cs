@@ -85,13 +85,25 @@ namespace AssessmentPlatform.Controllers
             var content = await _responseService.ImportAssessmentAsync(file, userID);
             return Ok(content);
         }
-
+        /// <summary>
+        /// This API is used to get the city question history  gloabal history for admin
+        /// </summary>
+        /// <param name="cityID"></param>
+        /// <returns></returns>
         [HttpGet]
         [Route("getCityQuestionHistory/{cityID}")]
-        [Authorize]
+        [Authorize(Roles ="Admin")]
         public async Task<IActionResult> GetCityQuestionHistory(int cityID)
         {
             var result = await _responseService.GetCityQuestionHistory(cityID);
+            return Ok(result);
+        }
+        [HttpGet]
+        [Route("getAssessmentProgressHistory/{assessmentID}")]
+        [Authorize]
+        public async Task<IActionResult> getAssessmentProgressHistory(int assessmentID)
+        {
+            var result = await _responseService.GetAssessmentProgressHistory(assessmentID);
             return Ok(result);
         }
     }

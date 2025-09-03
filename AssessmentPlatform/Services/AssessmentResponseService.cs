@@ -124,7 +124,7 @@ namespace AssessmentPlatform.Services
                     };
                     _context.Assessments.Add(assessment);
                 }
-                if(request.PillarID > 0 && !assessment.PillarAssessments.Any(x=>x.PillarID == request.PillarID))
+                if (request.PillarID > 0 && !assessment.PillarAssessments.Any(x => x.PillarID == request.PillarID))
                 {
                     var newPillarAssessment = new PillarAssessment
                     {
@@ -359,8 +359,8 @@ namespace AssessmentPlatform.Services
                                 }
                                 row++;
                             }
-                           if(userCityMappingID > 0 && pillarID > 0)
-                           {
+                            if (userCityMappingID > 0 && pillarID > 0)
+                            {
                                 var assessment = new AddAssessmentDto
                                 {
                                     AssessmentID = 0,
@@ -375,7 +375,7 @@ namespace AssessmentPlatform.Services
                                     return response;
                                 }
                                 recordSaved++;
-                           }
+                            }
                         }
                     }
                 }
@@ -498,6 +498,58 @@ namespace AssessmentPlatform.Services
                     TotalAssessment = 0,
                     Pillars = new List<CityPillarQuestionHistoryReponseDto>()
                 };
+            }
+        }
+
+        public async Task<ResultResponseDto<GetAssessmentHistoryDto>> GetAssessmentProgressHistory(int assessmentID)
+        {
+            try
+            {
+                // Fetch assessment with pillars & responses in one query
+                var assessment = await _context.Assessments
+                    .Include(a => a.PillarAssessments)
+                        .ThenInclude(pa => pa.Responses)
+                    .FirstOrDefaultAsync(a => a.AssessmentID == assessmentID);
+
+                if (assessment == null)
+                {
+                    return ResultResponseDto<GetAssessmentHistoryDto>.Failure(new[] { "Failed to get assessment history" });
+                }
+
+                // Get total questions directly (avoid Include if not needed)
+                var totalQuestions = await _context.Questions.CountAsync();
+
+                // Calculate answered questions
+                var totalAnsweredQuestions = assessment.PillarAssessments
+                    .SelectMany(pa => pa.Responses)
+                    .Count();
+
+                // Calculate score (sum only valid scores <= Four)
+                var score = assessment.PillarAssessments
+                    .SelectMany(pa => pa.Responses)
+                    .Where(r => r.Score.HasValue && r.Score.Value <= ScoreValue.Four)
+                    .Sum(r => (int)r.Score!.Value);
+
+                // Build response
+                var result = new GetAssessmentHistoryDto
+                {
+                    AssessmentID = assessmentID,
+                    Score = score,
+                    TotalAnsPillar = assessment.PillarAssessments.Count,
+                    TotalAnsQuestion = totalAnsweredQuestions,
+                    TotalQuestion = totalQuestions,
+                    CurrentProgress = totalQuestions > 0
+                        ? Math.Round((totalAnsweredQuestions / (double)totalQuestions) * 100)
+                        : 0
+                };
+
+                return ResultResponseDto<GetAssessmentHistoryDto>.Success(result, new[] { "Assessment history fetched successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in GetAssessmentProgressHistory", ex);
+                return ResultResponseDto<GetAssessmentHistoryDto>.Failure(new[] { "Failed to get assessment history" });
+
             }
         }
     }

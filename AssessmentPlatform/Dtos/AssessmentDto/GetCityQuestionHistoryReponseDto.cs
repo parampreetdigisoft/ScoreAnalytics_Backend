@@ -21,4 +21,13 @@
         public int TotalQuestion { get; set; }
         public int AnsQuestion { get; set; }
     }
+    public class GetAssessmentHistoryDto
+    {
+        public int AssessmentID { get; set; }
+        public double Score { get; set; }
+        public int TotalAnsPillar { get; set; }
+        public int TotalQuestion { get; set; }
+        public int TotalAnsQuestion { get; set; }
+        public double CurrentProgress { get; set; }
+    }
 }
