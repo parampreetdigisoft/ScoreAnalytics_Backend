@@ -1,4 +1,5 @@
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.PillarDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
@@ -59,7 +60,7 @@ namespace AssessmentPlatform.Services
 
         }
 
-        public async Task<Pillar> UpdateAsync(int id, Pillar pillar)
+        public async Task<Pillar> UpdateAsync(int id, UpdatePillarDto pillar)
         {
             try
             {

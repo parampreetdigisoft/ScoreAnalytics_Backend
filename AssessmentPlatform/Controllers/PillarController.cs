@@ -1,7 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
+using AssessmentPlatform.Dtos.PillarDto;
+using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
-using AssessmentPlatform.IServices;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -39,7 +40,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Update(int id, [FromBody] Pillar pillar)
+        public async Task<IActionResult> Update(int id, [FromBody] UpdatePillarDto pillar)
         {
             var result = await _pillarService.UpdateAsync(id, pillar);
             if (result == null) return NotFound();

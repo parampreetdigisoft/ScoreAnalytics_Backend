@@ -489,7 +489,6 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var cityHistory = new CityHistoryDto();
                 var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
                 if(user == null)
                 {
