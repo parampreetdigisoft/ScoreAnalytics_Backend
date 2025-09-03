@@ -1,15 +1,23 @@
 ﻿namespace AssessmentPlatform.Dtos.AssessmentDto
 {
-    public class GetCityQuestionHistoryReponseDto
+    public class GetCityQuestionHistoryReponseDto : GetCitySubmitionHistoryReponseDto
+    {
+        public List<CityPillarQuestionHistoryReponseDto> Pillars { get; set; } = new();
+    }
+    public class GetCitySubmitionHistoryReponseDto
     {
         public int CityID { get; set; }
         public int TotalAssessment { get; set; }
         public decimal Score { get; set; }
+        public decimal ScoreProgress { get; set; }
         public int TotalPillar { get; set; }
         public int TotalAnsPillar { get; set; }
         public int TotalQuestion { get; set; }
         public int AnsQuestion { get; set; }
-        public List<CityPillarQuestionHistoryReponseDto> Pillars { get; set; } = new();
+    }
+    public class GetCitiesSubmitionHistoryReponseDto : GetCitySubmitionHistoryReponseDto
+    {
+        public string CityName { get; set; }
     }
 
     public class CityPillarQuestionHistoryReponseDto

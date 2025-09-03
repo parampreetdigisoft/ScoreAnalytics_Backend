@@ -475,6 +475,7 @@ namespace AssessmentPlatform.Services
                     CityID = cityID,
                     TotalAssessment = assessmentCount,
                     Score = cityPillars.Sum(x => x.Score),
+                    ScoreProgress =  Math.Round(cityPillars.Sum(x => x.Score)) * 100/ (totalQuestions * 4),
                     TotalPillar = totalPillars * assessmentCount,
                     TotalAnsPillar = cityPillars.Sum(x => x.AnsPillar),
                     TotalQuestion = totalQuestions,

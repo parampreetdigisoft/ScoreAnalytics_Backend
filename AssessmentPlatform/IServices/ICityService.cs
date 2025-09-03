@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Models;
@@ -18,5 +19,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<object>> UnAssignCity(UserCityUnMappingRequestDto requestDto);
         Task<ResultResponseDto<List<UserCityMappingResponseDto>>> GetCityByUserIdForAssessment(int userId);
         Task<ResultResponseDto<CityHistoryDto>> GetCityHistory();
+        Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID);
     }
 }

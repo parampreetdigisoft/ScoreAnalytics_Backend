@@ -98,5 +98,14 @@ namespace AssessmentPlatform.Controllers
             var result = await _cityService.GetCityHistory();
             return Ok(result);
         }
+
+        [HttpGet]
+        [Authorize]
+        [Route("getCitiesProgressByUserId/{userID}")]
+        public async Task<IActionResult> getCitiesProgressByUserId(int userID)
+        {
+            var result = await _cityService.GetCitiesProgressByUserId(userID);
+            return Ok(result);
+        }
     }
 }

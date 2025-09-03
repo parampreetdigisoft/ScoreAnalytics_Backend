@@ -1,12 +1,14 @@
 ﻿using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -481,6 +483,84 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error Occure in GetCityHistory", ex);
                 return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+        public async Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID)
+        {
+            try
+            {
+                var cityHistory = new CityHistoryDto();
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
+                if(user == null)
+                {
+                    return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Failure(new string[] { "Invalid request" });
+                }
+
+                // Get total pillars and questions (independent query)
+                var pillarStats = await _context.Pillars
+                    .Select(p => new { QuestionsCount = p.Questions.Count() })
+                    .ToListAsync();
+
+                int totalPillars = pillarStats.Count;
+                int totalQuestions = pillarStats.Sum(p => p.QuestionsCount);
+
+                Expression<Func<UserCityMapping, bool>> predicate;
+
+                if (user.Role == UserRole.Analyst)
+                    predicate = x => !x.IsDeleted && (x.AssignedByUserId == userID || x.UserID == userID);
+                else
+                    predicate = x => !x.IsDeleted && x.UserID == userID;
+
+
+                var cityRaw = await (
+                    from uc in _context.UserCityMappings.Where(predicate)
+                    join c in _context.Cities.Where(c => !c.IsDeleted && c.IsActive)
+                        on uc.CityID equals c.CityID
+                    join a in _context.Assessments.Where(x => x.IsActive)
+                        on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
+                    from a in cityAssessments.DefaultIfEmpty()
+                    select new
+                    {
+                        c.CityID,
+                        c.CityName,
+                        AssessmentID = (int?)a.AssessmentID,
+                        PillarAssessments = a.PillarAssessments,   // keep as is
+                    }
+                ).AsNoTracking().ToListAsync();  // 🚀 force materialization first
+
+                // Now do grouping/aggregation in memory (LINQ to Objects)
+                var citySubmission = cityRaw
+                    .GroupBy(g => new { g.CityID, g.CityName })
+                    .Select(g =>
+                    {
+                        var allPillars = g.Where(x => x.PillarAssessments != null).SelectMany(x => x.PillarAssessments);
+                        var allResponses = allPillars.SelectMany(p => p.Responses ?? new List<AssessmentResponse>());
+
+                        return new GetCitiesSubmitionHistoryReponseDto
+                        {
+                            CityID = g.Key.CityID,
+                            CityName = g.Key.CityName,
+                            TotalAssessment = g.Select(x => x.AssessmentID).Where(id => id.HasValue).Distinct().Count(),
+                            Score = allResponses.Sum(r => (int?)r.Score ?? 0),
+                            TotalPillar = totalPillars,
+                            TotalAnsPillar = allPillars.Count(),
+                            TotalQuestion = totalQuestions,
+                            AnsQuestion = allResponses.Count(),
+                            ScoreProgress = totalQuestions > 0
+                                ? (allResponses.Sum(r => (int?)r.Score ?? 0) * 100) / (totalQuestions * 4)
+                                : 0
+                        };
+                    })
+                    .ToList();
+
+
+                return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Success(citySubmission ?? new(), new List<string> { "Get Cities history successfully" });
+
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in GetCitiesProgressByUserId", ex);
+                return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Failure(new string[] { "There is an error please try later" });
             }
         }
     }
