@@ -439,7 +439,7 @@ namespace AssessmentPlatform.Services
             try
             {
                 var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
-                if (user == null || user.Role == UserRole.Evaluator)
+                if (user == null)
                 {
                     return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "Invalid request" });
                 }
@@ -449,6 +449,8 @@ namespace AssessmentPlatform.Services
 
                 if (user.Role == UserRole.Analyst)
                     predicate = x => !x.IsDeleted && (x.AssignedByUserId == userID || x.UserID == userID);
+                else if(user.Role == UserRole.Evaluator)
+                    predicate = x => !x.IsDeleted && x.UserID == userID;
                 else
                     predicate = x => !x.IsDeleted;
 
@@ -489,7 +491,6 @@ namespace AssessmentPlatform.Services
                     cityHistory,
                     new List<string> { "Get history successfully" }
                 );
-
             }
             catch (Exception ex)
             {

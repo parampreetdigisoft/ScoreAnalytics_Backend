@@ -411,7 +411,7 @@ namespace AssessmentPlatform.Services
             {
 
                 var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
-                if (user == null || user.Role == UserRole.Evaluator)
+                if (user == null)
                 {
                     return new GetCityQuestionHistoryReponseDto
                     {
@@ -431,6 +431,8 @@ namespace AssessmentPlatform.Services
 
                 if (user.Role == UserRole.Analyst)
                     predicate = x => !x.IsDeleted && x.CityID == cityID && (x.AssignedByUserId == userID || x.UserID == userID);
+                else if (user.Role == UserRole.Evaluator)
+                    predicate = x => !x.IsDeleted && x.CityID == cityID && x.UserID == userID;
                 else
                     predicate = x => !x.IsDeleted && x.CityID == cityID;
 
