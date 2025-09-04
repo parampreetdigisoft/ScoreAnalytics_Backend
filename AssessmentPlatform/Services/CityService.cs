@@ -6,7 +6,6 @@ using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Linq.Expressions;
@@ -535,8 +534,10 @@ namespace AssessmentPlatform.Services
                     {
                         c.CityID,
                         c.CityName,
+                        UserCityMapping = uc,
                         AssessmentID = (int?)a.AssessmentID,
-                        PillarAssessments = a.PillarAssessments,   // keep as is
+                        a.PillarAssessments,
+                        Responses = a.PillarAssessments.SelectMany(pa => pa.Responses)
                     }
                 ).AsNoTracking().ToListAsync();  // 🚀 force materialization first
 
@@ -545,8 +546,9 @@ namespace AssessmentPlatform.Services
                     .GroupBy(g => new { g.CityID, g.CityName })
                     .Select(g =>
                     {
-                        var allPillars = g.Where(x => x.PillarAssessments != null).SelectMany(x => x.PillarAssessments);
-                        var allResponses = allPillars.SelectMany(p => p.Responses ?? new List<AssessmentResponse>());
+                        var allPillars = g.Where(x => x.PillarAssessments != null).SelectMany(p => p.PillarAssessments);
+                        var allResponses = g.Where(x=> x.Responses != null).SelectMany(p => p.Responses);
+                        var userCityMappingCount = g.Select(x => x.UserCityMapping).Count();
 
                         return new GetCitiesSubmitionHistoryReponseDto
                         {
@@ -554,12 +556,12 @@ namespace AssessmentPlatform.Services
                             CityName = g.Key.CityName,
                             TotalAssessment = g.Select(x => x.AssessmentID).Where(id => id.HasValue).Distinct().Count(),
                             Score = allResponses.Sum(r => (int?)r.Score ?? 0),
-                            TotalPillar = totalPillars,
-                            TotalAnsPillar = allPillars.Count(),
-                            TotalQuestion = totalQuestions,
+                            TotalPillar = totalPillars * userCityMappingCount,
+                            TotalAnsPillar = allPillars.Count() ,
+                            TotalQuestion = totalQuestions * userCityMappingCount,
                             AnsQuestion = allResponses.Count(),
                             ScoreProgress = totalQuestions > 0
-                                ? (allResponses.Sum(r => (int?)r.Score ?? 0) * 100) / (totalQuestions * 4)
+                                ? (allResponses.Sum(r => (int?)r.Score ?? 0) * 100) / (totalQuestions * userCityMappingCount * 4)
                                 : 0
                         };
                     })
