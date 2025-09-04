@@ -6,6 +6,7 @@ using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Linq.Expressions;
@@ -434,17 +435,29 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory()
+        public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID)
         {
             try
             {
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
+                if (user == null || user.Role == UserRole.Evaluator)
+                {
+                    return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "Invalid request" });
+                }
                 var cityHistory = new CityHistoryDto();
+
+                Expression<Func<UserCityMapping, bool>> predicate;
+
+                if (user.Role == UserRole.Analyst)
+                    predicate = x => !x.IsDeleted && (x.AssignedByUserId == userID || x.UserID == userID);
+                else
+                    predicate = x => !x.IsDeleted;
 
                 // 1️⃣ Get city-related counts in a single round trip
                 var cityQuery = await (
                     from c in _context.Cities
                     where !c.IsDeleted && c.IsActive
-                    join uc in _context.UserCityMappings.Where(x => !x.IsDeleted)
+                    join uc in _context.UserCityMappings.Where(predicate)
                         on c.CityID equals uc.CityID into cityMappings
                     from uc in cityMappings.DefaultIfEmpty()
                     join a in _context.Assessments.Where(x => x.IsActive)

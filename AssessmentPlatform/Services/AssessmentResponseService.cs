@@ -2,11 +2,14 @@
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -402,15 +405,38 @@ namespace AssessmentPlatform.Services
             }
             return true;  // all 4 rows × 5 cols are empty
         }
-        public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(int cityID)
+        public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(int userID, int cityID)
         {
             try
             {
 
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
+                if (user == null || user.Role == UserRole.Evaluator)
+                {
+                    return new GetCityQuestionHistoryReponseDto
+                    {
+                        CityID = cityID,
+                        Score = 0,
+                        TotalPillar = 0,
+                        TotalAnsPillar = 0,
+                        TotalQuestion = 0,
+                        AnsQuestion = 0,
+                        TotalAssessment = 0,
+                        Pillars = new List<CityPillarQuestionHistoryReponseDto>()
+                    };
+                }
+                var cityHistory = new CityHistoryDto();
+
+                Expression<Func<UserCityMapping, bool>> predicate;
+
+                if (user.Role == UserRole.Analyst)
+                    predicate = x => !x.IsDeleted && x.CityID == cityID && (x.AssignedByUserId == userID || x.UserID == userID);
+                else
+                    predicate = x => !x.IsDeleted && x.CityID == cityID;
 
                 // 1. Get all UserCityMapping IDs for the city
                 var ucmIds = await _context.UserCityMappings
-                    .Where(x => x.CityID == cityID && !x.IsDeleted)
+                    .Where(predicate)
                     .Select(x => x.UserCityMappingID)
                     .ToListAsync();
 
@@ -428,35 +454,42 @@ namespace AssessmentPlatform.Services
                         Pillars = new List<CityPillarQuestionHistoryReponseDto>()
                     };
                 }
+                var pillarAssessments = _context.Assessments
+                    .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .SelectMany(x => x.PillarAssessments);
 
                 // 2. Fetch city-wise pillar/question details in one go
-                var cityPillarQuery = from a in _context.Assessments
-                                      where ucmIds.Contains(a.UserCityMappingID) && a.IsActive
-                                      from pa in a.PillarAssessments
-                                      join p in _context.Pillars on pa.PillarID equals p.PillarID
-                                      select new
-                                      {
-                                          p.PillarID,
-                                          p.PillarName,
-                                          Score = pa.Responses
-                                              .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-                                              .Sum(r => (int?)r.Score ?? 0),
-                                          TotalQuestion = p.Questions.Count(),
-                                          AnsQuestion = pa.Responses.Count()
-                                      };
+                var cityPillarQuery =
+                    from p in _context.Pillars
+                    join pa in pillarAssessments on p.PillarID equals pa.PillarID into paGroup
+                    from pa in paGroup.DefaultIfEmpty()
+                    select new
+                    {
+                        p.PillarID,
+                        p.PillarName,
+                        Score = pa != null
+                            ? pa.Responses
+                                .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
+                                .Sum(r => (int?)r.Score ?? 0)
+                            : 0,
+                        TotalQuestion = p.Questions.Count(),
+                        AnsQuestion = pa != null ? pa.Responses.Count() : 0,
+                        HasAnswer = pa != null 
+                    };
 
-                var cityPillars = await cityPillarQuery
+                var cityPillars = (await cityPillarQuery.ToListAsync())
                     .GroupBy(x => new { x.PillarID, x.PillarName })
                     .Select(g => new CityPillarQuestionHistoryReponseDto
                     {
                         PillarID = g.Key.PillarID,
                         PillarName = g.Key.PillarName,
                         Score = g.Sum(x => x.Score),
-                        AnsPillar = g.Count(), // number of times pillar answered
-                        TotalQuestion = g.Max(x => x.TotalQuestion), // avoid duplicate sum
+                        ScoreProgress = g.Sum(x => x.Score) * 100 / (g.Max(x => x.TotalQuestion) * ucmIds.Count  * 4),
+                        AnsPillar = g.Sum(x => x.HasAnswer ? 1:0), 
+                        TotalQuestion = g.Max(x => x.TotalQuestion) * ucmIds.Count,
                         AnsQuestion = g.Sum(x => x.AnsQuestion)
                     })
-                    .ToListAsync();
+                    .ToList();
 
                 // 3. Get assessment count in one query
                 var assessmentCount = await _context.Assessments
@@ -475,10 +508,10 @@ namespace AssessmentPlatform.Services
                     CityID = cityID,
                     TotalAssessment = assessmentCount,
                     Score = cityPillars.Sum(x => x.Score),
-                    ScoreProgress =  Math.Round(cityPillars.Sum(x => x.Score)) * 100/ (totalQuestions * 4),
-                    TotalPillar = totalPillars * assessmentCount,
+                    ScoreProgress =  Math.Round(cityPillars.Sum(x => x.Score)) * 100/ (totalQuestions * ucmIds.Count * 4),
+                    TotalPillar = totalPillars * ucmIds.Count,
                     TotalAnsPillar = cityPillars.Sum(x => x.AnsPillar),
-                    TotalQuestion = totalQuestions,
+                    TotalQuestion = totalQuestions * ucmIds.Count,
                     AnsQuestion = cityPillars.Sum(x => x.AnsQuestion),
                     Pillars = cityPillars
                 };

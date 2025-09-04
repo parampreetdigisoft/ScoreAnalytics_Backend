@@ -91,11 +91,11 @@ namespace AssessmentPlatform.Controllers
         /// <param name="cityID"></param>
         /// <returns></returns>
         [HttpGet]
-        [Route("getCityQuestionHistory/{cityID}")]
-        [Authorize(Roles ="Admin")]
-        public async Task<IActionResult> GetCityQuestionHistory(int cityID)
+        [Route("getCityQuestionHistory/{userID}/{cityID}")]
+        [Authorize]
+        public async Task<IActionResult> GetCityQuestionHistory(int userID, int cityID)
         {
-            var result = await _responseService.GetCityQuestionHistory(cityID);
+            var result = await _responseService.GetCityQuestionHistory(userID, cityID);
             return Ok(result);
         }
         [HttpGet]
