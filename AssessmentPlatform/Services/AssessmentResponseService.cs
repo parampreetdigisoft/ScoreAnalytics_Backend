@@ -7,7 +7,6 @@ using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using ClosedXML.Excel;
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
@@ -469,11 +468,15 @@ namespace AssessmentPlatform.Services
                     {
                         p.PillarID,
                         p.PillarName,
+                        UserID = pa != null && pa.Responses
+                                .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
+                                .Count() > 0 ? pa.Assessment.UserCityMapping.UserID: 0,
                         Score = pa != null
                             ? pa.Responses
                                 .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
                                 .Sum(r => (int?)r.Score ?? 0)
                             : 0,
+                        ScoreCount = pa != null ? pa.Responses.Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four).Count(): 0,
                         TotalQuestion = p.Questions.Count(),
                         AnsQuestion = pa != null ? pa.Responses.Count() : 0,
                         HasAnswer = pa != null 
@@ -481,40 +484,48 @@ namespace AssessmentPlatform.Services
 
                 var cityPillars = (await cityPillarQuery.ToListAsync())
                     .GroupBy(x => new { x.PillarID, x.PillarName })
-                    .Select(g => new CityPillarQuestionHistoryReponseDto
+                    .Select(g =>
                     {
-                        PillarID = g.Key.PillarID,
-                        PillarName = g.Key.PillarName,
-                        Score = g.Sum(x => x.Score),
-                        ScoreProgress = g.Sum(x => x.Score) * 100 / (g.Max(x => x.TotalQuestion) * ucmIds.Count  * 4),
-                        AnsPillar = g.Sum(x => x.HasAnswer ? 1:0), 
-                        TotalQuestion = g.Max(x => x.TotalQuestion) * ucmIds.Count,
-                        AnsQuestion = g.Sum(x => x.AnsQuestion)
+                        var totalAnsScoreOfPillar = g.Sum(x => x.Score);
+                        var ScoreCount = g.Sum(x => x.ScoreCount);
+                        var ansUserCount = g.Where(x => x.UserID > 0).Distinct().Count();
+                        var totalQuestionsInPillar = g.Max(x => x.TotalQuestion) * ansUserCount;
+
+                        return new CityPillarQuestionHistoryReponseDto
+                        {
+                            PillarID = g.Key.PillarID,
+                            PillarName = g.Key.PillarName,
+                            Score = totalAnsScoreOfPillar,
+                            ScoreProgress = ScoreCount != 0 ? (totalAnsScoreOfPillar / ScoreCount) / ansUserCount : 0,
+                            AnsPillar = g.Sum(x => x.HasAnswer ? 1 : 0),
+                            TotalQuestion = totalQuestionsInPillar,
+                            AnsQuestion = g.Sum(x => x.AnsQuestion)
+                        };
                     })
                     .ToList();
 
-                // 3. Get assessment count in one query
-                var assessmentCount = await _context.Assessments
-                    .CountAsync(x => ucmIds.Contains(x.UserCityMappingID) && x.IsActive);
+                //// 3. Get assessment count in one query
+                //var assessmentCount = await _context.Assessments
+                //    .CountAsync(x => ucmIds.Contains(x.UserCityMappingID) && x.IsActive);
 
-                // 4. Total pillars and questions (static across city)
-                var pillarStats = await _context.Pillars
-                    .Select(p => new { QuestionsCount = p.Questions.Count() })
-                    .ToListAsync();
-                int totalPillars = pillarStats.Count;
-                int totalQuestions = pillarStats.Sum(p => p.QuestionsCount);
+                //// 4. Total pillars and questions (static across city)
+                //var pillarStats = await _context.Pillars
+                //    .Select(p => new { QuestionsCount = p.Questions.Count() })
+                //    .ToListAsync();
+                //int totalPillars = pillarStats.Count;
+                //int totalQuestions = pillarStats.Sum(p => p.QuestionsCount);
 
                 // 5. Final payload
                 var payload = new GetCityQuestionHistoryReponseDto
                 {
                     CityID = cityID,
-                    TotalAssessment = assessmentCount,
-                    Score = cityPillars.Sum(x => x.Score),
-                    ScoreProgress =  Math.Round(cityPillars.Sum(x => x.Score)) * 100/ (totalQuestions * ucmIds.Count * 4),
-                    TotalPillar = totalPillars * ucmIds.Count,
-                    TotalAnsPillar = cityPillars.Sum(x => x.AnsPillar),
-                    TotalQuestion = totalQuestions * ucmIds.Count,
-                    AnsQuestion = cityPillars.Sum(x => x.AnsQuestion),
+                    //TotalAssessment = assessmentCount,
+                    //Score = cityPillars.Sum(x => x.Score),
+                    //ScoreProgress = cityPillars.Sum(x => x.ScoreProgress)/ totalPillars,
+                    //TotalPillar = totalPillars * ucmIds.Count,
+                    //TotalAnsPillar = cityPillars.Sum(x => x.AnsPillar),
+                    //TotalQuestion = totalQuestions * ucmIds.Count,
+                    //AnsQuestion = cityPillars.Sum(x => x.AnsQuestion),
                     Pillars = cityPillars
                 };
 

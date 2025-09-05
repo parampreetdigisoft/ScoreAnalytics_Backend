@@ -7,13 +7,13 @@
     public class GetCitySubmitionHistoryReponseDto
     {
         public int CityID { get; set; }
-        public int TotalAssessment { get; set; }
-        public decimal Score { get; set; }
-        public decimal ScoreProgress { get; set; }
-        public int TotalPillar { get; set; }
-        public int TotalAnsPillar { get; set; }
-        public int TotalQuestion { get; set; }
-        public int AnsQuestion { get; set; }
+        public int TotalAssessment { get; set; } = 0;
+        public decimal Score { get; set; } = 0;
+        public decimal ScoreProgress { get; set; } = 0;
+        public int TotalPillar { get; set; } = 0;
+        public int TotalAnsPillar { get; set; } = 0;
+        public int TotalQuestion { get; set; } = 0;
+        public int AnsQuestion { get; set; } = 0;
     }
     public class GetCitiesSubmitionHistoryReponseDto : GetCitySubmitionHistoryReponseDto
     {

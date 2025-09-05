@@ -551,6 +551,9 @@ namespace AssessmentPlatform.Services
                         var allResponses = g.Where(x=> x.Responses != null).SelectMany(p => p.Responses);
                         var userCityMappingCount = g.Select(x => x.UserCityMapping).Count();
 
+                        var scoreList = allResponses.Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
+                                .Select(r => (int?)r.Score ?? 0);
+
                         return new GetCitiesSubmitionHistoryReponseDto
                         {
                             CityID = g.Key.CityID,
@@ -558,12 +561,10 @@ namespace AssessmentPlatform.Services
                             TotalAssessment = g.Select(x => x.AssessmentID).Where(id => id.HasValue).Distinct().Count(),
                             Score = allResponses.Sum(r => (int?)r.Score ?? 0),
                             TotalPillar = totalPillars * userCityMappingCount,
-                            TotalAnsPillar = allPillars.Count() ,
+                            TotalAnsPillar = allPillars.Count(),
                             TotalQuestion = totalQuestions * userCityMappingCount,
                             AnsQuestion = allResponses.Count(),
-                            ScoreProgress = totalQuestions > 0
-                                ? (allResponses.Sum(r => (int?)r.Score ?? 0) * 100) / (totalQuestions * userCityMappingCount * 4)
-                                : 0
+                            ScoreProgress = scoreList.Count() == 0 ? 0 : scoreList.Sum() / scoreList.Count()
                         };
                     })
                     .ToList();
