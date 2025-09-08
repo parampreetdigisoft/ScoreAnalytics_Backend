@@ -7,6 +7,7 @@ using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -34,12 +35,16 @@ namespace AssessmentPlatform.Services
                         .Where(x => !x.IsDeleted &&
                                (x.AssignedByUserId == request.UserID || currentUser.Role == UserRole.Admin));
 
+                Expression<Func<User, bool>> predicate = currentUser.Role switch
+                {
+                    UserRole.Admin => x => !x.IsDeleted && request.GetUserRole.HasValue ? x.Role == request.GetUserRole : (x.Role == UserRole.Evaluator || x.Role == UserRole.CityUser),
+                    _ => x => !x.IsDeleted && x.Role == UserRole.Evaluator
+                };
+
                 // Build one-row-per-user by taking at most 1 mapping row per user
                 // NOTE: use a deterministic column to order (e.g., CreatedAt or primary key).
                 var query =
-                    from u in _context.Users
-                    where u.Role == (currentUser.Role == UserRole.Admin ? request.GetUserRole : UserRole.Evaluator)
-                          && !u.IsDeleted
+                    from u in _context.Users.Where(predicate)
                     from uc in filteredMappings
                                 .Where(m => m.UserID == u.UserID)
                                 .Take(1)
@@ -69,9 +74,9 @@ namespace AssessmentPlatform.Services
                          x.FullName.Contains(request.SearchText));
 
                 // Get all cities for fetched users in one query
-                var userIds = response.Data.Select(x => x.UserID).ToList();
+                var userIds = response.Data.Select(x => x.UserID).Distinct().ToList();
                 var cityMap = await _context.UserCityMappings
-                .Where(x => !x.IsDeleted && userIds.Contains(x.UserID) && x.AssignedByUserId == request.UserID)
+                .Where(x => !x.IsDeleted && userIds.Contains(x.UserID) && (x.AssignedByUserId == request.UserID || currentUser.Role == UserRole.Admin))
                 .Join(_context.Cities,
                       cm => cm.CityID,
                       c => c.CityID,

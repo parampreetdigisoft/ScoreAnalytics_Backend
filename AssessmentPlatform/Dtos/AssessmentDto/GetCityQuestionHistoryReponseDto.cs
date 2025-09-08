@@ -39,4 +39,10 @@
         public int TotalAnsQuestion { get; set; }
         public double CurrentProgress { get; set; }
     }
+
+    public class CityPillarUserHistoryReponseDto : CityPillarQuestionHistoryReponseDto
+    {
+        public int UserID { get; set; }
+        public string FullName { get; set; }
+    }
 }

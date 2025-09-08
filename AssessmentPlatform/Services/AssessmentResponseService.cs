@@ -220,14 +220,14 @@ namespace AssessmentPlatform.Services
 
                 var response = await query.ApplyPaginationAsync(request);
 
-                var totalScore = _context.Pillars
-                    .Include(p => p.Questions)
-                    .SelectMany(p => p.Questions).Count();
+                //var totalScore = _context.Pillars
+                //    .Include(p => p.Questions)
+                //    .SelectMany(p => p.Questions).Count();
 
-                foreach (var item in response.Data)
-                {
-                    item.Score = Math.Round((item.Score / (totalScore * 4)) * 100);
-                }
+                //foreach (var item in response.Data)
+                //{
+                //    item.Score = Math.Round((item.Score / (totalScore * 4)) * 100);
+                //}
 
                 return response;
             }
@@ -441,20 +441,6 @@ namespace AssessmentPlatform.Services
                     .Select(x => x.UserCityMappingID)
                     .ToListAsync();
 
-                if (!ucmIds.Any())
-                {
-                    return new GetCityQuestionHistoryReponseDto
-                    {
-                        CityID = cityID,
-                        Score = 0,
-                        TotalPillar = 0,
-                        TotalAnsPillar = 0,
-                        TotalQuestion = 0,
-                        AnsQuestion = 0,
-                        TotalAssessment = 0,
-                        Pillars = new List<CityPillarQuestionHistoryReponseDto>()
-                    };
-                }
                 var pillarAssessments = _context.Assessments
                     .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive)
                     .SelectMany(x => x.PillarAssessments);
@@ -491,12 +477,14 @@ namespace AssessmentPlatform.Services
                         var ansUserCount = g.Where(x => x.UserID > 0).Distinct().Count();
                         var totalQuestionsInPillar = g.Max(x => x.TotalQuestion) * ansUserCount;
 
+                        decimal progress = ScoreCount != 0 && ansUserCount > 0 ? totalAnsScoreOfPillar * 100 / (ScoreCount * 4m * ansUserCount)  : 0m;
+
                         return new CityPillarQuestionHistoryReponseDto
                         {
                             PillarID = g.Key.PillarID,
                             PillarName = g.Key.PillarName,
                             Score = totalAnsScoreOfPillar,
-                            ScoreProgress = ScoreCount != 0 ? (totalAnsScoreOfPillar / ScoreCount) / ansUserCount : 0,
+                            ScoreProgress = progress,
                             AnsPillar = g.Sum(x => x.HasAnswer ? 1 : 0),
                             TotalQuestion = totalQuestionsInPillar,
                             AnsQuestion = g.Sum(x => x.AnsQuestion)
@@ -597,6 +585,125 @@ namespace AssessmentPlatform.Services
                 await _appLogger.LogAsync("Error in GetAssessmentProgressHistory", ex);
                 return ResultResponseDto<GetAssessmentHistoryDto>.Failure(new[] { "Failed to get assessment history" });
 
+            }
+        }
+
+        public async Task<List<CityPillarUserHistoryReponseDto>> GetCityPillarHistory(GetCityPillarHistoryRequestDto r)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.UserID == r.UserID);
+
+                if (user == null)
+                    return new List<CityPillarUserHistoryReponseDto>();
+
+                // Build predicate based on role
+                Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
+                {
+                    UserRole.Analyst => x => !x.IsDeleted && x.CityID == r.CityID &&
+                                             (x.AssignedByUserId == r.UserID || x.UserID == r.UserID),
+                    UserRole.Evaluator => x => !x.IsDeleted && x.CityID == r.CityID && x.UserID == r.UserID,
+                    _ => x => !x.IsDeleted && x.CityID == r.CityID
+                };
+
+                // 1. Get all UserCityMapping IDs for the city
+                var ucmIds = await _context.UserCityMappings
+                    .Where(predicate)
+                    .Select(x => x.UserCityMappingID)
+                    .ToListAsync();
+
+                if (!ucmIds.Any())
+                    return new List<CityPillarUserHistoryReponseDto>();
+
+                // 2. Get all relevant pillar assessments
+                var pillarAssessments = _context.Assessments
+                    .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .SelectMany(a => a.PillarAssessments)
+                    .Where(pa => !r.PillarID.HasValue || pa.PillarID == r.PillarID);
+
+                // 3. Query city pillar + basic data (SQL only, no constant lists)
+                var cityPillarQuery =
+                    from p in _context.Pillars.Where(x=> !r.PillarID.HasValue || x.PillarID == r.PillarID)
+                    join pa in pillarAssessments on p.PillarID equals pa.PillarID into paGroup
+                    from pa in paGroup.DefaultIfEmpty()
+                    select new
+                    {
+                        p.PillarID,
+                        p.PillarName,
+                        UserID = pa != null ? pa.Assessment.UserCityMapping.UserID : 0,
+                        Responses = pa != null ? pa.Responses : null,  // keep it null, not a new List
+                        TotalQuestion = p.Questions.Count()
+                    };
+
+                // 4. Materialize and process in memory
+                var cityPillarList = (await cityPillarQuery.ToListAsync())
+                    .Select(x =>
+                    {
+                        var responses = x.Responses ?? Enumerable.Empty<AssessmentResponse>();
+
+                        var validResponses = responses
+                            .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
+                            .ToList();
+
+                        return new
+                        {
+                            x.PillarID,
+                            x.PillarName,
+                            UserID = validResponses.Any() ? x.UserID : 0,
+                            Score = validResponses.Sum(r => (int?)r.Score ?? 0),
+                            ScoreCount = validResponses.Count,
+                            x.TotalQuestion,
+                            AnsQuestion = responses.Count(),
+                            HasAnswer = responses.Any()
+                        };
+                    })
+                    .Where(x => x.UserID > 0)
+                    .ToList();
+
+                if (!cityPillarList.Any())
+                    return new List<CityPillarUserHistoryReponseDto>();
+
+                // Preload user dictionary to avoid N+1 calls
+                var userIds = cityPillarList.Select(x => x.UserID).Distinct().ToList();
+                var usersDict = await _context.Users
+                    .Where(u => userIds.Contains(u.UserID))
+                    .ToDictionaryAsync(u => u.UserID, u => u.FullName);
+
+                // 4. Grouping and final aggregation
+                var cityPillars = cityPillarList
+                    .GroupBy(x => x.UserID)
+                    .Select(g =>
+                    {
+                        var totalAnsScoreOfPillar = g.Sum(x => x.Score);
+                        var scoreCount = g.Sum(x => x.ScoreCount);
+                        var ansUserCount = g.Select(x => x.UserID).Distinct().Count();
+                        var totalQuestionsInPillar = g.Max(x => x.TotalQuestion) * ansUserCount;
+
+                        decimal progress = scoreCount > 0 && ansUserCount > 0
+                            ? totalAnsScoreOfPillar * 100m / (scoreCount * 4m * ansUserCount)
+                            : 0m;
+
+                        return new CityPillarUserHistoryReponseDto
+                        {
+                            UserID = g.Key,
+                            FullName = usersDict.TryGetValue(g.Key, out var name) ? name : "",
+                            Score = totalAnsScoreOfPillar,
+                            ScoreProgress = progress,
+                            AnsPillar = g.Count(x => x.HasAnswer),
+                            TotalQuestion = totalQuestionsInPillar,
+                            AnsQuestion = g.Sum(x => x.AnsQuestion)
+                        };
+                    })
+                    .ToList();
+
+                return cityPillars;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetCityPillarHistory", ex);
+                return new List<CityPillarUserHistoryReponseDto>();
             }
         }
     }

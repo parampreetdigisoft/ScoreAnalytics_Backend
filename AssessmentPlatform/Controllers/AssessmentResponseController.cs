@@ -106,5 +106,14 @@ namespace AssessmentPlatform.Controllers
             var result = await _responseService.GetAssessmentProgressHistory(assessmentID);
             return Ok(result);
         }
+
+        [HttpPost]
+        [Route("getCityPillarHistory")]
+        [Authorize]
+        public async Task<IActionResult> GetCityQuestionHistory([FromBody] GetCityPillarHistoryRequestDto requestDto)
+        {
+            var result = await _responseService.GetCityPillarHistory(requestDto);
+            return Ok(result);
+        }
     }
 }

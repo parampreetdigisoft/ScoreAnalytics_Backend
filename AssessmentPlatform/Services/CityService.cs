@@ -264,7 +264,7 @@ namespace AssessmentPlatform.Services
                          UserCityMappingID = cm.UserCityMappingID
                      };
                 }
-                var result = await cityQuery.ToListAsync();
+                var result = await cityQuery.OrderBy(x=>x.CityName).ToListAsync();
 
                 return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "get successfully" });
             }
@@ -564,7 +564,7 @@ namespace AssessmentPlatform.Services
                             TotalAnsPillar = allPillars.Count(),
                             TotalQuestion = totalQuestions * userCityMappingCount,
                             AnsQuestion = allResponses.Count(),
-                            ScoreProgress = scoreList.Count() == 0 ? 0 : scoreList.Sum() / scoreList.Count()
+                            ScoreProgress = scoreList.Count() == 0 ? 0m : (scoreList.Sum() * 100) / (scoreList.Count() * 4)
                         };
                     })
                     .ToList();
