@@ -121,7 +121,7 @@ namespace AssessmentPlatform.Services
 
             try
             {
-                var existCity = await _context.Cities.FirstOrDefaultAsync(x => !x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State);
+                var existCity = await _context.Cities.FirstOrDefaultAsync(x => x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State && x.CityID != id);
                 if (existCity != null)
                 {
                     return ResultResponseDto<City>.Failure(new string[] { "City already exists" });

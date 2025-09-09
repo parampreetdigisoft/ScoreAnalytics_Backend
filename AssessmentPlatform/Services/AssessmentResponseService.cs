@@ -456,16 +456,16 @@ namespace AssessmentPlatform.Services
                         p.PillarName,
                         UserID = pa != null && pa.Responses
                                 .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-                                .Count() > 0 ? pa.Assessment.UserCityMapping.UserID: 0,
+                                .Count() > 0 ? pa.Assessment.UserCityMapping.UserID : 0,
                         Score = pa != null
                             ? pa.Responses
                                 .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
                                 .Sum(r => (int?)r.Score ?? 0)
                             : 0,
-                        ScoreCount = pa != null ? pa.Responses.Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four).Count(): 0,
+                        ScoreCount = pa != null ? pa.Responses.Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four).Count() : 0,
                         TotalQuestion = p.Questions.Count(),
                         AnsQuestion = pa != null ? pa.Responses.Count() : 0,
-                        HasAnswer = pa != null 
+                        HasAnswer = pa != null
                     };
 
                 var cityPillars = (await cityPillarQuery.ToListAsync())
@@ -477,7 +477,7 @@ namespace AssessmentPlatform.Services
                         var ansUserCount = g.Where(x => x.UserID > 0).Distinct().Count();
                         var totalQuestionsInPillar = g.Max(x => x.TotalQuestion) * ansUserCount;
 
-                        decimal progress = ScoreCount != 0 && ansUserCount > 0 ? totalAnsScoreOfPillar * 100 / (ScoreCount * 4m * ansUserCount)  : 0m;
+                        decimal progress = ScoreCount != 0 && ansUserCount > 0 ? totalAnsScoreOfPillar * 100 / (ScoreCount * 4m * ansUserCount) : 0m;
 
                         return new CityPillarQuestionHistoryReponseDto
                         {
@@ -614,8 +614,6 @@ namespace AssessmentPlatform.Services
                     .Select(x => x.UserCityMappingID)
                     .ToListAsync();
 
-                if (!ucmIds.Any())
-                    return new List<CityPillarUserHistoryReponseDto>();
 
                 // 2. Get all relevant pillar assessments
                 var pillarAssessments = _context.Assessments
@@ -625,7 +623,7 @@ namespace AssessmentPlatform.Services
 
                 // 3. Query city pillar + basic data (SQL only, no constant lists)
                 var cityPillarQuery =
-                    from p in _context.Pillars.Where(x=> !r.PillarID.HasValue || x.PillarID == r.PillarID)
+                    from p in _context.Pillars.Where(x => !r.PillarID.HasValue || x.PillarID == r.PillarID)
                     join pa in pillarAssessments on p.PillarID equals pa.PillarID into paGroup
                     from pa in paGroup.DefaultIfEmpty()
                     select new
@@ -659,7 +657,6 @@ namespace AssessmentPlatform.Services
                             HasAnswer = responses.Any()
                         };
                     })
-                    .Where(x => x.UserID > 0)
                     .ToList();
 
                 if (!cityPillarList.Any())
@@ -673,12 +670,12 @@ namespace AssessmentPlatform.Services
 
                 // 4. Grouping and final aggregation
                 var cityPillars = cityPillarList
-                    .GroupBy(x => x.UserID)
+                    .GroupBy(x => new { x.PillarID, x.PillarName, x.UserID })
                     .Select(g =>
                     {
                         var totalAnsScoreOfPillar = g.Sum(x => x.Score);
                         var scoreCount = g.Sum(x => x.ScoreCount);
-                        var ansUserCount = g.Select(x => x.UserID).Distinct().Count();
+                        var ansUserCount = g.Where(x => x.UserID > 0).Select(x => x.UserID).Distinct().Count();
                         var totalQuestionsInPillar = g.Max(x => x.TotalQuestion) * ansUserCount;
 
                         decimal progress = scoreCount > 0 && ansUserCount > 0
@@ -687,8 +684,10 @@ namespace AssessmentPlatform.Services
 
                         return new CityPillarUserHistoryReponseDto
                         {
-                            UserID = g.Key,
-                            FullName = usersDict.TryGetValue(g.Key, out var name) ? name : "",
+                            UserID = g.Key.UserID,
+                            PillarID = g.Key.PillarID,
+                            PillarName = g.Key.PillarName,
+                            FullName = usersDict.TryGetValue(g.Key.UserID, out var name) ? name : "",
                             Score = totalAnsScoreOfPillar,
                             ScoreProgress = progress,
                             AnsPillar = g.Count(x => x.HasAnswer),
@@ -696,7 +695,10 @@ namespace AssessmentPlatform.Services
                             AnsQuestion = g.Sum(x => x.AnsQuestion)
                         };
                     })
+                    .OrderByDescending(x => x.PillarName)
                     .ToList();
+
+
 
                 return cityPillars;
             }
