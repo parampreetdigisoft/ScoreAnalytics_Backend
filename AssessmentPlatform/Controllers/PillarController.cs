@@ -1,3 +1,4 @@
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.PillarDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
@@ -54,6 +55,13 @@ namespace AssessmentPlatform.Controllers
             var success = await _pillarService.DeleteAsync(id);
             if (!success) return NotFound();
             return Ok();
+        }
+
+        [HttpPost("GetPillarsHistoryByUserId")]
+        public async Task<IActionResult> GetPillarsHistoryByUserId([FromBody] GetCityPillarHistoryRequestDto requestDto)
+        {
+            var response = await _pillarService.GetPillarsHistoryByUserId(requestDto);
+            return Ok(response);
         }
     }
 } 
