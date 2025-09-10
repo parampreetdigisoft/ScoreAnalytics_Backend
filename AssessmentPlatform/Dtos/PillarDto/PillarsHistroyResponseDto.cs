@@ -4,6 +4,7 @@
     {
         public int PillarID { get; set; }
         public string PillarName { get; set; }
+        public int DisplayOrder { get; set; } = 0;
         public List<PillarsUserHistroyResponseDto> Users { get; set; } = new();
     }
     public class PillarsUserHistroyResponseDto

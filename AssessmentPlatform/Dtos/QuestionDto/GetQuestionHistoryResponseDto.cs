@@ -19,6 +19,7 @@ namespace AssessmentPlatform.Dtos.QuestionDto
         public int UserID { get; set; }
         public string FullName { get; set; }
         public int? Score { get; set; }
+        public string OptionText { get; set; }
         public string Justification { get; set; }
     }
 }

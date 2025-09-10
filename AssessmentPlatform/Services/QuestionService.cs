@@ -535,6 +535,7 @@ namespace AssessmentPlatform.Services
                 // Fetch pillar + questions
                 var pillar = await _context.Pillars
                     .Include(x => x.Questions)
+                    .ThenInclude(x=>x.QuestionOptions)
                     .AsNoTracking()
                     .FirstOrDefaultAsync(x => x.PillarID == requestDto.PillarID.Value);
 
@@ -592,11 +593,15 @@ namespace AssessmentPlatform.Services
 
                             (userResponseDict ?? new() ).TryGetValue(q.QuestionID, out var response);
 
+                            var optionID= (response ?? new()).QuestionOptionID;
+                            var option = q.QuestionOptions.FirstOrDefault(x => x.OptionID == optionID);
+
                             return new QuestionsByUserInfo
                             {
                                 UserID = uid,
                                 FullName = u?.FullName ?? string.Empty,
                                 Score = response !=null ? (int?)response.Score:null,
+                                OptionText = option?.OptionText ?? "",
                                 Justification = response?.Justification ?? string.Empty
                             };
                         }).ToList();

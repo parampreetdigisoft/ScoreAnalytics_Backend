@@ -141,6 +141,7 @@ namespace AssessmentPlatform.Services
                                   {
                                       p.PillarID,
                                       p.PillarName,
+                                      p.DisplayOrder,
                                       UserID = pa != null ? pa.Assessment.UserCityMapping.UserID : 0,
                                       Responses = pa != null ? pa.Responses : null,
                                       TotalQuestion = p.Questions.Count()
@@ -158,6 +159,7 @@ namespace AssessmentPlatform.Services
                         {
                             x.PillarID,
                             x.PillarName,
+                            x.DisplayOrder,
                             UserID = validResponses.Any() ? x.UserID : 0,
                             Score = validResponses.Sum(r => (int?)r.Score ?? 0),
                             ScoreCount = validResponses.Count,
@@ -179,39 +181,37 @@ namespace AssessmentPlatform.Services
 
                 // 7. Aggregate per pillar and per user
                 var cityPillars = pillarList
-                    .GroupBy(x => new { x.PillarID, x.PillarName })
-                    .Select(g => new PillarsHistroyResponseDto
+                .GroupBy(x => new { x.PillarID, x.PillarName, x.DisplayOrder })
+                .Select(g => new PillarsHistroyResponseDto
+                {
+                    PillarID = g.Key.PillarID,
+                    PillarName = g.Key.PillarName,
+                    DisplayOrder = g.Key.DisplayOrder,
+                    Users = g.GroupBy(x => x.UserID)
+                    .Where(ug => ug.Key > 0)
+                    .Select(ug =>
                     {
-                        PillarID = g.Key.PillarID,
-                        PillarName = g.Key.PillarName,
-                        Users = g.GroupBy(x => x.UserID)
-                            .Where(ug => ug.Key > 0)
-                            .Select(ug =>
-                            {
-                                var totalScore = ug.Sum(x => x.Score);
-                                var scoreCount = ug.Sum(x => x.ScoreCount);
-                                var ansUserCount = ug.Select(x => x.UserID).Distinct().Count();
-                                var totalQuestionsInPillar = ug.Max(x => x.TotalQuestion) * ansUserCount;
+                        var totalScore = ug.Sum(x => x.Score);
+                        var scoreCount = ug.Sum(x => x.ScoreCount);
+                        var ansUserCount = ug.Select(x => x.UserID).Distinct().Count();
+                        var totalQuestionsInPillar = ug.Max(x => x.TotalQuestion) * ansUserCount;
 
-                                decimal progress = scoreCount > 0 && ansUserCount > 0
-                                    ? totalScore * 100m / (scoreCount * 4m * ansUserCount)
-                                    : 0m;
+                        decimal progress = scoreCount > 0 && ansUserCount > 0
+                            ? totalScore * 100m / (scoreCount * 4m * ansUserCount)
+                            : 0m;
 
-                                return new PillarsUserHistroyResponseDto
-                                {
-                                    FullName = usersDict.TryGetValue(ug.Key, out var name) ? name : "",
-                                    UserID = ug.Key,
-                                    Score = totalScore,
-                                    ScoreProgress = progress,
-                                    AnsPillar = g.Count(x => x.HasAnswer),
-                                    TotalQuestion = totalQuestionsInPillar,
-                                    AnsQuestion = g.Sum(x => x.AnsQuestion)
-                                };
-                            })
-                            .ToList()
-                    })
-                    .OrderBy(x => x.PillarName)
-                    .ToList();
+                        return new PillarsUserHistroyResponseDto
+                        {
+                            FullName = usersDict.TryGetValue(ug.Key, out var name) ? name : "",
+                            UserID = ug.Key,
+                            Score = totalScore,
+                            ScoreProgress = progress,
+                            AnsPillar = g.Count(x => x.HasAnswer),
+                            TotalQuestion = totalQuestionsInPillar,
+                            AnsQuestion = g.Sum(x => x.AnsQuestion),
+                        };
+                    }).ToList()
+                }).OrderBy(x => x.DisplayOrder).ToList();
 
                 return ResultResponseDto<List<PillarsHistroyResponseDto>>.Success(cityPillars);
             }
@@ -221,131 +221,5 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<List<PillarsHistroyResponseDto>>.Failure(new[] { "There is an error, please try later" });
             }
         }
-
-        //public async Task<ResultResponseDto<List<PillarsHistroyResponseDto>>> GetPillarsHistoryByUserId(GetCityPillarHistoryRequestDto r)
-        //{
-        //    try
-        //    {
-        //        var user = await _context.Users
-        //            .AsNoTracking()
-        //            .FirstOrDefaultAsync(x => x.UserID == r.UserID);
-
-        //        if (user == null)
-        //            return ResultResponseDto<List<PillarsHistroyResponseDto>>.Failure(new[] { "Invalid user" });
-
-        //        // Build predicate based on role
-        //        Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
-        //        {
-        //            UserRole.Analyst => x => !x.IsDeleted && x.CityID == r.CityID &&
-        //                                     (x.AssignedByUserId == r.UserID || x.UserID == r.UserID),
-        //            UserRole.Evaluator => x => !x.IsDeleted && x.CityID == r.CityID && x.UserID == r.UserID,
-        //            _ => x => !x.IsDeleted && x.CityID == r.CityID
-        //        };
-
-        //        // 1. Get all UserCityMapping IDs for the city
-        //        var ucmIds = await _context.UserCityMappings
-        //            .Where(predicate)
-        //            .Select(x => x.UserCityMappingID)
-        //            .ToListAsync();
-
-
-        //        // 2. Get all relevant pillar assessments
-        //        var pillarAssessments = _context.Assessments
-        //            .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive)
-        //            .SelectMany(a => a.PillarAssessments)
-        //            .Where(pa => !r.PillarID.HasValue || pa.PillarID == r.PillarID);
-
-        //        // 3. Query city pillar + basic data (SQL only, no constant lists)
-        //        var cityPillarQuery =
-        //            from p in _context.Pillars.Where(x => !r.PillarID.HasValue || x.PillarID == r.PillarID)
-        //            join pa in pillarAssessments on p.PillarID equals pa.PillarID into paGroup
-        //            from pa in paGroup.DefaultIfEmpty()
-        //            select new
-        //            {
-        //                p.PillarID,
-        //                p.PillarName,
-        //                UserID = pa != null ? pa.Assessment.UserCityMapping.UserID : 0,
-        //                Responses = pa != null ? pa.Responses : null,  // keep it null, not a new List
-        //                TotalQuestion = p.Questions.Count()
-        //            };
-
-        //        // 4. Materialize and process in memory
-        //        var cityPillarList = (await cityPillarQuery.ToListAsync())
-        //            .Select(x =>
-        //            {
-        //                var responses = x.Responses ?? Enumerable.Empty<AssessmentResponse>();
-
-        //                var validResponses = responses
-        //                    .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-        //                    .ToList();
-
-        //                return new
-        //                {
-        //                    x.PillarID,
-        //                    x.PillarName,
-        //                    UserID = validResponses.Any() ? x.UserID : 0,
-        //                    Score = validResponses.Sum(r => (int?)r.Score ?? 0),
-        //                    ScoreCount = validResponses.Count,
-        //                    x.TotalQuestion,
-        //                    AnsQuestion = responses.Count(),
-        //                    HasAnswer = responses.Any()
-        //                };
-        //            })
-        //            .ToList();
-
-        //        if (!cityPillarList.Any())
-        //            return ResultResponseDto<List<PillarsHistroyResponseDto>>.Failure(new[] { "No pillar submmited" });
-
-        //        // Preload user dictionary to avoid N+1 calls
-        //        var userIds = cityPillarList.Select(x => x.UserID).Distinct().ToList();
-        //        var usersDict = await _context.Users
-        //            .Where(u => userIds.Contains(u.UserID))
-        //            .ToDictionaryAsync(u => u.UserID, u => u.FullName);
-
-        //        // 4. Grouping and final aggregation
-        //        var cityPillars = cityPillarList
-        //            .GroupBy(x => new { x.PillarID, x.PillarName })
-        //            .Select(g =>
-        //            {
-        //                return new PillarsHistroyResponseDto
-        //                {
-        //                    PillarID = g.Key.PillarID,
-        //                    PillarName = g.Key.PillarName,
-        //                    Users = g.GroupBy(x => x.UserID)
-        //                    .Select(ug =>
-        //                    {
-        //                        var totalAnsScoreOfPillar = ug.Sum(x => x.Score);
-        //                        var scoreCount = ug.Sum(x => x.ScoreCount);
-        //                        var ansUserCount = ug.Where(x => x.UserID > 0).Select(x => x.UserID).Distinct().Count();
-        //                        var totalQuestionsInPillar = ug.Max(x => x.TotalQuestion) * ansUserCount;
-
-        //                        decimal progress = scoreCount > 0 && ansUserCount > 0
-        //                            ? totalAnsScoreOfPillar * 100m / (scoreCount * 4m * ansUserCount)
-        //                            : 0m;
-        //                        return new PillarsUserHistroyResponseDto
-        //                        {
-        //                            FullName = usersDict.TryGetValue(ug.Key, out var name) ? name : "",
-        //                            UserID = ug.Key,
-        //                            Score = totalAnsScoreOfPillar,
-        //                            ScoreProgress = progress,
-        //                            AnsPillar = g.Count(x => x.HasAnswer),
-        //                            TotalQuestion = totalQuestionsInPillar,
-        //                            AnsQuestion = g.Sum(x => x.AnsQuestion)
-        //                        };
-
-        //                    }).ToList()
-        //                };
-        //            })
-        //            .OrderByDescending(x => x.PillarName)
-        //            .ToList();
-
-        //        return ResultResponseDto<List<PillarsHistroyResponseDto>>.Success(cityPillars, new[] { "There is an error please try later" });
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        await _appLogger.LogAsync("Error Occure in GetPillarsHistoryByUserId", ex);
-        //        return ResultResponseDto<List<PillarsHistroyResponseDto>>.Failure(new[] { "There is an error please try later" });
-        //    }
-        //}
     }
 }
