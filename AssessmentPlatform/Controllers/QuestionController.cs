@@ -1,4 +1,5 @@
 
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.QuestionDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
@@ -79,6 +80,15 @@ namespace AssessmentPlatform.Controllers
             return File(content.Item2 ?? new byte[1],
                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                content.Item1);
+        }
+
+        [HttpGet("getQuestionsHistoryByPillar")]
+        [Authorize]
+        public async Task<IActionResult> GetQuestionsHistoryByPillar([FromQuery] GetCityPillarHistoryRequestDto requestDto)
+        {
+            var content = await _questionService.GetQuestionsHistoryByPillar(requestDto);
+
+            return Ok(content);
         }
     }
 }

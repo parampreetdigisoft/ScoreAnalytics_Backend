@@ -7,6 +7,7 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using AssessmentPlatform.Dtos.AssessmentDto;
 namespace AssessmentPlatform.Services
 {
     public class QuestionService : IQuestionService
@@ -518,5 +519,110 @@ namespace AssessmentPlatform.Services
 
             return safeName;
         }
+        public async Task<ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>> GetQuestionsHistoryByPillar(GetCityPillarHistoryRequestDto requestDto)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.UserID == requestDto.UserID);
+
+                if (!requestDto.PillarID.HasValue || user == null)
+                {
+                    return ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>.Failure(new[] { "Invalid request" });
+                }
+
+                // Fetch pillar + questions
+                var pillar = await _context.Pillars
+                    .Include(x => x.Questions)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.PillarID == requestDto.PillarID.Value);
+
+                if (pillar == null)
+                {
+                    return ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>.Failure(new[] { "Pillar not found" });
+                }
+
+                // User mappings (admins can see all in city)
+                var userMappings = await _context.UserCityMappings
+                    .Where(x => x.CityID == requestDto.CityID
+                                && !x.IsDeleted
+                                && (x.AssignedByUserId == requestDto.UserID || user.Role == UserRole.Admin))
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                var mappingIds = userMappings.Select(x => x.UserCityMappingID).ToList();
+
+                var assessments = await _context.Assessments
+                    .Include(x=>x.UserCityMapping)
+                    .Include(a => a.PillarAssessments
+                        .Where(pa => pa.PillarID == requestDto.PillarID)) // allowed
+                    .ThenInclude(pa => pa.Responses) // proper navigation include
+                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                var userIds = assessments.Select(x => x.UserCityMapping.UserID);
+                // Fetch users dictionary
+                var users = await _context.Users
+                    .Where(x => userIds.Contains(x.UserID))
+                    .AsNoTracking()
+                    .ToDictionaryAsync(x => x.UserID);
+
+                // Build responses by user
+                var responsesByUser = assessments
+                    .GroupBy(a => a.UserCityMapping.UserID)
+                    .ToDictionary(
+                        g => g.Key,
+                        g => g.SelectMany(a => a.PillarAssessments)
+                              .Where(pa => pa.PillarID == requestDto.PillarID)
+                              .SelectMany(pa => pa.Responses)
+                              .ToDictionary(r => r.QuestionID)
+                    );
+
+                // Build final DTO list
+                var pillarResponses = pillar.Questions
+                    .OrderBy(q => q.DisplayOrder)
+                    .Select(q =>
+                    {
+                        var userInfos = userIds.Select(uid =>
+                        {
+                            users.TryGetValue(uid, out var u);
+                            responsesByUser.TryGetValue(uid, out var userResponseDict);
+
+                            (userResponseDict ?? new() ).TryGetValue(q.QuestionID, out var response);
+
+                            return new QuestionsByUserInfo
+                            {
+                                UserID = uid,
+                                FullName = u?.FullName ?? string.Empty,
+                                Score = response !=null ? (int?)response.Score:null,
+                                Justification = response?.Justification ?? string.Empty
+                            };
+                        }).ToList();
+
+                        return new QuestionsByUserPillarsResponsetDto
+                        {
+                            QuestionID = q.QuestionID,
+                            PillarID = q.PillarID,
+                            QuestionText = q.QuestionText,
+                            DisplayOrder = q.DisplayOrder,
+                            Users = userInfos
+                        };
+                    })
+                    .ToList();
+
+                return ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>.Success(
+                    pillarResponses,
+                    Array.Empty<string>() // no error message on success
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetQuestionsHistoryByPillar", ex);
+                return ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>.Failure(new[] { "There was an error, please try again later" });
+            }
+        }
+
     }
 }

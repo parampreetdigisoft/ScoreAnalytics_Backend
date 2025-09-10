@@ -1,4 +1,5 @@
 using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.QuestionDto;
 using AssessmentPlatform.Models;
@@ -18,5 +19,6 @@ namespace AssessmentPlatform.IServices
         Task<bool> DeleteQuestionAsync(int id);
         Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request);
         Task<Tuple<string,byte[]>> ExportAssessment(int userCityMappingID);
+        Task<ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>> GetQuestionsHistoryByPillar(GetCityPillarHistoryRequestDto requestDto);
     }
 } 
