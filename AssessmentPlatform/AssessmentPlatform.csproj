@@ -8,6 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="wwwroot\AttachmentImage\**" />
+    <Content Remove="wwwroot\AttachmentImage\**" />
+    <EmbeddedResource Remove="wwwroot\AttachmentImage\**" />
+    <None Remove="wwwroot\AttachmentImage\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.0" />
@@ -24,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="wwwroot\AttachmentImage\" />
+    <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
 </Project>

@@ -31,6 +31,10 @@ namespace AssessmentPlatform.Controllers
         [HttpGet]
         [Route("GetEvaluatorByAnalyst")]
         public async Task<IActionResult> GetEvaluatorByAnalyst([FromQuery] GetAssignUserDto request) => Ok(await _userService.GetEvaluatorByAnalyst(request));
+
+        [HttpPost]
+        [Route("updateUser")]
+        public async Task<IActionResult> UpdateUser([FromForm] UpdateUserDto dto) => Ok(await _userService.UpdateUser(dto));
     }
 
     public class RegisterRequest

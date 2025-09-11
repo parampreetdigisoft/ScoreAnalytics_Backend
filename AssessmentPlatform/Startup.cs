@@ -152,6 +152,7 @@ namespace AssessmentPlatform
 
             // Enable middleware to serve generated Swagger as JSON endpoint.
             app.UseSwagger();
+            app.UseStaticFiles();
 
             // Enable middleware to serve Swagger UI (HTML, JS, CSS, etc.)
             app.UseSwaggerUI(c =>

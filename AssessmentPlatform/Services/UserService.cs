@@ -15,10 +15,12 @@ namespace AssessmentPlatform.Services
     {
         private readonly IAppLogger _appLogger;
         private readonly ApplicationDbContext _context;
-        public UserService(ApplicationDbContext context, IAppLogger appLogger)
+        private readonly IWebHostEnvironment _env;
+        public UserService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env)
         {
             _context = context;
             _appLogger = appLogger;
+            _env = env;
         }
         public User GetByEmail(string email)
         {
@@ -142,6 +144,67 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error Occure in GetEvaluatorByAnalyst", ex);
                 return ResultResponseDto<List<PublicUserResponse>>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+
+        public async Task<ResultResponseDto<UpdateUserResponseDto>> UpdateUser(UpdateUserDto requestDto)
+        {
+            try
+            {
+                var user = await _context.Users.FindAsync(requestDto.UserID);
+                if (user == null)
+                    return ResultResponseDto<UpdateUserResponseDto>.Failure(new List<string>() { "Invalid request " });
+
+                // Update fields
+                user.FullName = requestDto.FullName;
+                user.Phone = requestDto.Phone;
+
+                // Handle profile image upload
+                if (requestDto.ProfileImage != null)
+                {
+                    string uploadsFolder = Path.Combine(_env.WebRootPath, "uploads");
+                    if (!Directory.Exists(uploadsFolder))
+                        Directory.CreateDirectory(uploadsFolder);
+
+                    // ?? Remove old image if exists
+                    if (!string.IsNullOrEmpty(user.ProfileImagePath))
+                    {
+                        string oldFilePath = Path.Combine(_env.WebRootPath, user.ProfileImagePath.TrimStart('/'));
+                        if (File.Exists(oldFilePath))
+                        {
+                            File.Delete(oldFilePath);
+                        }
+                    }
+
+                    // Save new image
+                    string fileName = Guid.NewGuid().ToString() + Path.GetExtension(requestDto.ProfileImage.FileName);
+                    string filePath = Path.Combine(uploadsFolder, fileName);
+
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await requestDto.ProfileImage.CopyToAsync(stream);
+                    }
+
+                    user.ProfileImagePath = "/uploads/" + fileName;
+                }
+
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+
+                var response = new UpdateUserResponseDto
+                {
+                    UserID = user.UserID,
+                    FullName = user.FullName,
+                    Phone = user.Phone,
+                    ProfileImagePath = user?.ProfileImagePath
+                };
+
+                return ResultResponseDto<UpdateUserResponseDto>.Success(response, new List<string> { "Updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure UpdateUser", ex);
+                return ResultResponseDto<UpdateUserResponseDto>.Failure(new string[] { "There is an error please try later" });
             }
         }
     }

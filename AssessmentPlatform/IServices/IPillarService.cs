@@ -15,5 +15,6 @@ namespace AssessmentPlatform.IServices
         Task<Pillar> UpdateAsync(int id, UpdatePillarDto pillar);
         Task<bool> DeleteAsync(int id);
         Task<ResultResponseDto<List<PillarsHistroyResponseDto>>> GetPillarsHistoryByUserId(GetCityPillarHistoryRequestDto id);
+        Task<Tuple<string, byte[]>> ExportPillarsHistoryByUserId(GetCityPillarHistoryRequestDto requestDto);
     }
 } 

@@ -18,5 +18,6 @@ namespace AssessmentPlatform.Models
         public DateTime ResetTokenDate { get; set; } = DateTime.UtcNow;
         public bool IsEmailConfirmed { get; set; } = false;
         public string? ProfileImagePath { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
 }

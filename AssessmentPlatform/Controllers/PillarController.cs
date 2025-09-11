@@ -63,5 +63,16 @@ namespace AssessmentPlatform.Controllers
             var response = await _pillarService.GetPillarsHistoryByUserId(requestDto);
             return Ok(response);
         }
+
+        [HttpGet("ExportPillarsHistoryByUserId")]
+        [Authorize]
+        public async Task<IActionResult> ExportPillarsHistoryByUserId([FromQuery] GetCityPillarHistoryRequestDto requestDto)
+        {
+            var content = await _pillarService.ExportPillarsHistoryByUserId(requestDto);
+
+            return File(content.Item2 ?? new byte[1],
+               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+               content.Item1);
+        }
     }
 } 
