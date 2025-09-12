@@ -116,7 +116,7 @@ namespace AssessmentPlatform.Services
                 Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
                 {
                     UserRole.Analyst => x => !x.IsDeleted && x.CityID == request.CityID &&
-                                             (x.AssignedByUserId == request.UserID || x.UserID == request.UserID),
+                                             x.AssignedByUserId == request.UserID,
                     UserRole.Evaluator => x => !x.IsDeleted && x.CityID == request.CityID && x.UserID == request.UserID,
                     _ => x => !x.IsDeleted && x.CityID == request.CityID
                 };
@@ -239,7 +239,7 @@ namespace AssessmentPlatform.Services
                 Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
                 {
                     UserRole.Analyst => x => !x.IsDeleted && x.CityID == request.CityID &&
-                                             (x.AssignedByUserId == request.UserID || x.UserID == request.UserID),
+                                             (x.AssignedByUserId == request.UserID),
                     UserRole.Evaluator => x => !x.IsDeleted && x.CityID == request.CityID && x.UserID == request.UserID,
                     _ => x => !x.IsDeleted && x.CityID == request.CityID
                 };
@@ -331,13 +331,14 @@ namespace AssessmentPlatform.Services
             try
             {
                 var response = await GetPillarsWithQuestions(requestDto);
+                var city = await _context.Cities.FirstOrDefaultAsync(x => x.CityID == requestDto.CityID);
 
                 if (!response.Succeeded)
                 {
                     return new Tuple<string, byte[]>("", Array.Empty<byte>());
                 }
 
-                var byteArray = MakePillarSheet(response.Result);
+                var byteArray = MakePillarSheet(response.Result, city);
 
                 return new("ExportPillarsHistory"+ requestDto.CityID+""+requestDto.PillarID, byteArray);
             }
@@ -348,12 +349,14 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        private byte[] MakePillarSheet(List<PillarWithQuestionsDto> pillars)
+        private byte[] MakePillarSheet(List<PillarWithQuestionsDto> pillars, Models.City? city)
         {
             using (var workbook = new XLWorkbook())
             {
-                var name = $"{pillars.Count}-Pillars-Result";
-                var ws = workbook.Worksheets.Add(name);
+                var name = city == null ? $"{pillars.Count}-Pillars-Result" : city?.CityName+"-"+city?.State+ $"-{pillars.Count}-Pillars-Result";
+                var shortName = name.Length > 30 ? name.Substring(0, 30) : name;
+
+                var ws = workbook.Worksheets.Add(shortName);
                 ws.Columns().Width = 30;
                 ws.Column(1).Width = 6;  // S.NO.
                 ws.Column(2).Width = 100;  // Pillar/Question text

@@ -603,7 +603,7 @@ namespace AssessmentPlatform.Services
                 Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
                 {
                     UserRole.Analyst => x => !x.IsDeleted && x.CityID == r.CityID &&
-                                             (x.AssignedByUserId == r.UserID || x.UserID == r.UserID),
+                                             x.AssignedByUserId == r.UserID ,
                     UserRole.Evaluator => x => !x.IsDeleted && x.CityID == r.CityID && x.UserID == r.UserID,
                     _ => x => !x.IsDeleted && x.CityID == r.CityID
                 };
