@@ -453,19 +453,19 @@ namespace AssessmentPlatform.Services
 
                             var richText = ws.Cell(row, c++).GetRichText();
 
+                            richText.AddText("OptionText: ")
+                               .SetBold().SetFontColor(XLColor.DarkRed);
+                            richText.AddText($"{answerDto.OptionText ?? "-"}")
+                                .SetFontColor(XLColor.Black);
+
                             richText.AddText("Score: ")
                                 .SetBold().SetFontColor(XLColor.DarkBlue);
-                            richText.AddText($"{answerDto.Score ?? 0}\n")
+                            richText.AddText($"{answerDto.Score}\n")
                                 .SetFontColor(XLColor.Black);
 
                             richText.AddText("Comment: ")
                                 .SetBold().SetFontColor(XLColor.DarkGreen);
                             richText.AddText($"{answerDto.Justification ?? "-"}\n")
-                                .SetFontColor(XLColor.Black);
-
-                            richText.AddText("OptionText: ")
-                                .SetBold().SetFontColor(XLColor.DarkRed);
-                            richText.AddText($"{answerDto.OptionText ?? "-"}")
                                 .SetFontColor(XLColor.Black);
 
                             ws.Cell(row, c - 1).Style.Alignment.WrapText = true;

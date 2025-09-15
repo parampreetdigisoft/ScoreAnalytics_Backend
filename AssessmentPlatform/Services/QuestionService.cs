@@ -126,7 +126,13 @@ namespace AssessmentPlatform.Services
                 .ToListAsync();
 
                 var totalQuestions = pillarQuestions.Count;
-                var question = pillarQuestions.FirstOrDefault(x => x.QuestionID == q.QuestionID) ?? new Question();
+                var question =  _context.Questions
+                    .Include(x=>x.QuestionOptions)
+                    .FirstOrDefault(x => x.QuestionID == q.QuestionID) ?? new Question();
+                if (question.QuestionID > 0 && !pillarQuestions.Select(x => x.QuestionID).Contains(q.QuestionID))
+                {
+                    question.DisplayOrder = totalQuestions + 1;
+                }
 
                 // Common properties
                 question.IsDeleted = false;
