@@ -357,7 +357,7 @@ namespace AssessmentPlatform.Services
                 var shortName = name.Length > 30 ? name.Substring(0, 30) : name;
 
                 var ws = workbook.Worksheets.Add(shortName);
-                ws.Columns().Width = 30;
+                ws.Columns().Width = 35;
                 ws.Column(1).Width = 6;  // S.NO.
                 ws.Column(2).Width = 100;  // Pillar/Question text
 
@@ -455,7 +455,7 @@ namespace AssessmentPlatform.Services
 
                             richText.AddText("OptionText: ")
                                .SetBold().SetFontColor(XLColor.DarkRed);
-                            richText.AddText($"{answerDto.OptionText ?? "-"}")
+                            richText.AddText($"{answerDto.OptionText ?? "-"}\n")
                                 .SetFontColor(XLColor.Black);
 
                             richText.AddText("Score: ")
@@ -465,7 +465,7 @@ namespace AssessmentPlatform.Services
 
                             richText.AddText("Comment: ")
                                 .SetBold().SetFontColor(XLColor.DarkGreen);
-                            richText.AddText($"{answerDto.Justification ?? "-"}\n")
+                            richText.AddText($"{answerDto.Justification ?? "-"}")
                                 .SetFontColor(XLColor.Black);
 
                             ws.Cell(row, c - 1).Style.Alignment.WrapText = true;
