@@ -284,8 +284,6 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-
-
                 if (inviteUser == null || string.IsNullOrEmpty(inviteUser.Email) || string.IsNullOrEmpty(inviteUser.FullName))
                 {
                     return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });

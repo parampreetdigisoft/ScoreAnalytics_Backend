@@ -176,11 +176,15 @@ namespace AssessmentPlatform.Services
                 //analyst can search by city and evaluator, admin can search by role and city
                 if (user.Role != UserRole.Admin)
                 {
+                    Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
+                    {
+                        UserRole.Analyst => x=> !x.IsDeleted &&  request.SubUserID.HasValue ? x.UserID == request.SubUserID : x.AssignedByUserId == user.UserID,
+                        UserRole.Evaluator=>x=> !x.IsDeleted && x.UserID == request.UserId,
+                        _ => x => !x.IsDeleted 
+                    };
+
                     userCityMappingIDs = _context.UserCityMappings
-                        .Where(x => !x.IsDeleted
-                        && request.SubUserID.HasValue ? x.UserID == request.SubUserID : x.AssignedByUserId == user.UserID // analyst case
-                        || (user.Role == UserRole.Evaluator && x.UserID == request.UserId) // for evaluator 
-                        )
+                        .Where(predicate)
                         .Select(x => x.UserCityMappingID).ToList();
                 }
 
@@ -324,7 +328,7 @@ namespace AssessmentPlatform.Services
                                         isValidFile = _context.UserCityMappings.Any(x => !x.IsDeleted && x.UserID == userID && x.UserCityMappingID == userCityMappingID);
                                         if (!isValidFile)
                                         {
-                                            return ResultResponseDto<string>.Failure(new[] { "Invalid file you uploaded" });
+                                            return ResultResponseDto<string>.Failure(new[] { "Invalid file uploaded" });
                                         }
                                     }
 
@@ -426,14 +430,13 @@ namespace AssessmentPlatform.Services
                 }
                 var cityHistory = new CityHistoryDto();
 
-                Expression<Func<UserCityMapping, bool>> predicate;
+                Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
+                {
+                    UserRole.Analyst => x => !x.IsDeleted && x.CityID == cityID && (x.AssignedByUserId == userID || x.UserID == userID),
+                    UserRole.Evaluator => x => !x.IsDeleted && x.CityID == cityID && x.UserID == userID,
+                    _ => x => !x.IsDeleted && x.CityID == cityID
+                };
 
-                if (user.Role == UserRole.Analyst)
-                    predicate = x => !x.IsDeleted && x.CityID == cityID && (x.AssignedByUserId == userID || x.UserID == userID);
-                else if (user.Role == UserRole.Evaluator)
-                    predicate = x => !x.IsDeleted && x.CityID == cityID && x.UserID == userID;
-                else
-                    predicate = x => !x.IsDeleted && x.CityID == cityID;
 
                 // 1. Get all UserCityMapping IDs for the city
                 var ucmIds = await _context.UserCityMappings
