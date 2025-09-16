@@ -1,17 +1,18 @@
-﻿using System.Data;
-using System.Text;
-using System.Security.Claims;
-using AssessmentPlatform.Data;
-using AssessmentPlatform.Models;
-using Microsoft.Extensions.Options;
-using AssessmentPlatform.IServices;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using AssessmentPlatform.Dtos.UserDtos;
+﻿using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
-using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models.settings;
+using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.UserDtos;
+using AssessmentPlatform.IServices;
+using AssessmentPlatform.Models;
+using AssessmentPlatform.Views.EmailModels;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System.Data;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace AssessmentPlatform.Services
 {
@@ -84,7 +85,15 @@ namespace AssessmentPlatform.Services
                     var token = passwordToken.Replace("+", " ");
 
                     string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-                    var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
+                    var model = new EmailInvitationSendRequestDto
+                    {
+                        ResetPasswordUrl = passwordResetLink,
+                        Title= "Password Recovery",
+                        ApiUrl = _appSettings.ApiUrl,
+                        ApplicationUrl = _appSettings.ApplicationUrl,
+                        MsgText = "You are receiving this email because you recently requested a password reset for your USVI account."
+                    };
+                    var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", model);
                     if (isMailSent)
                     {
                         user.ResetToken = token;
@@ -222,53 +231,57 @@ namespace AssessmentPlatform.Services
                     return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
                 }
 
-                bool isMailSent = false;
-                if (!user.IsEmailConfirmed)
+                var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
+                var passwordToken = hash;
+                var token = passwordToken.Replace("+", " ");
+                string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
+                string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+
+                var cityName = string.Join(", ",
+                                         _context.Cities
+                                         .Where(c => inviteUser.CityID.Contains(c.CityID))
+                                         .Select(c => c.CityName));
+                var invitedUser = _context.Users.FirstOrDefault(x => x.UserID == inviteUser.InvitedUserID);
+
+                var model = new EmailInvitationSendRequestDto
                 {
-                    var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
-                    var passwordToken = hash;
-                    var token = passwordToken.Replace("+", " ");
+                    ResetPasswordUrl = passwordResetLink,
+                    ApiUrl = _appSettings.ApiUrl,
+                    Title = sub,
+                    ApplicationUrl = _appSettings.ApplicationUrl,
+                    MsgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({cityName}) for your USVI account."
+                };
+                var isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
+                user.ResetToken = token;
+                user.ResetTokenDate = DateTime.Now;
+                user.IsDeleted = false;
+                _context.Users.Update(user);
 
-                    string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
-                    string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-                    isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
-                    user.ResetToken = token;
-                    user.ResetTokenDate = DateTime.Now;
-                    user.IsDeleted = false;
-                }
-
-                if (isMailSent || user.IsEmailConfirmed)
+                foreach (var id in inviteUser.CityID)
                 {
-                    _context.Users.Update(user);
-
-                    foreach (var id in inviteUser.CityID)
+                    var mapping = new UserCityMapping
                     {
-                        var mapping = new UserCityMapping
-                        {
-                            UserID = user.UserID,
-                            CityID = id,
-                            AssignedByUserId = inviteUser.InvitedUserID,
-                            Role = user.Role
-                        };
-                        _context.UserCityMappings.Add(mapping);
-                    }
-                    await _context.SaveChangesAsync();
+                        UserID = user.UserID,
+                        CityID = id,
+                        AssignedByUserId = inviteUser.InvitedUserID,
+                        Role = user.Role
+                    };
+                    _context.UserCityMappings.Add(mapping);
+                }
+                await _context.SaveChangesAsync();
 
+                if (isMailSent)
+                {
                     string msg = string.Empty;
 
-                    if (isExistingUser && !user.IsEmailConfirmed)
+                    if (isExistingUser)
                     {
                         msg = "This user already exists. An invitation has been sent to confirm their email and access the assigned city.";
                     }
-                    else if (!isExistingUser)
+                    else
                     {
                         msg = "User added successfully. An invitation has been sent to access the assigned city.";
                     }
-                    else
-                    {
-                        msg = "This user already exists and now have access to the assigned city.";
-                    }
-
                     return ResultResponseDto<object>.Success(new { }, new string[] { msg });
                 }
                 return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
@@ -288,8 +301,9 @@ namespace AssessmentPlatform.Services
                 {
                     return ResultResponseDto<object>.Failure(new string[] { "Invalid request data." });
                 }
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.UserID == inviteUser.UserID);
+                var userList = await _context.Users.Where(u => u.UserID == inviteUser.UserID || u.UserID == inviteUser.InvitedUserID).ToListAsync();
 
+                var user = userList.FirstOrDefault(u => u.UserID == inviteUser.UserID);
                 if (user == null)
                 {
                     return ResultResponseDto<object>.Failure(new string[] { "User not found." });
@@ -298,18 +312,102 @@ namespace AssessmentPlatform.Services
                 {
                     return ResultResponseDto<object>.Failure(new string[] { "User already have different role" });
                 }
-                bool isMailSent = true;
 
+
+                user.FullName = inviteUser.FullName;
+                user.Phone = inviteUser.Phone;
+                user.CreatedBy = inviteUser.InvitedUserID;
+                _context.Users.Update(user);
+
+                var existingMappings = _context.UserCityMappings
+                    .Where(m => m.UserID == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
+                    .ToList();
+
+                var existingCityIds = existingMappings.Select(m => m.CityID).ToList();
+
+                var newCityIds = inviteUser.CityID;
+
+                // Add missing cities
+                var citiesToAdd = newCityIds.Except(existingCityIds).ToList();
+                foreach (var cityId in citiesToAdd)
+                {
+                    var newMapping = new UserCityMapping
+                    {
+                        UserID = user.UserID,
+                        CityID = cityId,
+                        AssignedByUserId = inviteUser.InvitedUserID,
+                        Role = user.Role
+                    };
+                    _context.UserCityMappings.Add(newMapping);
+                }
+
+                //Delete cities no longer in the new list
+                var citiesToDelete = existingMappings
+                    .Where(m => !newCityIds.Contains(m.CityID))
+                    .ToList();
+                foreach (var c in citiesToDelete)
+                {
+                    c.IsDeleted = true;
+                    _context.UserCityMappings.Update(c);
+                }
+
+                // Save all changes
+                await _context.SaveChangesAsync();
+
+                bool isMailSent = false;
+                var msgText = "You are receiving this email because you haven't reset your password";
                 string msg = "User updated successfully";
-                if (user.Email != inviteUser.Email || (!user.IsEmailConfirmed || user.IsDeleted))
+
+                var invitedUser = userList.FirstOrDefault(x => x.UserID == inviteUser.InvitedUserID);
+
+                List<int> merged = inviteUser.CityID.Concat(citiesToDelete.Select(x=>x.CityID)).ToList();
+
+                var cities = await _context.Cities
+                    .Where(c => merged.Contains(c.CityID))
+                    .ToListAsync();
+
+                if (citiesToAdd.Count > 0)
+                {
+                    isMailSent = true;
+                    var invitedCityNames = string.Join(", ",
+                        cities.Where(c => citiesToAdd.Contains(c.CityID)).Select(c => c.CityName));
+
+                    msgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({invitedCityNames}) for your USVI account.";
+                }
+
+                if (citiesToDelete.Count > 0)
+                {
+                    var deleteName = cities
+                    .Where(c => citiesToDelete.Select(x => x.CityID).Contains(c.CityID)).Select(c => c.CityName);
+                    var deleteCityNames = string.Join(", ", deleteName); 
+
+                    if (isMailSent) 
+                    {
+                        msgText += $" Additionally, you no longer have access to the cities ({deleteCityNames}) for your USVI account.";
+                    }
+                    else
+                    {
+                        msgText = $"You are receiving this email because {invitedUser?.FullName} recently removed your access to the following cities ({deleteCityNames}) for your USVI account.";
+                    }
+                    isMailSent = true;
+                }
+                if (isMailSent || !user.IsEmailConfirmed)
                 {
                     var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
                     var passwordToken = hash;
                     var token = passwordToken.Replace("+", " ");
-
                     string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
                     string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
-                    isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", new { ResetPasswordUrl = passwordResetLink });
+
+                    var model = new EmailInvitationSendRequestDto
+                    {
+                        ResetPasswordUrl = passwordResetLink,
+                        ApiUrl = _appSettings.ApiUrl,
+                        ApplicationUrl = _appSettings.ApplicationUrl,
+                        MsgText = msgText,
+                        Title = sub
+                    };
+                    isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
 
                     var passwordHash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Password);
                     user.Email = inviteUser.Email;
@@ -320,53 +418,10 @@ namespace AssessmentPlatform.Services
                     user.IsDeleted = false;
 
                     msg = "User updated and invitation sent successfully";
-                }
-
-                if (isMailSent)
-                {
-                    user.FullName = inviteUser.FullName;
-                    user.Phone = inviteUser.Phone;
-                    user.CreatedBy = inviteUser.InvitedUserID;
-                    _context.Users.Update(user);
-
-                    var existingMappings = _context.UserCityMappings
-                        .Where(m => m.UserID == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
-                        .ToList();
-
-                    var existingCityIds = existingMappings.Select(m => m.CityID).ToList();
-
-                    var newCityIds = inviteUser.CityID;
-
-                    // Add missing cities
-                    var citiesToAdd = newCityIds.Except(existingCityIds).ToList();
-                    foreach (var cityId in citiesToAdd)
-                    {
-                        var newMapping = new UserCityMapping
-                        {
-                            UserID = user.UserID,
-                            CityID = cityId,
-                            AssignedByUserId = inviteUser.InvitedUserID,
-                            Role = user.Role
-                        };
-                        _context.UserCityMappings.Add(newMapping);
-                    }
-
-                    //Delete cities no longer in the new list
-                    var citiesToDelete = existingMappings
-                        .Where(m => !newCityIds.Contains(m.CityID))
-                        .ToList();
-                    foreach (var c in citiesToDelete)
-                    {
-                        c.IsDeleted = true;
-                        _context.UserCityMappings.Update(c);
-                    }
-
-                    // Save all changes
                     await _context.SaveChangesAsync();
-
-                    return ResultResponseDto<object>.Success(new { }, new string[] { msg });
                 }
-                return ResultResponseDto<object>.Failure(new string[] { "User created but invitation not send due to server error" });
+
+                return ResultResponseDto<object>.Success(new { }, new string[] { msg });
             }
             catch (Exception ex)
             {
@@ -472,25 +527,6 @@ namespace AssessmentPlatform.Services
                         return ResultResponseDto<object>.Failure(new[] { $"User {inviteUser.Email} already has a different role." });
                     }
 
-                    // 5. Handle email invitation
-                    if (!user.IsEmailConfirmed)
-                    {
-                        var token = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email).Replace("+", " ");
-                        string resetLink = $"{_appSettings.ApplicationUrl}/auth/reset-password?PasswordToken={token}";
-
-                        emailTasks.Add(_emailService.SendEmailAsync(
-                            inviteUser.Email,
-                            $"Invitation to Assessment Platform as a {inviteUser.Role}",
-                            "~/Views/EmailTemplates/ChangePassword.cshtml",
-                            new { ResetPasswordUrl = resetLink }
-                        ));
-
-                        user.ResetToken = token;
-                        user.ResetTokenDate = DateTime.Now;
-                        user.IsDeleted = false;
-                    }
-
-                    // 6. Collect city mappings
                     var existingCityIds = _context.UserCityMappings
                         .Where(m => m.UserID == user.UserID && m.AssignedByUserId == inviteUser.InvitedUserID && !m.IsDeleted)
                         .Select(m => m.CityID)
@@ -507,6 +543,41 @@ namespace AssessmentPlatform.Services
                             Role = user.Role
                         });
                     }
+
+                    if (citiesToAdd.Count() > 0) 
+                    {
+                        // 5. Handle email invitation
+                        var token = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email).Replace("+", " ");
+                        string resetLink = $"{_appSettings.ApplicationUrl}/auth/reset-password?PasswordToken={token}";
+
+                        var cityName = string.Join(", ",
+                         _context.Cities
+                         .Where(c => citiesToAdd.Contains(c.CityID))
+                         .Select(c => c.CityName));
+                        var invitedUser = _context.Users.FirstOrDefault(x => x.UserID == inviteUser.InvitedUserID);
+
+                        var sub = $"Invitation to Assessment Platform as a {inviteUser.Role}";
+                        var model = new EmailInvitationSendRequestDto
+                        {
+                            ResetPasswordUrl = resetLink,
+                            ApiUrl = _appSettings.ApiUrl,
+                            ApplicationUrl = _appSettings.ApplicationUrl,
+                            Title = sub,
+                            MsgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({cityName}) for your USVI account."
+                        };
+
+                        emailTasks.Add(_emailService.SendEmailAsync(
+                            inviteUser.Email,
+                            sub,
+                            "~/Views/EmailTemplates/ChangePassword.cshtml",
+                            model
+                        ));
+
+                        user.ResetToken = token;
+                        user.ResetTokenDate = DateTime.Now;
+                        user.IsDeleted = false;
+                    }
+                    
                 }
 
 
