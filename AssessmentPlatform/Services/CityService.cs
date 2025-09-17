@@ -159,19 +159,45 @@ namespace AssessmentPlatform.Services
                 if (user.Role == UserRole.Admin)
                 {
                     cityQuery =
-                        from c in _context.Cities
-                        select new CityResponseDto
-                        {
-                            CityID = c.CityID,
-                            State = c.State,
-                            CityName = c.CityName,
-                            PostalCode = c.PostalCode,
-                            Region = c.Region,
-                            IsActive = c.IsActive,
-                            CreatedDate = c.CreatedDate,
-                            UpdatedDate = c.UpdatedDate,
-                            IsDeleted = c.IsDeleted
-                        };
+                    from c in _context.Cities
+                    join uc in _context.UserCityMappings on c.CityID equals uc.CityID into ucg
+                    from uc in ucg.DefaultIfEmpty()
+                    join a in _context.Assessments on uc.UserCityMappingID equals a.UserCityMappingID into ag
+                    from a in ag.DefaultIfEmpty()
+                    join pa in _context.PillarAssessments on a.AssessmentID equals pa.AssessmentID into pag
+                    from pa in pag.DefaultIfEmpty()
+                    join r in _context.AssessmentResponses on pa.PillarAssessmentID equals r.PillarAssessmentID into rg
+                    from r in rg.DefaultIfEmpty()
+                    where !c.IsDeleted && (uc == null || !uc.IsDeleted)
+                    group r by new
+                    {
+                        c.CityID,
+                        c.State,
+                        c.CityName,
+                        c.PostalCode,
+                        c.Region,
+                        c.IsActive,
+                        c.CreatedDate,
+                        c.UpdatedDate,
+                        c.IsDeleted,
+                        EvaluatorCount = _context.UserCityMappings
+                                            .Count(x => x.CityID == c.CityID && !x.IsDeleted)
+                    }
+                    into g
+                    select new CityResponseDto
+                    {
+                        CityID = g.Key.CityID,
+                        State = g.Key.State,
+                        CityName = g.Key.CityName,
+                        PostalCode = g.Key.PostalCode,
+                        Region = g.Key.Region,
+                        IsActive = g.Key.IsActive,
+                        CreatedDate = g.Key.CreatedDate,
+                        UpdatedDate = g.Key.UpdatedDate,
+                        IsDeleted = g.Key.IsDeleted,
+                        Score = g.Sum(x => (int?)x.Score ?? 0) / (g.Key.EvaluatorCount == 0 ? 1 : g.Key.EvaluatorCount)
+                    };
+
                 }
                 else
                 {
