@@ -617,7 +617,17 @@ namespace AssessmentPlatform.Services
                     {
                         var city = _context.Cities.FirstOrDefault(x => x.CityID == assessment.UserCityMapping.CityID);
 
-                        string passwordResetLink = _appSettings.ApplicationUrl + $"/{(mailToUser.Role == UserRole.Evaluator ? "admin" : "analyst")}/assesment/{request.UserID}/{request.UserCityMappingID}";
+                        var url = string.Empty;
+                        if(mailToUser.Role == UserRole.Admin)
+                        {
+                            url = $"admin/assesment/2/{assessment.UserCityMapping.CityID}";
+                        }
+                        else
+                        {
+                            url = $"analyst/evaluator-response/{request.UserID}/{assessment.UserCityMapping.CityID}";
+                        }
+
+                        string passwordResetLink = _appSettings.ApplicationUrl + url;
                         var model = new EmailInvitationSendRequestDto
                         {
                             ResetPasswordUrl = passwordResetLink,
