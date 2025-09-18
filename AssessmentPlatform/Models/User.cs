@@ -1,3 +1,4 @@
+using AssessmentPlatform.Enums;
 using System;
 
 namespace AssessmentPlatform.Models
@@ -19,5 +20,6 @@ namespace AssessmentPlatform.Models
         public bool IsEmailConfirmed { get; set; } = false;
         public string? ProfileImagePath { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public TieredAccessPlan? Tier { get; set; }
     }
 }

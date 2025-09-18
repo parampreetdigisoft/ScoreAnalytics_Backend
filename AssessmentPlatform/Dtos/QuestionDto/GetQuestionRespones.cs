@@ -16,10 +16,11 @@ namespace AssessmentPlatform.Dtos.QuestionDto
     {
         public int AssessmentID { get; set; }
         public int UserCityMappingID { get; set; }
-        public int PillarDisplayOrder { get; set; }
         public int PillarID { get; set; }
         public string PillarName { get; set; }
+        public int DisplayOrder { get; set; }
         public string Description { get; set; }
-        public List<AddUpdateQuestionDto> Questions { get; set; }
+        public int SubmittedPillarDisplayOrder { get; set; }
+        public List<AssessmentQuestionResponseDto> Questions { get; set; }
     }
 }

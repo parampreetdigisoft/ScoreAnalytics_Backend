@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.Models;
 
@@ -18,5 +19,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<object>> UpdateInviteUser(UpdateInviteUserDto inviteUser);
         Task<ResultResponseDto<object>> DeleteUser(int userId);
         Task<ResultResponseDto<UserResponseDto>> RefreshToken(int userId);
+        Task<ResultResponseDto<string>> SendMailForEditAssessment(SendRequestMailToUpdateCity request);
     }
 }

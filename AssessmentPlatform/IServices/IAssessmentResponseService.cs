@@ -19,5 +19,6 @@ namespace AssessmentPlatform.IServices
         Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(int userID,int cityID);
         Task<ResultResponseDto<GetAssessmentHistoryDto>> GetAssessmentProgressHistory(int assessmentID);
         Task<List<CityPillarUserHistoryReponseDto>> GetCityPillarHistory(GetCityPillarHistoryRequestDto r);
+        Task<ResultResponseDto<string>> ChangeAssessmentStatus(ChangeAssessmentStatusRequestDto r);
     }
 } 

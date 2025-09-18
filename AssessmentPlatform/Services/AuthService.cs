@@ -2,10 +2,12 @@
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using AssessmentPlatform.Views.EmailModels;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -88,7 +90,7 @@ namespace AssessmentPlatform.Services
                     var model = new EmailInvitationSendRequestDto
                     {
                         ResetPasswordUrl = passwordResetLink,
-                        Title= "Password Recovery",
+                        Title = "Password Recovery",
                         ApiUrl = _appSettings.ApiUrl,
                         ApplicationUrl = _appSettings.ApplicationUrl,
                         MsgText = "You are receiving this email because you recently requested a password reset for your USVI account."
@@ -360,7 +362,7 @@ namespace AssessmentPlatform.Services
 
                 var invitedUser = userList.FirstOrDefault(x => x.UserID == inviteUser.InvitedUserID);
 
-                List<int> merged = inviteUser.CityID.Concat(citiesToDelete.Select(x=>x.CityID)).ToList();
+                List<int> merged = inviteUser.CityID.Concat(citiesToDelete.Select(x => x.CityID)).ToList();
 
                 var cities = await _context.Cities
                     .Where(c => merged.Contains(c.CityID))
@@ -379,9 +381,9 @@ namespace AssessmentPlatform.Services
                 {
                     var deleteName = cities
                     .Where(c => citiesToDelete.Select(x => x.CityID).Contains(c.CityID)).Select(c => c.CityName);
-                    var deleteCityNames = string.Join(", ", deleteName); 
+                    var deleteCityNames = string.Join(", ", deleteName);
 
-                    if (isMailSent) 
+                    if (isMailSent)
                     {
                         msgText += $" Additionally, you no longer have access to the cities ({deleteCityNames}) for your USVI account.";
                     }
@@ -544,7 +546,7 @@ namespace AssessmentPlatform.Services
                         });
                     }
 
-                    if (citiesToAdd.Count() > 0) 
+                    if (citiesToAdd.Count() > 0)
                     {
                         // 5. Handle email invitation
                         var token = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email).Replace("+", " ");
@@ -577,7 +579,7 @@ namespace AssessmentPlatform.Services
                         user.ResetTokenDate = DateTime.Now;
                         user.IsDeleted = false;
                     }
-                    
+
                 }
 
 
@@ -593,6 +595,54 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Invite Bulk User", ex);
                 return ResultResponseDto<object>.Failure(new[] { ex.Message });
+            }
+        }
+
+        public async Task<ResultResponseDto<string>> SendMailForEditAssessment(SendRequestMailToUpdateCity request)
+        {
+            try
+            {
+                var users = _context.Users.Where(x => x.UserID == request.MailToUserID || x.UserID == request.UserID);
+
+                var mailToUser = users.FirstOrDefault(x => x.UserID == request.MailToUserID);
+                if (mailToUser == null)
+                {
+                    return ResultResponseDto<string>.Failure(new string[] { "User not exist." });
+                }
+                else
+                {
+                    var user = users.FirstOrDefault(x => x.UserID == request.UserID);
+                    var assessment = await _context.Assessments.Include(x => x.UserCityMapping).FirstOrDefaultAsync(x => x.UserCityMappingID == request.UserCityMappingID);
+                    if (assessment != null)
+                    {
+                        var city = _context.Cities.FirstOrDefault(x => x.CityID == assessment.UserCityMapping.CityID);
+
+                        string passwordResetLink = _appSettings.ApplicationUrl + $"/{(mailToUser.Role == UserRole.Evaluator ? "admin" : "analyst")}/assesment/{request.UserID}/{request.UserCityMappingID}";
+                        var model = new EmailInvitationSendRequestDto
+                        {
+                            ResetPasswordUrl = passwordResetLink,
+                            Title = "Request to update city",
+                            ApiUrl = _appSettings.ApiUrl,
+                            ApplicationUrl = _appSettings.ApplicationUrl,
+                            MsgText = $"You are receiving this email because user {user?.FullName} recently requested to update city {city?.CityName} from their USVI account.",
+                            BtnText = "Give Access"
+                        };
+                        var isMailSent = await _emailService.SendEmailAsync(mailToUser.Email, "Request to update city", "~/Views/EmailTemplates/ChangePassword.cshtml", model);
+                        if (isMailSent)
+                        {
+                            assessment.AssessmentPhase = AssessmentPhase.EditRequested;
+                            _context.Assessments.Update(assessment);
+                            await _context.SaveChangesAsync();
+                            return ResultResponseDto<string>.Success("", new string[] { "You have requested to update the assessment" });
+                        }
+                    }
+                    return ResultResponseDto<string>.Failure(new string[] { "There is an error please try again" });
+                }
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("ForgotPassword", ex);
+                return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
             }
         }
     }

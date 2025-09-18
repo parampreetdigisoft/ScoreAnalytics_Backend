@@ -1,13 +1,13 @@
 using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.QuestionDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
-using AssessmentPlatform.Dtos.AssessmentDto;
 namespace AssessmentPlatform.Services
 {
     public class QuestionService : IQuestionService
@@ -288,51 +288,83 @@ namespace AssessmentPlatform.Services
                 // Load assessment once (if exists)
                 var answeredPillarIds = new List<int>();
                 var assessment = await _context.Assessments
+                    .Include(x=>x.PillarAssessments).ThenInclude(x=>x.Responses)
                     .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.IsActive)
                     .FirstOrDefaultAsync();
                 if (assessment != null)
                 {
-                    answeredPillarIds = await _context.PillarAssessments
-                   .Where(r => r.AssessmentID == assessment.AssessmentID)
+                    answeredPillarIds = assessment.PillarAssessments
                    .Select(r => r.PillarID)
-                   .Distinct()
-                   .ToListAsync();
+                   .ToList();
+                }
+                if(assessment !=null && answeredPillarIds.Count == 14 && !request.PillarID.HasValue)
+                {
+                    request.PillarID = assessment.PillarAssessments.First().PillarID;
                 }
 
-
                 // Get next unanswered pillar
-                var nextPillar = await _context.Pillars
+                var selectPillar = await _context.Pillars
                     .Include(p => p.Questions)
                         .ThenInclude(q => q.QuestionOptions)
+                    .Where(p =>  !request.PillarID.HasValue ? !answeredPillarIds.Contains(p.PillarID) : p.PillarID == request.PillarID)
+                    .OrderBy(p => p.DisplayOrder)
+                    .FirstOrDefaultAsync();
+
+                var summitedPillar = await _context.Pillars
                     .Where(p => !answeredPillarIds.Contains(p.PillarID))
                     .OrderBy(p => p.DisplayOrder)
                     .FirstOrDefaultAsync();
 
-                if (nextPillar == null || nextPillar?.Questions == null)
+                if (selectPillar == null || selectPillar?.Questions == null)
                 {
                     return ResultResponseDto<GetPillarQuestionByCityRespones>.Failure(new[] { "You have submitted assessment for this city" });
                 }
 
-                // Project questions
-                var questions = nextPillar.Questions
-                .OrderBy(q => q.DisplayOrder)
-                .Select(q => new AddUpdateQuestionDto
+                var editAssessmentResponse = new Dictionary<int, AssessmentResponse>();
+                if(assessment != null)
                 {
-                    QuestionID = q.QuestionID,
-                    QuestionText = q.QuestionText,
-                    PillarID = q.PillarID,
-                    QuestionOptions = q.QuestionOptions.ToList(),
-                }).ToList();
+                    editAssessmentResponse = assessment.PillarAssessments
+                    .Where(a => a.PillarID == request.PillarID)
+                    .SelectMany(x => x.Responses)
+                    .ToDictionary(x => x.QuestionID);
+                }
 
+                // Project questions
+                var questions = selectPillar.Questions
+                .OrderBy(q => q.DisplayOrder)
+                .Select(q =>
+                {
+                    var questoin = editAssessmentResponse.TryGetValue(q.QuestionID, out var submittedQuestion);
+                    submittedQuestion = submittedQuestion ?? new();
+                   return new AssessmentQuestionResponseDto
+                   {
+                        QuestionID = q.QuestionID,
+                        QuestionText = q.QuestionText,
+                        PillarID = q.PillarID,
+                        ResponseID = submittedQuestion.ResponseID,
+                        IsSelected = submittedQuestion.QuestionID == q.QuestionID,
+                        QuestionOptions = q.QuestionOptions.Select(x => new QuestionOptionDto
+                        {
+                            DisplayOrder = x.DisplayOrder,
+                            OptionID = x.OptionID,
+                            QuestionID = x.QuestionID,
+                            IsSelected = submittedQuestion.QuestionOptionID == x.OptionID,
+                            OptionText = x.OptionText,
+                            ScoreValue = x.ScoreValue,
+                            Justification = submittedQuestion.Justification
+                        }).ToList(),
+                    };
+                }).ToList();
 
                 var result = new GetPillarQuestionByCityRespones
                 {
                     AssessmentID = assessment?.AssessmentID ?? 0,
                     UserCityMappingID = request.UserCityMappingID,
-                    PillarDisplayOrder = nextPillar.DisplayOrder,
-                    PillarName = nextPillar.PillarName,
-                    PillarID = nextPillar.PillarID,
-                    Description = nextPillar.Description,
+                    PillarName = selectPillar.PillarName,
+                    PillarID = selectPillar.PillarID,
+                    Description = selectPillar.Description,
+                    DisplayOrder = selectPillar.DisplayOrder,
+                    SubmittedPillarDisplayOrder = answeredPillarIds.Count == 14 ? 14 : summitedPillar?.DisplayOrder ?? selectPillar.DisplayOrder,
                     Questions = questions
                 };
                 return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
@@ -360,34 +392,25 @@ namespace AssessmentPlatform.Services
 
                 var sheetName = fileName?.CityName + "_" + fileName?.FullName;
 
-                // Load assessment once (if exists)
-                var answeredPillarIds = new List<int>();
+
                 var assessment = await _context.Assessments
                     .Where(a => a.UserCityMappingID == userCityMappingID && a.IsActive)
                     .FirstOrDefaultAsync();
-                if (assessment != null)
-                {
-                    answeredPillarIds = await _context.PillarAssessments
-                   .Where(r => r.AssessmentID == assessment.AssessmentID)
-                   .Select(r => r.PillarID)
-                   .Distinct()
-                   .ToListAsync();
-                }
 
                 // Get next unanswered pillar
                 var nextPillars = await _context.Pillars
                     .Include(p => p.Questions)
                         .ThenInclude(q => q.QuestionOptions)
-                    .Where(p => !answeredPillarIds.Contains(p.PillarID))
                     .OrderBy(p => p.DisplayOrder)
                     .ToListAsync();
 
-                if (nextPillars == null || nextPillars?.Count == 0)
-                {
-                    return null;
-                }
+                var pillarAssessments = _context.Assessments
+                    .Include(x=>x.PillarAssessments)
+                    .ThenInclude(x=>x.Responses)
+                    .Where(a => a.UserCityMappingID == userCityMappingID)
+                    .SelectMany(x => x.PillarAssessments).ToList();
 
-                var byteArray = MakePillarSheet(nextPillars, userCityMappingID);
+                var byteArray = MakePillarSheet(nextPillars, pillarAssessments, userCityMappingID);
 
                 return new(sheetName, byteArray);
             }
@@ -397,11 +420,10 @@ namespace AssessmentPlatform.Services
                 return new Tuple<string, byte[]>("", Array.Empty<byte>());
             }
         }
-        private byte[] MakePillarSheet(List<Pillar> pillars, int userCityMappingID)
+        private byte[] MakePillarSheet(List<Pillar> pillars, List<PillarAssessment> pillarAssessments, int userCityMappingID)
         {
             using (var workbook = new XLWorkbook())
             {
-
                 foreach (var pillar in pillars)
                 {
                     var name = GetValidSheetName(pillar.PillarName);
@@ -418,12 +440,18 @@ namespace AssessmentPlatform.Services
                        XLSheetProtectionElements.SelectLockedCells |
                        XLSheetProtectionElements.SelectUnlockedCells;
 
-
+                    var submitedPillarResonse = pillarAssessments
+                        .Where(x => x.PillarID == pillar.PillarID)
+                        .SelectMany(x=>x.Responses)
+                        .ToDictionary(x=>x.QuestionID);
 
                     int row = 0;
                     var q = pillar?.Questions?.ToList() ?? new();
                     for (var i = 0; i < q.Count; i++)
                     {
+                        submitedPillarResonse.TryGetValue(q[i].QuestionID, out var ansQuestion);
+                        ansQuestion = ansQuestion ?? new();
+
                         ++row;
                         ws.Row(row).Style.Font.Bold = true;
                         ws.Cell(row, 1).Value = "UserCityMappingID";
@@ -495,9 +523,9 @@ namespace AssessmentPlatform.Services
                         dvComment.TextLength.Between(1, 10000);
 
                         ws.Cell(row, 2).Value = "Answer";
-                        ws.Cell(row, 3).Value = "";
-                        ws.Cell(row, 4).Value = "";
-                        ws.Cell(row, 5).Value = "";
+                        ws.Cell(row, 3).Value = ansQuestion.QuestionOptionID == 0 ? "" : ansQuestion.QuestionOptionID;
+                        ws.Cell(row, 4).Value = (int?)ansQuestion.Score;
+                        ws.Cell(row, 5).Value = ansQuestion.Justification;
                         ++row;
                     }
                 }

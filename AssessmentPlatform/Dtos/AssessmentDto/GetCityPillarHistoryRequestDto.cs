@@ -1,4 +1,6 @@
-﻿namespace AssessmentPlatform.Dtos.AssessmentDto
+﻿using AssessmentPlatform.Models;
+
+namespace AssessmentPlatform.Dtos.AssessmentDto
 {
     public class GetCityPillarHistoryRequestDto
     {
@@ -30,5 +32,11 @@
         public int? Score { get; set; }
         public string Justification { get; set; }
         public string OptionText { get; set; }
+    }
+    public class ChangeAssessmentStatusRequestDto
+    {
+        public int UserID { get; set; }
+        public int AssessmentID { get; set; }
+        public AssessmentPhase AssessmentPhase { get; set; }
     }
 }

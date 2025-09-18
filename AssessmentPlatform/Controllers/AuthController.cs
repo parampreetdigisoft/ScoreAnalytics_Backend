@@ -1,4 +1,5 @@
 
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
 using Microsoft.AspNetCore.Authorization;
@@ -123,6 +124,16 @@ namespace AssessmentPlatform.Controllers
         public async Task<IActionResult> RefreshToken([FromBody] UserIdDto request)
         {
             var user = await _authService.RefreshToken(request.UserID);
+            if (user == null)
+                return Unauthorized();
+            return Ok(user);
+        }
+
+        [HttpPost("sendMailForEditAssessment")]
+        [Authorize]
+        public async Task<IActionResult> SendMailForEditAssessment([FromBody] SendRequestMailToUpdateCity request)
+        {
+            var user = await _authService.SendMailForEditAssessment(request);
             if (user == null)
                 return Unauthorized();
             return Ok(user);

@@ -7,5 +7,6 @@
         public string ApiUrl { get; set; }
         public string MsgText { get; set; }
         public string ApplicationUrl { get; set; }
+        public string BtnText { get; set; } = "Reset Password";
     }
 }

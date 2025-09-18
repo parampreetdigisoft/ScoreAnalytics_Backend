@@ -11,6 +11,7 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
     }
     public class AddAssesmentResponseDto
     {
+        public int ResponseID { get; set; }
         public int AssessmentID { get; set; }
         public int QuestionID { get; set; }
         public int QuestionOptionID { get; set; }

@@ -100,58 +100,93 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var saveResponse = 0;
+                var now = DateTime.Now;
                 var assessment = await _context.Assessments
                     .Include(x => x.PillarAssessments)
                     .ThenInclude(x => x.Responses)
                     .FirstOrDefaultAsync(x =>
                         x.IsActive &&
-                        (x.AssessmentID == request.AssessmentID || x.UserCityMappingID == request.UserCityMappingID));
+                        (x.AssessmentID == request.AssessmentID ||
+                         x.UserCityMappingID == request.UserCityMappingID));
 
+                // If no assessment found, create a new one
                 if (assessment == null)
                 {
                     var ucm = await _context.UserCityMappings
                         .FirstOrDefaultAsync(x => x.UserCityMappingID == request.UserCityMappingID);
+
                     if (ucm == null)
-                    {
                         return ResultResponseDto<string>.Failure(new[] { "City is not assigned" });
-                    }
+
                     assessment = new Assessment
                     {
                         UserCityMappingID = ucm.UserCityMappingID,
-                        CreatedAt = DateTime.Now,
-                        UpdatedAt = DateTime.Now,
+                        CreatedAt = now,
+                        UpdatedAt = now,
                         IsActive = true,
-                        UserCityMapping = ucm
+                        UserCityMapping = ucm,
+                        AssessmentPhase = AssessmentPhase.InProgress
                     };
                     _context.Assessments.Add(assessment);
                 }
-                if (request.PillarID > 0 && !assessment.PillarAssessments.Any(x => x.PillarID == request.PillarID))
+
+                if (request.PillarID > 0)
                 {
-                    var newPillarAssessment = new PillarAssessment
+                    var pillarAssessment = assessment.PillarAssessments
+                        .FirstOrDefault(x => x.PillarID == request.PillarID);
+
+                    if (pillarAssessment == null)
                     {
-                        PillarID = request.PillarID,
-                        AssessmentID = assessment.AssessmentID,
-                        Assessment = assessment
-                    };
+                        // Create new pillar assessment
+                        pillarAssessment = new PillarAssessment
+                        {
+                            PillarID = request.PillarID,
+                            Assessment = assessment
+                        };
+                        assessment.PillarAssessments.Add(pillarAssessment);
+                    }
+
+                    // Track existing response IDs
+                    var existingResponses = pillarAssessment.Responses.ToList();
+                    var requestResponseIds = request.Responses
+                        .Where(r => r.ResponseID > 0)
+                        .Select(r => r.ResponseID)
+                        .ToHashSet();
+
+                    foreach (var existing in existingResponses.Where(r => !requestResponseIds.Contains(r.ResponseID)))
+                    {
+                        _context.AssessmentResponses.Remove(existing); // <-- delete instead of unlink
+                    }
+
+                    // ADD or UPDATE responses
                     foreach (var response in request.Responses)
                     {
-                        var r = new AssessmentResponse
+                        var existing = existingResponses
+                            .FirstOrDefault(r => r.ResponseID == response.ResponseID);
+
+                        if (existing == null)
                         {
-                            QuestionID = response.QuestionID,
-                            QuestionOptionID = response.QuestionOptionID,
-                            Justification = response.Justification,
-                            Score = response.Score,
-                        };
-                        newPillarAssessment.Responses.Add(r);
+                            // Add new
+                            pillarAssessment.Responses.Add(new AssessmentResponse
+                            {
+                                QuestionID = response.QuestionID,
+                                QuestionOptionID = response.QuestionOptionID,
+                                Justification = response.Justification,
+                                Score = response.Score
+                            });
+                        }
+                        else
+                        {
+                            // Update existing
+                            existing.QuestionID = response.QuestionID;
+                            existing.QuestionOptionID = response.QuestionOptionID;
+                            existing.Justification = response.Justification;
+                            existing.Score = response.Score;
+                        }
                     }
-                    assessment.PillarAssessments.Add(newPillarAssessment);
-                    assessment.UpdatedAt = DateTime.Now;
-                    saveResponse++;
-                }
-                else
-                {
-                    return ResultResponseDto<string>.Failure(new[] { "Pillar response is not saved you may provided wrong details" });
+                    var pillar = await _context.Pillars.OrderByDescending(x => x.DisplayOrder).FirstOrDefaultAsync();
+                    assessment.AssessmentPhase = pillar?.PillarID == request.PillarID ? AssessmentPhase.Completed : AssessmentPhase.InProgress;
+                    assessment.UpdatedAt = now;
                 }
 
                 await _context.SaveChangesAsync();
@@ -160,10 +195,11 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occure in SaveAssessment", ex);
-                return ResultResponseDto<string>.Failure(new[] { "failed to saved assessment" });
+                await _appLogger.LogAsync("Error Occurred in SaveAssessment", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Failed to save assessment" });
             }
         }
+
         public async Task<PaginationResponse<GetAssessmentResponseDto>> GetAssessmentResult(GetAssessmentRequestDto request)
         {
             try
@@ -209,6 +245,7 @@ namespace AssessmentPlatform.Services
                     select new GetAssessmentResponseDto
                     {
                         AssessmentID = a.AssessmentID,
+                        UserCityMappingID = a.UserCityMappingID,
                         CreatedAt = a.CreatedAt,
                         CityID = c.CityID,
                         CityName = c.CityName,
@@ -219,7 +256,8 @@ namespace AssessmentPlatform.Services
                                  .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
                                  .Sum(r => (int?)r.Score ?? 0),
                         AssignedByUser = createdBy.FullName,
-                        AssignedByUserId = createdBy.UserID
+                        AssignedByUserId = createdBy.UserID,
+                        AssessmentPhase = a.AssessmentPhase
                     };
 
                 var response = await query.ApplyPaginationAsync(request);
@@ -710,6 +748,30 @@ namespace AssessmentPlatform.Services
                 await _appLogger.LogAsync("Error occurred in GetCityPillarHistory", ex);
                 return new List<CityPillarUserHistoryReponseDto>();
             }
+        }
+
+        public async Task<ResultResponseDto<string>> ChangeAssessmentStatus(ChangeAssessmentStatusRequestDto r)
+        {
+            try
+            {
+                var assessment = await _context.Assessments.FirstOrDefaultAsync(x=>x.AssessmentID == r.AssessmentID);
+                if(assessment != null)
+                {
+                    assessment.AssessmentPhase = r.AssessmentPhase;
+
+                    _context.Assessments.Update(assessment);
+                    await _context.SaveChangesAsync();
+
+                    return ResultResponseDto<string>.Success("", new[] { "Assessment Status Changed successfully" });
+                }
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in ChangeAssessmentStatus", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Failed to Changed assessment status" });
+
+            }
+            return ResultResponseDto<string>.Failure(new[] { "Failed to Changed assessment status" });
         }
     }
 }
