@@ -191,7 +191,7 @@ namespace AssessmentPlatform.Services
 
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<string>.Success("", new[] { "Assessment saved successfully" }, 1);
+                return ResultResponseDto<string>.Success("", new[] { "Pillar saved successfully" }, 1);
             }
             catch (Exception ex)
             {
