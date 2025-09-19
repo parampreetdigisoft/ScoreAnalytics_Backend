@@ -101,10 +101,10 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet]
         [Authorize]
-        [Route("getCitiesProgressByUserId/{userID}")]
-        public async Task<IActionResult> getCitiesProgressByUserId(int userID)
+        [Route("getCitiesProgressByUserId/{userID}/{updatedAt}")]
+        public async Task<IActionResult> getCitiesProgressByUserId(int userID,DateTime updatedAt)
         {
-            var result = await _cityService.GetCitiesProgressByUserId(userID);
+            var result = await _cityService.GetCitiesProgressByUserId(userID, updatedAt);
             return Ok(result);
         }
     }

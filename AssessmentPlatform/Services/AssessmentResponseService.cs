@@ -228,7 +228,7 @@ namespace AssessmentPlatform.Services
                     from a in _context.Assessments
                         .Include(q => q.PillarAssessments)
                         .ThenInclude(q => q.Responses)
-                    where a.IsActive
+                    where a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year
                           && (!request.CityID.HasValue || a.UserCityMapping.CityID == request.CityID.Value)
                            && (user.Role == UserRole.Admin || userCityMappingIDs.Contains(a.UserCityMappingID))
                     join c in _context.Cities
@@ -446,10 +446,12 @@ namespace AssessmentPlatform.Services
             }
             return true;  // all 4 rows × 5 cols are empty
         }
-        public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(int userID, int cityID)
+        public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto)
         {
             try
             {
+                var userID = userCityRequstDto.UserID;
+                var cityID = userCityRequstDto.CityID;
 
                 var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
                 if (user == null)
@@ -483,7 +485,7 @@ namespace AssessmentPlatform.Services
                     .ToListAsync();
 
                 var pillarAssessments = _context.Assessments
-                    .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == userCityRequstDto.UpdatedAt.Year)
                     .SelectMany(x => x.PillarAssessments);
 
                 // 2. Fetch city-wise pillar/question details in one go
@@ -565,7 +567,7 @@ namespace AssessmentPlatform.Services
                 await _appLogger.LogAsync("Error Occure in GetCityQuestionHistory", ex);
                 return new GetCityQuestionHistoryReponseDto
                 {
-                    CityID = cityID,
+                    CityID = 0,
                     Score = 0,
                     TotalPillar = 0,
                     TotalAnsPillar = 0,
@@ -658,7 +660,7 @@ namespace AssessmentPlatform.Services
 
                 // 2. Get all relevant pillar assessments
                 var pillarAssessments = _context.Assessments
-                    .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .Where(a => ucmIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == r.UpdatedAt.Year)
                     .SelectMany(a => a.PillarAssessments)
                     .Where(pa => !r.PillarID.HasValue || pa.PillarID == r.PillarID);
 

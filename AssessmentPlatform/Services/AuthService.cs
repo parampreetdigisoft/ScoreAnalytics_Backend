@@ -441,10 +441,16 @@ namespace AssessmentPlatform.Services
                 {
                     return ResultResponseDto<object>.Failure(new string[] { "User not exist" });
                 }
-
                 user.IsDeleted = true;
-
                 _context.Users.Update(user);
+
+                var userMapping = _context.UserCityMappings.Where(x => x.UserID == userId).ToList();
+                foreach (var m in userMapping)
+                {
+                    m.IsDeleted = true;
+                    _context.UserCityMappings.Update(m);
+                }
+
                 await _context.SaveChangesAsync();
 
                 return ResultResponseDto<object>.Success(new { }, new string[] { "User deleted successfully" });

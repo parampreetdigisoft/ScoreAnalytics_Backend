@@ -524,7 +524,7 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "There is an error please try later" });
             }
         }
-        public async Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID)
+        public async Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID, DateTime updatedAt)
         {
             try
             {
@@ -554,7 +554,7 @@ namespace AssessmentPlatform.Services
                     from uc in _context.UserCityMappings.Where(predicate)
                     join c in _context.Cities.Where(c => !c.IsDeleted && c.IsActive)
                         on uc.CityID equals c.CityID
-                    join a in _context.Assessments.Where(x => x.IsActive)
+                    join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt.Year == updatedAt.Year)
                         on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
                     from a in cityAssessments.DefaultIfEmpty()
                     select new

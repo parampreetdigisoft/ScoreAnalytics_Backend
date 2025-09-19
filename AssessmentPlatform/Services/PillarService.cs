@@ -129,7 +129,7 @@ namespace AssessmentPlatform.Services
 
                 // 4. Get all relevant pillar assessments
                 var pillarAssessmentsQuery = _context.Assessments
-                    .Where(a => userCityMappingIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .Where(a => userCityMappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year)
                     .SelectMany(a => a.PillarAssessments)
                     .Where(pa => !request.PillarID.HasValue || pa.PillarID == request.PillarID);
 
@@ -254,7 +254,7 @@ namespace AssessmentPlatform.Services
                     .Include(a => a.UserCityMapping)
                     .Include(a => a.PillarAssessments)
                         .ThenInclude(pa => pa.Responses)
-                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year)
                     .AsNoTracking()
                     .ToListAsync();
 

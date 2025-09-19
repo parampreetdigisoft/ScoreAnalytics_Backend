@@ -19,6 +19,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<object>> UnAssignCity(UserCityUnMappingRequestDto requestDto);
         Task<ResultResponseDto<List<UserCityMappingResponseDto>>> GetCityByUserIdForAssessment(int userId);
         Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID);
-        Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID);
+        Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID, DateTime updateAt);
     }
 }

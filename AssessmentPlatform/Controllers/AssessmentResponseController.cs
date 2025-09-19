@@ -91,11 +91,11 @@ namespace AssessmentPlatform.Controllers
         /// <param name="cityID"></param>
         /// <returns></returns>
         [HttpGet]
-        [Route("getCityQuestionHistory/{userID}/{cityID}")]
+        [Route("getCityQuestionHistory")]
         [Authorize]
-        public async Task<IActionResult> GetCityQuestionHistory(int userID, int cityID)
+        public async Task<IActionResult> GetCityQuestionHistory([FromQuery] UserCityRequstDto userCityRequstDto)
         {
-            var result = await _responseService.GetCityQuestionHistory(userID, cityID);
+            var result = await _responseService.GetCityQuestionHistory(userCityRequstDto);
             return Ok(result);
         }
         [HttpGet]
@@ -110,7 +110,7 @@ namespace AssessmentPlatform.Controllers
         [HttpPost]
         [Route("getCityPillarHistory")]
         [Authorize]
-        public async Task<IActionResult> GetCityQuestionHistory([FromBody] GetCityPillarHistoryRequestDto requestDto)
+        public async Task<IActionResult> GetCityPillarHistory([FromBody] GetCityPillarHistoryRequestDto requestDto)
         {
             var result = await _responseService.GetCityPillarHistory(requestDto);
             return Ok(result);

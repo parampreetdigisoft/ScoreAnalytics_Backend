@@ -593,7 +593,7 @@ namespace AssessmentPlatform.Services
                     .Include(a => a.PillarAssessments
                         .Where(pa => pa.PillarID == requestDto.PillarID)) // allowed
                     .ThenInclude(pa => pa.Responses) // proper navigation include
-                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive)
+                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == requestDto.UpdatedAt.Year)
                     .AsNoTracking()
                     .ToListAsync();
 

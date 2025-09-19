@@ -4,8 +4,8 @@
     {
         public int AssessmentID { get; set; }
         public int UserCityMappingID { get; set; }
-        public DateTime? CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime UpdatedAt { get; set; } = DateTime.Now;
         public bool IsActive { get; set; } = true;
         public UserCityMapping UserCityMapping { get; set; }
         public AssessmentPhase? AssessmentPhase { get; set; } = Models.AssessmentPhase.InProgress;
