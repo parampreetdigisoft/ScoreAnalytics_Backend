@@ -92,10 +92,10 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet]
         [Authorize]
-        [Route("getCityHistory/{userID}")]
-        public async Task<IActionResult> GetCityHistory(int userID)
+        [Route("getCityHistory/{userID}/{updatedAt}")]
+        public async Task<IActionResult> GetCityHistory(int userID, DateTime updatedAt)
         {
-            var result = await _cityService.GetCityHistory(userID);
+            var result = await _cityService.GetCityHistory(userID, updatedAt);
             return Ok(result);
         }
 

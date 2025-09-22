@@ -16,6 +16,7 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
         public decimal Score { get; set; }
         public string AssignedByUser { get; set; }
         public int AssignedByUserId { get; set; }
+        public int AssessmentYear { get; set; } 
         public AssessmentPhase? AssessmentPhase { get; set; }
     }
 }

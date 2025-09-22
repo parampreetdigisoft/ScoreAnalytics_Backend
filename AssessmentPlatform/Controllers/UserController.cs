@@ -35,6 +35,12 @@ namespace AssessmentPlatform.Controllers
         [HttpPost]
         [Route("updateUser")]
         public async Task<IActionResult> UpdateUser([FromForm] UpdateUserDto dto) => Ok(await _userService.UpdateUser(dto));
+
+
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        [Route("getUsersAssignedToCity/{cityID}")]
+        public async Task<IActionResult> GetUsersAssignedToCity(int cityID) => Ok(await _userService.GetUsersAssignedToCity(cityID));
     }
 
     public class RegisterRequest

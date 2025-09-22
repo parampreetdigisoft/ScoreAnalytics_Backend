@@ -124,5 +124,14 @@ namespace AssessmentPlatform.Controllers
             var result = await _responseService.ChangeAssessmentStatus(requestDto);
             return Ok(result);
         }
+
+        [HttpPost]
+        [Route("transferAssessment")]
+        [Authorize]
+        public async Task<IActionResult> TransferAssessment([FromBody] TransferAssessmentRequestDto requestDto)
+        {
+            var result = await _responseService.TransferAssessment(requestDto);
+            return Ok(result);
+        }
     }
 }

@@ -47,13 +47,13 @@ namespace AssessmentPlatform.Data
                 .HasMany(r => r.PillarAssessments)
                 .WithOne(a=>a.Assessment)
                 .HasForeignKey(r => r.AssessmentID)
-                .OnDelete(DeleteBehavior.Restrict);
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<PillarAssessment>()
             .HasMany(r => r.Responses)
             .WithOne(a => a.PillarAssessment)
             .HasForeignKey(r => r.PillarAssessmentID)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<City>().HasKey(uc => uc.CityID);
 

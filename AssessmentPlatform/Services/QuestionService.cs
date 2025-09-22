@@ -285,11 +285,12 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var year = DateTime.Now.Year;
                 // Load assessment once (if exists)
                 var answeredPillarIds = new List<int>();
                 var assessment = await _context.Assessments
                     .Include(x=>x.PillarAssessments).ThenInclude(x=>x.Responses)
-                    .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.IsActive)
+                    .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.UpdatedAt.Year == year && a.IsActive)
                     .FirstOrDefaultAsync();
                 if (assessment != null)
                 {
@@ -392,22 +393,17 @@ namespace AssessmentPlatform.Services
 
                 var sheetName = fileName?.CityName + "_" + fileName?.FullName;
 
-
-                var assessment = await _context.Assessments
-                    .Where(a => a.UserCityMappingID == userCityMappingID && a.IsActive)
-                    .FirstOrDefaultAsync();
-
                 // Get next unanswered pillar
                 var nextPillars = await _context.Pillars
                     .Include(p => p.Questions)
                         .ThenInclude(q => q.QuestionOptions)
                     .OrderBy(p => p.DisplayOrder)
                     .ToListAsync();
-
+                var year = DateTime.Now.Year;
                 var pillarAssessments = _context.Assessments
                     .Include(x=>x.PillarAssessments)
                     .ThenInclude(x=>x.Responses)
-                    .Where(a => a.UserCityMappingID == userCityMappingID)
+                    .Where(a => a.UserCityMappingID == userCityMappingID && a.IsActive && a.UpdatedAt.Year == year)
                     .SelectMany(x => x.PillarAssessments).ToList();
 
                 var byteArray = MakePillarSheet(nextPillars, pillarAssessments, userCityMappingID);

@@ -105,7 +105,7 @@ namespace AssessmentPlatform.Services
                     .Include(x => x.PillarAssessments)
                     .ThenInclude(x => x.Responses)
                     .FirstOrDefaultAsync(x =>
-                        x.IsActive &&
+                        x.IsActive && x.UpdatedAt.Year == now.Year &&
                         (x.AssessmentID == request.AssessmentID ||
                          x.UserCityMappingID == request.UserCityMappingID));
 
@@ -257,6 +257,7 @@ namespace AssessmentPlatform.Services
                                  .Sum(r => (int?)r.Score ?? 0),
                         AssignedByUser = createdBy.FullName,
                         AssignedByUserId = createdBy.UserID,
+                        AssessmentYear = a.UpdatedAt.Year,
                         AssessmentPhase = a.AssessmentPhase
                     };
 
@@ -775,5 +776,131 @@ namespace AssessmentPlatform.Services
             }
             return ResultResponseDto<string>.Failure(new[] { "Failed to Changed assessment status" });
         }
+
+        public async Task<ResultResponseDto<string>> TransferAssessment(TransferAssessmentRequestDto r)
+        {
+            try
+            {
+                var currentDate = DateTime.Now;
+
+                var transferAssessment = await _context.Assessments
+                    .Include(x => x.UserCityMapping)
+                    .Include(x => x.PillarAssessments)
+                        .ThenInclude(x => x.Responses)
+                    .FirstOrDefaultAsync(x => x.AssessmentID == r.AssessmentID);
+
+                if (transferAssessment == null)
+                    return ResultResponseDto<string>.Failure(new[] { "Invalid assessment." });
+
+                var cityAssigned = await _context.UserCityMappings
+                    .FirstOrDefaultAsync(x => x.CityID == transferAssessment.UserCityMapping.CityID &&
+                                              x.UserID == r.TransferToUserID);
+
+                if (cityAssigned == null)
+                    return ResultResponseDto<string>.Failure(new[] { "This assessment can’t be imported because the selected user hasn’t been assigned to this city yet." });
+
+                // Load existing assessment for that user/city/year (with pillars/responses)
+                var existingAssessment = await _context.Assessments
+                    .Include(a => a.PillarAssessments)
+                        .ThenInclude(p => p.Responses)
+                    .FirstOrDefaultAsync(a => a.UserCityMappingID == cityAssigned.UserCityMappingID &&
+                                              a.UpdatedAt.Year == currentDate.Year);
+
+                if (existingAssessment == null)
+                {
+                    existingAssessment = new Assessment
+                    {
+                        UserCityMappingID = cityAssigned.UserCityMappingID,
+                        CreatedAt = currentDate,
+                        UpdatedAt = currentDate,
+                        IsActive = true,
+                        AssessmentPhase = transferAssessment.AssessmentPhase,
+                        PillarAssessments = new List<PillarAssessment>()
+                    };
+
+                    _context.Assessments.Add(existingAssessment);
+                }
+                else
+                {
+                    existingAssessment.UpdatedAt = currentDate;
+                    existingAssessment.AssessmentPhase = transferAssessment.AssessmentPhase;
+                }
+
+                // Transfer pillar data
+                foreach (var pillar in transferAssessment.PillarAssessments)
+                {
+                    var existingPillar = existingAssessment.PillarAssessments
+                        .FirstOrDefault(x => x.PillarID == pillar.PillarID);
+
+                    if (existingPillar == null)
+                    {
+                        existingPillar = new PillarAssessment
+                        {
+                            PillarID = pillar.PillarID,
+                            Responses = new List<AssessmentResponse>()
+                        };
+                        existingAssessment.PillarAssessments.Add(existingPillar);
+                    }
+
+                    // Add/Update responses
+                    foreach (var response in pillar.Responses)
+                    {
+                        var existingResponse = existingPillar.Responses
+                            .FirstOrDefault(rp => rp.QuestionID == response.QuestionID);
+
+                        if (existingResponse == null)
+                        {
+                            existingPillar.Responses.Add(new AssessmentResponse
+                            {
+                                QuestionID = response.QuestionID,
+                                QuestionOptionID = response.QuestionOptionID,
+                                Justification = response.Justification,
+                                Score = response.Score
+                            });
+                        }
+                        else
+                        {
+                            existingResponse.QuestionOptionID = response.QuestionOptionID;
+                            existingResponse.Justification = response.Justification;
+                            existingResponse.Score = response.Score;
+                        }
+                    }
+
+                    // Delete responses not present in transferAssessment
+                    var transferQuestionIds = pillar.Responses.Select(x => x.QuestionID).ToHashSet();
+                    var toDeleteResponses = existingPillar.Responses
+                        .Where(x => !transferQuestionIds.Contains(x.QuestionID))
+                        .ToList();
+
+                    foreach (var resp in toDeleteResponses)
+                    {
+                        //existingPillar.Responses.Remove(resp);
+                        _context.AssessmentResponses.Remove(resp);
+                    }
+                }
+
+                // Delete pillars not present in transferAssessment
+                var transferPillarIds = transferAssessment.PillarAssessments.Select(x => x.PillarID).ToHashSet();
+                var toDeletePillars = existingAssessment.PillarAssessments
+                    .Where(x => !transferPillarIds.Contains(x.PillarID))
+                    .ToList();
+
+                foreach (var pillar in toDeletePillars)
+                {
+                    //existingAssessment.PillarAssessments.Remove(pillar);
+                    _context.PillarAssessments.Remove(pillar);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<string>.Success("", new[] { "Assessment transferred successfully." });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in TransferAssessment", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Failed to transfer assessment, please try again later." });
+            }
+        }
+
     }
 }

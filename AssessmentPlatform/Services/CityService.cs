@@ -156,6 +156,8 @@ namespace AssessmentPlatform.Services
 
                 IQueryable<CityResponseDto> cityQuery;
 
+                var year = DateTime.Now.Year;
+
                 if (user.Role == UserRole.Admin)
                 {
                     cityQuery =
@@ -168,7 +170,7 @@ namespace AssessmentPlatform.Services
                     from pa in pag.DefaultIfEmpty()
                     join r in _context.AssessmentResponses on pa.PillarAssessmentID equals r.PillarAssessmentID into rg
                     from r in rg.DefaultIfEmpty()
-                    where !c.IsDeleted && (uc == null || !uc.IsDeleted)
+                    where !c.IsDeleted && (uc == null || !uc.IsDeleted) && (a == null || a.UpdatedAt.Year == year)
                     group r by new
                     {
                         c.CityID,
@@ -415,10 +417,16 @@ namespace AssessmentPlatform.Services
                 {
                     return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
                 }
+                var year = DateTime.Now.Year;
+                Expression<Func<Assessment, bool>>  predicate = a => 
+                !a.UserCityMapping.IsDeleted 
+                && a.UserCityMapping.UserID == userId 
+                && a.UpdatedAt.Year == year
+                && (a.AssessmentPhase == AssessmentPhase.Completed || a.AssessmentPhase == AssessmentPhase.EditRejected || a.AssessmentPhase == AssessmentPhase.EditRequested);
 
-                // Get distinct UserCityMappings for the user where responses < 14
+                // Get distinct UserCityMappings which are not show to user
                 var userCityMappingIds = _context.Assessments
-                    .Where(a => !a.UserCityMapping.IsDeleted && a.UserCityMapping.UserID == userId && (a.AssessmentPhase == AssessmentPhase.Completed ||  a.AssessmentPhase == AssessmentPhase.EditRejected || a.AssessmentPhase == AssessmentPhase.EditRequested))
+                    .Where(predicate)
                     .Select(a => a.UserCityMappingID)
                     .Distinct();
 
@@ -460,7 +468,7 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID)
+        public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID, DateTime updatedAt)
         {
             try
             {
@@ -487,14 +495,14 @@ namespace AssessmentPlatform.Services
                     join uc in _context.UserCityMappings.Where(predicate)
                         on c.CityID equals uc.CityID into cityMappings
                     from uc in cityMappings.DefaultIfEmpty()
-                    join a in _context.Assessments.Where(x => x.IsActive)
+                    join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt.Year == updatedAt.Year)
                         on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
                     from a in cityAssessments.DefaultIfEmpty()
                     select new
                     {
                         c.CityID,
                         HasMapping = uc != null,
-                        IsCompleted = a != null && a.PillarAssessments.Count == 14
+                        IsCompleted = a != null && a.AssessmentPhase == AssessmentPhase.Completed
                     }
                 ).ToListAsync();
 
