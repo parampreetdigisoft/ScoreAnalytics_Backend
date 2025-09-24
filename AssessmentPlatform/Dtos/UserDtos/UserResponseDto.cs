@@ -1,4 +1,5 @@
-﻿using AssessmentPlatform.Models;
+﻿using AssessmentPlatform.Enums;
+using AssessmentPlatform.Models;
 
 namespace AssessmentPlatform.Dtos.UserDtos
 {
@@ -7,6 +8,7 @@ namespace AssessmentPlatform.Dtos.UserDtos
         public DateTime TokenExpirationDate { get; set; } 
         public string? ProfileImagePath { get; set; }
         public string Token { get; set; }
+        public TieredAccessPlan? tier { get; set; }
     }
 
     public class PublicUserResponse

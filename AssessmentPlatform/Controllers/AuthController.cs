@@ -56,6 +56,13 @@ namespace AssessmentPlatform.Controllers
             return Ok(response);
         }
 
+        [HttpPost("CityUserSignUp")]
+        public async Task<IActionResult> CityUserSignUp([FromBody] CityUserSignUpDto request)
+        {
+            var user = await _authService.CityUserSignUp(request);
+            return Ok(user);
+        }
+
         [HttpPost]
         [Route("InviteUser")]
         [Authorize]

@@ -7,7 +7,6 @@ using AssessmentPlatform.Dtos.UserDtos;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using AssessmentPlatform.Views.EmailModels;
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -20,6 +19,7 @@ namespace AssessmentPlatform.Services
 {
     public class AuthService : IAuthService
     {
+        #region  constructor
         private readonly ApplicationDbContext _context;
         private readonly AppSettings _appSettings;
         private readonly JwtSetting _jwtSetting;
@@ -33,6 +33,9 @@ namespace AssessmentPlatform.Services
             _jwtSetting = jwtSetting.Value;
             _appLogger = appLogger;
         }
+        #endregion
+
+        #region IAuthService implemention
 
         public User Register(string fullName, string email, string phn, string password, UserRole role)
         {
@@ -45,6 +48,7 @@ namespace AssessmentPlatform.Services
                 PasswordHash = hash,
                 Role = role,
                 IsEmailConfirmed = false,
+                Tier = role == UserRole.CityUser ? Enums.TieredAccessPlan.Pending : null
             };
             _context.Users.Add(user);
             _context.SaveChanges();
@@ -168,7 +172,16 @@ namespace AssessmentPlatform.Services
         {
             if (!user.IsEmailConfirmed || user.IsDeleted)
             {
-                string message = $"Your mail is not confirmed or de-activated by super {(user.Role == UserRole.Analyst ? "Admin" : "Analyst")}";
+                string message = string.Empty;
+
+                if (user.Role != UserRole.CityUser)
+                {
+                    message = $"Your mail is not confirmed or de-activated by super {(user.Role == UserRole.Analyst ? "Admin" : "Analyst")}";
+                }
+                else
+                {
+                    message = "Your email is not verified. Please check your inbox and click the verification link. If the link has expired, you can reset your password to verify your account.";
+                }
 
                 return ResultResponseDto<UserResponseDto>.Failure(new string[] { message });
             }
@@ -202,9 +215,10 @@ namespace AssessmentPlatform.Services
                 IsEmailConfirmed = user.IsEmailConfirmed,
                 TokenExpirationDate = tokenExpired,
                 ProfileImagePath = user.ProfileImagePath,
-                Token = token
+                Token = token,
+                tier = user.Tier
             };
-            return ResultResponseDto<UserResponseDto>.Success(response, new string[] { "Invitation sent successfully." });
+            return ResultResponseDto<UserResponseDto>.Success(response, new string[] { "You have successfully logged in." });
         }
 
         public async Task<ResultResponseDto<object>> InviteUser(InviteUserDto inviteUser)
@@ -624,7 +638,7 @@ namespace AssessmentPlatform.Services
                         var city = _context.Cities.FirstOrDefault(x => x.CityID == assessment.UserCityMapping.CityID);
 
                         var url = string.Empty;
-                        if(mailToUser.Role == UserRole.Admin)
+                        if (mailToUser.Role == UserRole.Admin)
                         {
                             url = $"admin/assesment/2/{assessment.UserCityMapping.CityID}";
                         }
@@ -659,6 +673,64 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("ForgotPassword", ex);
                 return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+        #endregion
+        public async Task<ResultResponseDto<string>> CityUserSignUp(CityUserSignUpDto request)
+        {
+            try
+            {
+                // Check if the user already exists
+                var existingUser = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Email == request.Email);
+
+                if (existingUser != null)
+                {
+                    return ResultResponseDto<string>.Failure(new[]
+                    {
+                        "An account with this email already exists. Please log in."
+                    });
+                }
+
+                // Register new user
+                var user = Register(request.FullName, request.Email, request.Phone, request.Password, request.Role);
+
+                // Generate password reset token for email verification
+                var hash = BCrypt.Net.BCrypt.HashPassword(request.Email);
+                var token = hash.Replace("+", " "); // Replace + to avoid URL issues
+                var passwordResetLink = $"{_appSettings.ApplicationUrl}/auth/reset-password?PasswordToken={token}";
+
+                var emailModel = new EmailInvitationSendRequestDto
+                {
+                    ResetPasswordUrl = passwordResetLink,
+                    Title = "Verify Your Email",
+                    ApiUrl = _appSettings.ApiUrl,
+                    ApplicationUrl = _appSettings.ApplicationUrl,
+                    MsgText = "Thank you for signing up! Please verify your email and reset your password to complete registration."
+                };
+
+                // Send verification email
+                var isMailSent = await _emailService.SendEmailAsync(
+                    request.Email,
+                    "Verify Your Email",
+                    "~/Views/EmailTemplates/ChangePassword.cshtml",
+                    emailModel
+                );
+
+                if (isMailSent)
+                {
+                    user.ResetToken = token;
+                    user.ResetTokenDate = DateTime.Now;
+                    _context.Users.Update(user);
+                    await _context.SaveChangesAsync();
+                }
+
+                return ResultResponseDto<string>.Success("", new[] { "Registration successful! Please check your email to verify your account." });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error during user signup", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Something went wrong. Please try again later."});
             }
         }
     }
