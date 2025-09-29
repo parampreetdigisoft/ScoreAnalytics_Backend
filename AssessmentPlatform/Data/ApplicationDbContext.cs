@@ -17,6 +17,8 @@ namespace AssessmentPlatform.Data
         public DbSet<City> Cities { get; set; } = default!;
         public DbSet<UserCityMapping> UserCityMappings { get; set; } = default!;
         public DbSet<AppLogs> AppLogs { get; set; } = default!;
+        public DbSet<PaymentRecord> PaymentRecords { get; set; } = default!;
+        public DbSet<PublicUserCityMapping> PublicUserCityMappings { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -56,8 +58,18 @@ namespace AssessmentPlatform.Data
             .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<City>().HasKey(uc => uc.CityID);
+            modelBuilder.Entity<PaymentRecord>(entity =>
+            {
+                entity.HasKey(p => p.PaymentRecordID);
+                entity.Property(e => e.Tier)
+                      .HasConversion<byte>();
+
+                entity.Property(e => e.PaymentStatus)
+                      .HasConversion<byte>();
+            });
 
             modelBuilder.Entity<UserCityMapping>().HasKey(uc => uc.UserCityMappingID);
+            modelBuilder.Entity<PublicUserCityMapping>().HasKey(uc => uc.PublicUserCityMappingID);
 
 
             base.OnModelCreating(modelBuilder);

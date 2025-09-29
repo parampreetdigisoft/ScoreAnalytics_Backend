@@ -1,0 +1,19 @@
+﻿using AssessmentPlatform.Enums;
+
+
+namespace AssessmentPlatform.Models
+{
+    public enum PaymentStatus:byte { Pending = 1, Succeeded = 2, Failed = 3 }
+
+    public class PaymentRecord
+    {
+        public Guid PaymentRecordID { get; set; }
+        public string CheckoutSessionId { get; set; } = default!;
+        public int UserID { get; set; }
+        public double? Amount { get; set; }
+        public TieredAccessPlan Tier { get; set; } = TieredAccessPlan.Pending;
+        public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public User User { get; set; }
+    }
+}

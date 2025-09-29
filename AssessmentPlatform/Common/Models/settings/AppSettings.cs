@@ -3,6 +3,7 @@
     public class AppSettings
     {
         public string ApplicationUrl { get; init; }
+        public string CityUserApplicationUrl { get; init; }
         public string Host { get; init; }
         public bool EnableSsl { get; init; }
         public string UserName { get; init; }

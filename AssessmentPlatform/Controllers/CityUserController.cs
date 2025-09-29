@@ -1,7 +1,5 @@
-﻿using AssessmentPlatform.Dtos.AssessmentDto;
-using AssessmentPlatform.IServices;
-using AssessmentPlatform.Services;
-using Microsoft.AspNetCore.Http;
+﻿using AssessmentPlatform.IServices;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
@@ -17,11 +15,12 @@ namespace AssessmentPlatform.Controllers
         }
 
 
-        [HttpPost("GetPillarsHistoryByUserId")]
-        public async Task<IActionResult> GetPillarsHistoryByUserId([FromBody] GetCityPillarHistoryRequestDto requestDto)
+        [HttpGet("getAllCities")]
+        [AllowAnonymous]
+        public async Task<IActionResult> getAllCities()
         {
-            //var response = await _cityUserService.GetPillarsHistoryByUserId(requestDto);
-            return Ok();
+            var response = await _cityUserService.getAllCities();
+            return Ok(response);
         }
     }
 }

@@ -51,6 +51,8 @@ namespace AssessmentPlatform
             services.AddScoped<IEmailService, EmailService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IAppLogger, AppLogger>();
+            services.AddScoped<ICityUserService, CityUserService>();
+            services.AddScoped<IPaymentService, PaymentService>();
 
 
             services.AddCors(options =>
@@ -75,6 +77,8 @@ namespace AssessmentPlatform
 
             var jwtSettingSection = Configuration.GetSection("Jwt");
             services.Configure<JwtSetting>(jwtSettingSection);
+            var stripeSettingSection = Configuration.GetSection("Stripe");
+            services.Configure<StripeSetting>(stripeSettingSection);
 
             var jwtSetting = jwtSettingSection.Get<JwtSetting>();
             var key = Encoding.ASCII.GetBytes(jwtSetting.Key);

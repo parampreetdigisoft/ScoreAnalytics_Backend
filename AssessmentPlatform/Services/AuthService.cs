@@ -723,6 +723,17 @@ namespace AssessmentPlatform.Services
                     user.ResetToken = token;
                     user.ResetTokenDate = DateTime.Now;
                     _context.Users.Update(user);
+
+                    var cum = new PublicUserCityMapping
+                    {
+                        CityID = request.CityID,
+                        UserID = user.UserID,
+                        IsDeleted = false,
+                        UpdatedAt = DateTime.Now
+                    };
+
+                    _context.PublicUserCityMappings.Add(cum);
+
                     await _context.SaveChangesAsync();
                 }
 

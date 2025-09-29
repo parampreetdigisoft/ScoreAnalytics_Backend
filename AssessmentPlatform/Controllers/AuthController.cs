@@ -28,12 +28,12 @@ namespace AssessmentPlatform.Controllers
         
         [HttpPost]
         [Route("forgotPassword")]
-        public IActionResult ForgotPassword([FromBody] ForgotPasswordDto request)
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto request)
         {
             if (request?.Email == null)
                 return BadRequest("Invalid request data.");
 
-            var response = _authService.ForgotPassword(request.Email);
+            var response = await _authService.ForgotPassword(request.Email);
 
             if (response == null)
                 return StatusCode(500, "Password reset failed due to a server error.");
