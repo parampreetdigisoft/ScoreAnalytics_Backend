@@ -836,9 +836,7 @@ namespace AssessmentPlatform.Services
                 }
                 else
                 {
-                    return ResultResponseDto<object>.Failure(
-                        new string[] { "Unable to send your message at the moment. Please try again later." }
-                    );
+                    return ResultResponseDto<object>.Failure(new string[] { "Unable to send your message at the moment. Please try again later." });
                 }
             }
             catch (Exception ex)
