@@ -472,7 +472,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID && x.Role != UserRole.CityUser);
                 if (user == null)
                 {
                     return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "Invalid request" });
@@ -536,7 +536,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID && x.Role != UserRole.CityUser);
                 if(user == null)
                 {
                     return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Failure(new string[] { "Invalid request" });

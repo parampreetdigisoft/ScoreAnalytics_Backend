@@ -10,6 +10,7 @@ namespace AssessmentPlatform.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize(Policy = "StaffOnly")]
     public class QuestionController : ControllerBase
     {
         private readonly IQuestionService _questionService;

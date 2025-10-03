@@ -3,7 +3,7 @@
 
 namespace AssessmentPlatform.Models
 {
-    public enum PaymentStatus:byte { Pending = 1, Succeeded = 2, Failed = 3 }
+    public enum PaymentStatus:byte { Pending = 0, Succeeded = 1, Failed = 2 }
 
     public class PaymentRecord
     {
@@ -13,7 +13,8 @@ namespace AssessmentPlatform.Models
         public double? Amount { get; set; }
         public TieredAccessPlan Tier { get; set; } = TieredAccessPlan.Pending;
         public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Pending;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime ExpiredAt { get; set; } = DateTime.Now.AddYears(1);
         public User User { get; set; }
     }
 }

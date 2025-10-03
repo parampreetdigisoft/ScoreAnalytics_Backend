@@ -14,5 +14,6 @@
         public int LinkValidHours { get; set; }
         public string AdminEmail { get; init; }
         public string ApiUrl { get; set; }
+        public string ApplicationInfoMail { get; set; }
     }
 }

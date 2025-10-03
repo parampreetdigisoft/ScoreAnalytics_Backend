@@ -145,6 +145,34 @@ namespace AssessmentPlatform.Controllers
                 return Unauthorized();
             return Ok(user);
         }
+
+        [HttpPost]
+        [Route("confirmMail")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ConfirmMail([FromBody] ConfirmMailDto request)
+        {
+            if (request?.PasswordToken == null)
+                return BadRequest("Invalid request data.");
+
+            var response = await _authService.ConfirmMail(request.PasswordToken);
+
+            if (response == null)
+                return StatusCode(500, "Mail not confirmed due to a server error.");
+
+            return Ok(response);
+        }
+        [HttpPost]
+        [Route("contactus")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ContactUs([FromBody] ContactUsRequestDto request)
+        {
+            var response = await _authService.ContactUs(request);
+
+            if (response == null)
+                return StatusCode(500, "Mail not confirmed due to a server error.");
+
+            return Ok(response);
+        }
     }
 
     public class LoginRequest

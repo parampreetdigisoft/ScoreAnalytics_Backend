@@ -3,7 +3,9 @@ using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Middlware;
 using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
+using AssessmentPlatform.Models;
 using AssessmentPlatform.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -141,8 +143,28 @@ namespace AssessmentPlatform
                     };
                 });
 
-            // Authorization
-            services.AddAuthorization();
+            services.AddAuthorization(options =>
+            {
+                // CityUser with Standard or higher
+                options.AddPolicy("PaidCityUserOnly", policy =>
+                {
+                    policy.RequireRole("CityUser");
+                    policy.RequireAssertion(context =>
+                    {
+                        var tier = context.User.FindFirst("Tier")?.Value;
+
+                        return tier == TieredAccessPlan.Standard.ToString() ||
+                               tier == TieredAccessPlan.Premium.ToString() || tier == TieredAccessPlan.Basic.ToString();
+                    });
+                });
+
+                options.AddPolicy("AdminOnly", policy =>
+                    policy.RequireRole("Admin"));
+
+                options.AddPolicy("StaffOnly", policy =>
+                    policy.RequireRole(UserRole.Admin.ToString(),UserRole.Analyst.ToString(), UserRole.Evaluator.ToString()));
+            });
+
         }
 
 

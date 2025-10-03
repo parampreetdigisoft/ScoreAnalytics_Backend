@@ -20,14 +20,6 @@ namespace AssessmentPlatform.Controllers
             StripeConfiguration.ApiKey = config["Stripe:SecretKey"];
         }
 
-        [HttpPost]
-        [Route("MakePayment")]
-        public async Task<IActionResult> MakePayment([FromBody] int userID)
-        {
-            var res = await _paymentService.MakePayment(userID);
-            return Ok(res);
-        }
-
         // 2) Create checkout session
         [HttpPost("create-checkout-session")]
         public async Task<IActionResult> CreateCheckoutSession([FromBody] CreateCheckoutSessionDto req)

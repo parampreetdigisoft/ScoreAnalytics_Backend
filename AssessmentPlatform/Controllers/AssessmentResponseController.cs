@@ -8,7 +8,7 @@ namespace AssessmentPlatform.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [Authorize(Policy = "StaffOnly")]
     public class AssessmentResponseController : ControllerBase
     {
         private readonly IAssessmentResponseService _responseService;

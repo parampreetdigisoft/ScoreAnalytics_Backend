@@ -27,20 +27,6 @@ namespace AssessmentPlatform.Services
             _appSettings = appSettings.Value;
             _httpContextAccessor = httpContextAccessor;
         }
-
-        public async Task<ResultResponseDto<string>> MakePayment(int userId)
-        {
-            try
-            {
-
-            }
-            catch (Exception ex)
-            {
-                await _appLogger.LogAsync("Error Occure in AddCityAsync", ex);
-                return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
-            }
-            return ResultResponseDto<string>.Success();
-        }
         public async Task<ResultResponseDto<CheckoutSessionResponse>> CreateCheckoutSession(CreateCheckoutSessionDto request)
         {
             try
@@ -56,6 +42,7 @@ namespace AssessmentPlatform.Services
                     Tier = request.Tier,
                     PaymentStatus = PaymentStatus.Pending,
                     User = user,
+                    ExpiredAt = DateTime.Now.AddYears(1),
                     Amount = request.Amount
                 };
                 _context.PaymentRecords.Add(payment);
@@ -86,8 +73,8 @@ namespace AssessmentPlatform.Services
                         }
                     },
                     CustomerEmail = user.Email,
-                    SuccessUrl = $"{_appSettings.CityUserApplicationUrl}/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
-                    CancelUrl = $"{_appSettings.CityUserApplicationUrl}/payment-cancel",
+                    SuccessUrl = $"{_appSettings.CityUserApplicationUrl}/cityuser/payment/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
+                    CancelUrl = $"{_appSettings.CityUserApplicationUrl}/cityuser/payment/payment-cancel",
                     Metadata = new Dictionary<string, string>
                     {
                         { "UserId", user.UserID.ToString() },

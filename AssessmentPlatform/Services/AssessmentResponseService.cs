@@ -454,7 +454,7 @@ namespace AssessmentPlatform.Services
                 var userID = userCityRequstDto.UserID;
                 var cityID = userCityRequstDto.CityID;
 
-                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID);
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID && x.Role != UserRole.CityUser);
                 if (user == null)
                 {
                     return new GetCityQuestionHistoryReponseDto

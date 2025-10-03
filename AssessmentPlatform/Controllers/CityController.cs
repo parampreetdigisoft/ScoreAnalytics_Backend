@@ -1,7 +1,6 @@
 ﻿using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
-using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,6 +8,7 @@ namespace AssessmentPlatform.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Policy = "StaffOnly")]
     public class CityController : ControllerBase
     {
         private readonly ICityService _cityService;
@@ -18,15 +18,12 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("cities")]
-        [Authorize]
         public async Task<IActionResult> GetCities([FromQuery] PaginationRequest request) => Ok(await _cityService.GetCitiesAsync(request));
 
         [HttpGet("getAllCityByUserId/{userId}")]
-        [Authorize]
         public async Task<IActionResult> getAllCityByUserId(int userId) => Ok(await _cityService.getAllCityByUserId(userId));
 
         [HttpGet("cities/{id}")]
-        [Authorize]
         public async Task<IActionResult> GetByIdAsync(int id) => Ok(await _cityService.GetByIdAsync(id));
 
         [HttpPost("add")]

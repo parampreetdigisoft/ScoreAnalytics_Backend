@@ -170,6 +170,10 @@ namespace AssessmentPlatform.Services
         }
         public ResultResponseDto<UserResponseDto> GetAuthorizedUserDetails(User user)
         {
+            if (user == null)
+            {
+                return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request" });
+            }
             if (!user.IsEmailConfirmed || user.IsDeleted)
             {
                 string message = string.Empty;
@@ -188,7 +192,9 @@ namespace AssessmentPlatform.Services
             var claims = new[]
             {
                 new Claim(ClaimTypes.Name, user.Email),
-                new Claim(ClaimTypes.Role, user.Role.ToString())
+                new Claim(ClaimTypes.Role, user.Role.ToString()),
+                new Claim("Tier", user.Tier?.ToString() ?? ""),         
+                new Claim("UserId", user!.UserID.ToString())       
             };
             var tokenExpired = DateTime.Now.AddHours(1);
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSetting.Key));
@@ -265,7 +271,8 @@ namespace AssessmentPlatform.Services
                     ApiUrl = _appSettings.ApiUrl,
                     Title = sub,
                     ApplicationUrl = _appSettings.ApplicationUrl,
-                    MsgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({cityName}) for your USVI account."
+                    MsgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({cityName}) for your USVI account.",
+                    IsLoginBtn = false
                 };
                 var isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
                 user.ResetToken = token;
@@ -421,7 +428,8 @@ namespace AssessmentPlatform.Services
                         ApiUrl = _appSettings.ApiUrl,
                         ApplicationUrl = _appSettings.ApplicationUrl,
                         MsgText = msgText,
-                        Title = sub
+                        Title = sub,
+                        IsLoginBtn = false
                     };
                     isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
 
@@ -677,17 +685,16 @@ namespace AssessmentPlatform.Services
             }
         }
         #endregion
-        public async Task<ResultResponseDto<string>> CityUserSignUp(CityUserSignUpDto request)
+        public async Task<ResultResponseDto<UserResponseDto>> CityUserSignUp(CityUserSignUpDto request)
         {
             try
             {
                 // Check if the user already exists
-                var existingUser = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == request.Email);
+                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
 
                 if (existingUser != null)
                 {
-                    return ResultResponseDto<string>.Failure(new[]
+                    return ResultResponseDto<UserResponseDto>.Failure(new[]
                     {
                         "An account with this email already exists. Please log in."
                     });
@@ -695,55 +702,153 @@ namespace AssessmentPlatform.Services
 
                 // Register new user
                 var user = Register(request.FullName, request.Email, request.Phone, request.Password, request.Role);
+                user.IsEmailConfirmed = request.IsConfrimed;
 
-                // Generate password reset token for email verification
-                var hash = BCrypt.Net.BCrypt.HashPassword(request.Email);
-                var token = hash.Replace("+", " "); // Replace + to avoid URL issues
-                var passwordResetLink = $"{_appSettings.ApplicationUrl}/auth/reset-password?PasswordToken={token}";
-
-                var emailModel = new EmailInvitationSendRequestDto
-                {
-                    ResetPasswordUrl = passwordResetLink,
-                    Title = "Verify Your Email",
-                    ApiUrl = _appSettings.ApiUrl,
-                    ApplicationUrl = _appSettings.ApplicationUrl,
-                    MsgText = "Thank you for signing up! Please verify your email and reset your password to complete registration."
-                };
-
+                bool isMailSend = false;
                 // Send verification email
-                var isMailSent = await _emailService.SendEmailAsync(
-                    request.Email,
-                    "Verify Your Email",
-                    "~/Views/EmailTemplates/ChangePassword.cshtml",
-                    emailModel
-                );
-
-                if (isMailSent)
+                if (!request.IsConfrimed)
                 {
-                    user.ResetToken = token;
-                    user.ResetTokenDate = DateTime.Now;
-                    _context.Users.Update(user);
+                    var hash = BCrypt.Net.BCrypt.HashPassword(request.Email);
+                    var token = hash.Replace("+", " "); // Replace + to avoid URL issues
+                    var passwordResetLink = $"{_appSettings.ApplicationUrl}/auth/confirm-mail?PasswordToken={token}";
 
-                    var cum = new PublicUserCityMapping
+                    var emailModel = new EmailInvitationSendRequestDto
                     {
-                        CityID = request.CityID,
-                        UserID = user.UserID,
-                        IsDeleted = false,
-                        UpdatedAt = DateTime.Now
+                        ResetPasswordUrl = passwordResetLink,
+                        Title = "Verify Your Email",
+                        ApiUrl = _appSettings.ApiUrl,
+                        ApplicationUrl = _appSettings.ApplicationUrl,
+                        MsgText = "Thank you for signing up! Please verify your email and reset your password to complete registration."
                     };
 
-                    _context.PublicUserCityMappings.Add(cum);
-
-                    await _context.SaveChangesAsync();
+                    isMailSend = await _emailService.SendEmailAsync(
+                        request.Email,
+                        "Verify Your Email",
+                        "~/Views/EmailTemplates/ChangePassword.cshtml",
+                        emailModel
+                    );
+                    if (isMailSend)
+                    {
+                        user.ResetToken = token;
+                        user.ResetTokenDate = DateTime.Now;
+                    }
                 }
 
-                return ResultResponseDto<string>.Success("", new[] { "Registration successful! Please check your email to verify your account." });
+                _context.Users.Update(user);
+
+                var cum = new PublicUserCityMapping
+                {
+                    CityID = request.CityID,
+                    UserID = user.UserID,
+                    IsDeleted = false,
+                    UpdatedAt = DateTime.Now
+                };
+
+                _context.PublicUserCityMappings.Add(cum);
+
+                await _context.SaveChangesAsync();
+
+                if (request.IsConfrimed)
+                {
+                    var response = GetAuthorizedUserDetails(user);
+                    return response;
+                }
+                else if (isMailSend)
+                {
+                    return ResultResponseDto<UserResponseDto>.Success(new(), new[] 
+                    { 
+                        "We’ve sent you a verification link. Please check your email." 
+                    });
+                }
+                else
+                {
+                    return ResultResponseDto<UserResponseDto>.Success(new(), new[] 
+                    { 
+                        "Email could not be sent. Please use 'Forgot Password' to generate a new one." 
+                    });
+                }
             }
             catch (Exception ex)
             {
                 await _appLogger.LogAsync("Error during user signup", ex);
-                return ResultResponseDto<string>.Failure(new[] { "Something went wrong. Please try again later."});
+                return ResultResponseDto<UserResponseDto>.Failure(new[] { "Something went wrong. Please try again later."});
             }
         }
+        public async Task<ResultResponseDto<object>> ConfirmMail(string passwordToken)
+        {
+            try
+            {
+                var user = await _context.Users.Where(u => u.ResetToken == passwordToken).FirstOrDefaultAsync();
+
+                if (user == null)
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "User not exist." });
+                }
+                if (_appSettings.LinkValidHours >= (DateTime.Now - user.ResetTokenDate).Hours)
+                {
+                    user.IsEmailConfirmed = true;
+                    _context.Users.Update(user);
+                    await _context.SaveChangesAsync();
+
+                    return ResultResponseDto<object>.Success(new { }, new string[] { "Password updated successfully" });
+                }
+                else
+                {
+                    return ResultResponseDto<object>.Failure(new string[] { "Link has been expired. You can reset your password" });
+                }
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error change password", ex);
+                return ResultResponseDto<object>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+        public async Task<ResultResponseDto<object>> ContactUs(ContactUsRequestDto requestDto)
+        {
+            try
+            {
+                var emailModel = new EmailInvitationSendRequestDto
+                {
+                    ResetPasswordUrl = "",
+                    Title = $"{requestDto.Subject} - {requestDto.Email}",
+                    ApiUrl = _appSettings.ApiUrl,
+                    ApplicationUrl = _appSettings.ApplicationUrl,
+                    MsgText = requestDto.Message,
+                    DescriptionAboutBtnText
+                        = $"This email was sent by {requestDto.Name} from {requestDto.City}, {requestDto.Country}. You can reach them at: {requestDto.Email}.",
+                    IsLoginBtn = false,
+                    IsShowBtnText = false,
+                };
+
+                var isMailSend = await _emailService.SendEmailAsync(
+                    _appSettings.ApplicationInfoMail,
+                    requestDto.Subject,
+                    "~/Views/EmailTemplates/ChangePassword.cshtml",
+                    emailModel
+                );
+
+                if (isMailSend)
+                {
+                    return ResultResponseDto<object>.Success(
+                        new { },
+                        new string[] { "Thank you for contacting us. Our team will reach out to you shortly." }
+                    );
+                }
+                else
+                {
+                    return ResultResponseDto<object>.Failure(
+                        new string[] { "Unable to send your message at the moment. Please try again later." }
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in ContactUs", ex);
+                return ResultResponseDto<object>.Failure(
+                    new string[] { "An unexpected error occurred. Please try again later." }
+                );
+            }
+        }
+
     }
 }

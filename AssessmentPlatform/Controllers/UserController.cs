@@ -38,7 +38,7 @@ namespace AssessmentPlatform.Controllers
 
 
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Policy = "AdminOnly")]
         [Route("getUsersAssignedToCity/{cityID}")]
         public async Task<IActionResult> GetUsersAssignedToCity(int cityID) => Ok(await _userService.GetUsersAssignedToCity(cityID));
     }

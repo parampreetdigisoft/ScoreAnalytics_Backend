@@ -20,6 +20,8 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<object>> DeleteUser(int userId);
         Task<ResultResponseDto<UserResponseDto>> RefreshToken(int userId);
         Task<ResultResponseDto<string>> SendMailForEditAssessment(SendRequestMailToUpdateCity request);
-        Task<ResultResponseDto<string>> CityUserSignUp(CityUserSignUpDto request);
+        Task<ResultResponseDto<UserResponseDto>> CityUserSignUp(CityUserSignUpDto request);
+        Task<ResultResponseDto<object>> ConfirmMail(string passwordToken);
+        Task<ResultResponseDto<object>> ContactUs(ContactUsRequestDto passwordToken);
     }
 }
