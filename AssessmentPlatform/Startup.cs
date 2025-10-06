@@ -64,7 +64,9 @@ namespace AssessmentPlatform
                     builder.WithOrigins(
                         "http://localhost:4200",
                         "http://3.128.142.109:4200",
-                        "http://172.31.36.74:4200"
+                        "http://172.31.36.74:4200",
+                        "http://veridianurbansystems.com",
+                        "https://veridianurbansystems.com"
                         )
                         .AllowAnyHeader()
                         .AllowAnyMethod()
