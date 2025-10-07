@@ -16,19 +16,87 @@ namespace AssessmentPlatform.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
-        public CityService(ApplicationDbContext context, IAppLogger appLogger)
+        private readonly IWebHostEnvironment _env;
+        public CityService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env)
         {
             _context = context;
             _appLogger = appLogger;
+            _env = env;
         }
+        public async Task<ResultResponseDto<string>> AddUpdateCity(AddUpdateCityDto q)
+        {
+            try
+            {
+                string image = string.Empty;
+                if (q.ImageFile != null)
+                {
+                    string uploadsFolder = Path.Combine(_env.WebRootPath, "assets/cities");
+                    if (!Directory.Exists(uploadsFolder))
+                        Directory.CreateDirectory(uploadsFolder);
 
-        public async Task<ResultResponseDto<string>> AddCityAsync(BulkAddCityDto request)
+                    // ?? Remove old image if exists
+                    if (!string.IsNullOrEmpty(q.ImageUrl))
+                    {
+                        string oldFilePath = Path.Combine(_env.WebRootPath, q.ImageUrl.TrimStart('/'));
+                        if (File.Exists(oldFilePath))
+                        {
+                            File.Delete(oldFilePath);
+                        }
+                    }
+
+                    // Save new image
+                    string fileName = Guid.NewGuid().ToString() + Path.GetExtension(q.ImageFile.FileName);
+                    string filePath = Path.Combine(uploadsFolder, fileName);
+
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await q.ImageFile.CopyToAsync(stream);
+                    }
+
+                    image = "/assets/cities/" + fileName;
+                }
+                if(q.CityID > 0)
+                {
+                    var existCity = await _context.Cities.FirstOrDefaultAsync(x => x.IsActive && !x.IsDeleted && q.CityName == x.CityName && x.State == q.State && x.CityID != q.CityID);
+                    if (existCity != null)
+                    {
+                        return ResultResponseDto<string>.Failure(new string[] { "City already exists" });
+                    }
+
+                    var existing = await _context.Cities.FindAsync(q.CityID);
+                    if (existing == null) return ResultResponseDto<string>.Failure(new string[] { "City not exists" });
+                    existing.CityName = q.CityName;
+                    existing.UpdatedDate = DateTime.Now;
+                    existing.Region = q.Region;
+                    existing.State = q.State;
+                    existing.PostalCode = q.PostalCode;
+                    existing.Image = image;
+                    existing.Country = q.Country;
+                    _context.Cities.Update(existing);
+                    await _context.SaveChangesAsync();
+
+                    return ResultResponseDto<string>.Success("", new string[] { "City edited Successfully" });
+                }
+                else
+                {
+                    var payload = new BulkAddCityDto { Cities = new() { q } };
+                    var response = await AddBulkCityAsync(payload, image);
+                    return response;
+                }
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in UnAssignCity", ex);
+                return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+        public async Task<ResultResponseDto<string>> AddBulkCityAsync(BulkAddCityDto request, string image="")
         {
             try
             {
                 // Normalize input list
                 var inputCities = request.Cities
-                    .Select(c => new { CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim() })
+                    .Select(c => new { Country = c.Country,PostalCode = c.PostalCode, CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim() })
                     .Distinct()
                     .ToList();
 
@@ -57,12 +125,15 @@ namespace AssessmentPlatform.Services
                     var city = new City
                     {
                         CityID = 0,
+                        Country = cityDto.Country,
                         CityName = cityDto.CityName,
                         State = cityDto.State,
                         Region = cityDto.Region,
                         CreatedDate = DateTime.Now,
+                        PostalCode = cityDto.PostalCode,
                         IsActive = true,
-                        IsDeleted = false
+                        IsDeleted = false,
+                        Image = image
                     };
                     _context.Cities.Add(city);
                 }
@@ -142,7 +213,6 @@ namespace AssessmentPlatform.Services
                 await _appLogger.LogAsync("Error Occure in EditCityAsync", ex);
                 return ResultResponseDto<City>.Failure(new string[] { "There is an error please try later" });
             }
-
         }
         public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request)
         {
@@ -174,9 +244,11 @@ namespace AssessmentPlatform.Services
                     group r by new
                     {
                         c.CityID,
+                        c.Country,
+                        c.PostalCode,
+                        c.Image,
                         c.State,
                         c.CityName,
-                        c.PostalCode,
                         c.Region,
                         c.IsActive,
                         c.CreatedDate,
@@ -197,6 +269,8 @@ namespace AssessmentPlatform.Services
                         CreatedDate = g.Key.CreatedDate,
                         UpdatedDate = g.Key.UpdatedDate,
                         IsDeleted = g.Key.IsDeleted,
+                        Country = g.Key.Country,
+                        Image=g.Key.Image,
                         Score = g.Sum(x => (int?)x.Score ?? 0) / (g.Key.EvaluatorCount == 0 ? 1 : g.Key.EvaluatorCount)
                     };
 

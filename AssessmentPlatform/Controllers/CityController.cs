@@ -26,11 +26,19 @@ namespace AssessmentPlatform.Controllers
         [HttpGet("cities/{id}")]
         public async Task<IActionResult> GetByIdAsync(int id) => Ok(await _cityService.GetByIdAsync(id));
 
-        [HttpPost("add")]
+        [HttpPost("AddUpdateCity")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> AddCity([FromBody] BulkAddCityDto q)
+        public async Task<IActionResult> AddUpdateCity([FromForm] AddUpdateCityDto q)
         {
-            var result = await _cityService.AddCityAsync(q);
+            var result = await _cityService.AddUpdateCity(q);
+            return Ok(result);
+        }
+
+        [HttpPost("addBulkCity")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> AddBulkCity([FromBody] BulkAddCityDto q)
+        {
+            var result = await _cityService.AddBulkCityAsync(q);
             return Ok(result);
         }
 

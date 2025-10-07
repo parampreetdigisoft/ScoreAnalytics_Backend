@@ -11,7 +11,7 @@ namespace AssessmentPlatform.IServices
         Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request);
         Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByUserId(int userId);
         Task<ResultResponseDto<City>> GetByIdAsync(int id);
-        Task<ResultResponseDto<string>> AddCityAsync(BulkAddCityDto q);
+        Task<ResultResponseDto<string>> AddBulkCityAsync(BulkAddCityDto q, string image = "");
         Task<ResultResponseDto<City>> EditCityAsync(int id, AddUpdateCityDto q);
         Task<ResultResponseDto<bool>> DeleteCityAsync(int id);
         Task<ResultResponseDto<object>> AssingCityToUser(int userId, int cityId, int AssignedByUserId);
@@ -20,5 +20,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<List<UserCityMappingResponseDto>>> GetCityByUserIdForAssessment(int userId);
         Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID, DateTime updatedA);
         Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID, DateTime updateAt);
+        Task<ResultResponseDto<string>> AddUpdateCity(AddUpdateCityDto q);
     }
 }
