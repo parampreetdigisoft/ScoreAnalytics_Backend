@@ -55,6 +55,7 @@ namespace AssessmentPlatform
             services.AddScoped<IAppLogger, AppLogger>();
             services.AddScoped<ICityUserService, CityUserService>();
             services.AddScoped<IPaymentService, PaymentService>();
+            services.AddScoped<IPublicService, PublicService>();
 
 
             services.AddCors(options =>

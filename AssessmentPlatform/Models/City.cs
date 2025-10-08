@@ -11,7 +11,7 @@
         public DateTime CreatedDate { get; set; } = DateTime.Now;
         public DateTime? UpdatedDate { get; set; }
         public bool IsDeleted { get; set; } = false;
-        public string? Country { get; set; }
+        public string Country { get; set; }
         public string? Image { get; set; }
     }
 }

@@ -33,6 +33,7 @@
 
   <ItemGroup>
     <Folder Include="wwwroot\assets\cities\" />
+    <Folder Include="wwwroot\pdf\" />
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
