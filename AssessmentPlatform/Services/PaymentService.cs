@@ -73,8 +73,8 @@ namespace AssessmentPlatform.Services
                         }
                     },
                     CustomerEmail = user.Email,
-                    SuccessUrl = $"{_appSettings.CityUserApplicationUrl}/cityuser/payment/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
-                    CancelUrl = $"{_appSettings.CityUserApplicationUrl}/cityuser/payment/payment-cancel",
+                    SuccessUrl = $"{_appSettings.ApplicationUrl}/auth/cityuser/payment/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
+                    CancelUrl = $"{_appSettings.ApplicationUrl}/auth/cityuser/payment/payment-cancel",
                     Metadata = new Dictionary<string, string>
                     {
                         { "UserId", user.UserID.ToString() },
