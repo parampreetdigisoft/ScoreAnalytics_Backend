@@ -1,9 +1,7 @@
-﻿using AssessmentPlatform.Dtos.PublicDto;
+﻿using Microsoft.AspNetCore.Mvc;
 using AssessmentPlatform.IServices;
-using AssessmentPlatform.Services;
+using AssessmentPlatform.Dtos.PublicDto;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -17,6 +15,14 @@ namespace AssessmentPlatform.Controllers
         {
             _publicService = publicService;
         }
+
+        [HttpGet("getAllCities")]
+        public async Task<IActionResult> getAllCities()
+        {
+            var response = await _publicService.GetAllCities();
+            return Ok(response);
+        }
+
         [HttpGet("GetPartnerCitiesFilterRecord")]
         public async Task<IActionResult> GetPartnerCitiesFilterRecord() => Ok(await _publicService.GetPartnerCitiesFilterRecord());
 

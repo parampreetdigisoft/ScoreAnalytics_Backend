@@ -790,7 +790,7 @@ namespace AssessmentPlatform.Services
                     _context.Users.Update(user);
                     await _context.SaveChangesAsync();
 
-                    return ResultResponseDto<object>.Success(new { }, new string[] { "Password updated successfully" });
+                    return ResultResponseDto<object>.Success(new { }, new string[] { "Mail Confirmed Successfully, You Can Login Now!" });
                 }
                 else
                 {

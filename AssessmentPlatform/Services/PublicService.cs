@@ -4,11 +4,8 @@ using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
-using AssessmentPlatform.Models;
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
-using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -21,6 +18,29 @@ namespace AssessmentPlatform.Services
         {
             _context = context;
             _appLogger = appLogger;
+        }
+        public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetAllCities()
+        {
+            try
+            {
+                var result = await _context.Cities.Where(c => c.IsActive && !c.IsDeleted).
+                 Select(c => new PartnerCityResponseDto
+                 {
+                     CityID = c.CityID,
+                     State = c.State,
+                     CityName = c.CityName,
+                     PostalCode = c.PostalCode,
+                     Region = c.Region,
+                     Country = c.Country
+                 }).OrderBy(x => x.CityName).ToListAsync();
+
+                return ResultResponseDto<List<PartnerCityResponseDto>>.Success(result, new string[] { "get All Cities successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in getAllCities", ex);
+                return ResultResponseDto<List<PartnerCityResponseDto>>.Failure(new string[] { "There is an error please try later" });
+            }
         }
         public async Task<ResultResponseDto<PartnerCityFilterResponse>> GetPartnerCitiesFilterRecord()
         {
