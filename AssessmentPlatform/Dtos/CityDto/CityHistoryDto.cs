@@ -8,5 +8,7 @@
         public int ActiveCity { get; set; }
         public int CompeleteCity { get; set; }
         public int InprocessCity { get; set; }
+        public decimal AvgHighScore { get; set; }
+        public decimal AvgLowerScore { get; set; }
     }
 }
