@@ -271,8 +271,12 @@ namespace AssessmentPlatform.Services
                     ApiUrl = _appSettings.ApiUrl,
                     Title = sub,
                     ApplicationUrl = _appSettings.ApplicationUrl,
-                    MsgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({cityName}) for your USVI account.",
-                    IsLoginBtn = false
+                    MsgText = $"You’ve been invited to join the VUI Assessment Platform as an {user.Role.ToString()}."+
+                        $"This platform allows you to review indicators, contribute assessments, and collaborate with other experts in evaluating urban systems and sustainability data. ",
+                    IsLoginBtn = false,
+                    DescriptionAboutBtnText= "To get started, please click the button below to set your password and activate your account." +
+                        "\r\n If you did not expect this invitation, you can safely ignore this email.",
+                    BtnText = "Activate Account"
                 };
                 var isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
                 user.ResetToken = token;
