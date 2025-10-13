@@ -1,5 +1,7 @@
 ﻿using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -85,9 +87,33 @@ namespace AssessmentPlatform.Controllers
             if (userId == null)
                 return Unauthorized("User ID not found in token.");
 
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
             userCityRequstDto.UserID = userId.Value;
+            userCityRequstDto.Tiered = Enum.Parse<TieredAccessPlan>(tierName);
 
             var result = await _cityUserService.GetCityDetails(userCityRequstDto);
+            return Ok(result);
+        }
+
+
+        [HttpGet("GetCityPillarDetails")]
+        public async Task<IActionResult> GetCityPillarDetails([FromQuery] UserCityGetPillarInfoRequstDto userCityRequstDto)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
+            userCityRequstDto.UserID = userId.Value;
+            userCityRequstDto.Tiered = Enum.Parse<TieredAccessPlan>(tierName);
+
+            var result = await _cityUserService.GetCityPillarDetails(userCityRequstDto);
             return Ok(result);
         }
     }

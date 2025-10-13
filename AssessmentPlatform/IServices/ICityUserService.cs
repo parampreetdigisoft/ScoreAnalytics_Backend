@@ -13,5 +13,6 @@ namespace AssessmentPlatform.IServices
         Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto);
         Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request);
         Task<ResultResponseDto<CityDetailsDto>> GetCityDetails(UserCityRequstDto userCityRequstDto);
+        Task<ResultResponseDto<List<CityPillarQuestionDetailsDto>>> GetCityPillarDetails(UserCityGetPillarInfoRequstDto userCityRequstDto);
     }
 }

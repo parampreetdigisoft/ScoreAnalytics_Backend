@@ -1,4 +1,5 @@
-﻿using AssessmentPlatform.Models;
+﻿using AssessmentPlatform.Enums;
+using AssessmentPlatform.Models;
 
 namespace AssessmentPlatform.Dtos.AssessmentDto
 {
@@ -14,6 +15,7 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
         public int UserID { get; set; }
         public int CityID { get; set; }
         public DateTime UpdatedAt { get; set; } = new DateTime(DateTime.Now.Year, 1, 1);
+        public TieredAccessPlan Tiered { get; set; } = TieredAccessPlan.Pending;
     }
     public class PillarWithQuestionsDto
     {

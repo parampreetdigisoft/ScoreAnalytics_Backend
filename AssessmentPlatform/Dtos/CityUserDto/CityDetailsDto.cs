@@ -28,6 +28,8 @@
         public int AnsQuestion { get; set; } = 0;
         public decimal AvgHighScore { get; set; } = 0;
         public decimal AvgLowerScore { get; set; } = 0;
+        public int TotalUnKnown { get; set; } = 0;
+        public int TotalNA { get; set; } = 0;
         public bool IsAccess { get; set; } = false;
     }
 }

@@ -21,6 +21,17 @@ namespace AssessmentPlatform.Services
             _context = context;
             _appLogger = appLogger;
         }
+        private bool IsPillarAccess(Enums.TieredAccessPlan tier, int order)
+        {
+            return tier switch
+            {
+                Enums.TieredAccessPlan.Basic => order <= 3,
+                Enums.TieredAccessPlan.Standard => order <= 7,
+                Enums.TieredAccessPlan.Premium => order <= 14,
+                _ => false
+            };
+        }
+
         public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID)
         {
             try
@@ -244,7 +255,7 @@ namespace AssessmentPlatform.Services
                 };
             }
         }
-        public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request)
+        public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync1(PaginationRequest request)
         {
             try
             {
@@ -281,7 +292,7 @@ namespace AssessmentPlatform.Services
                        c.UpdatedDate,
                        c.IsDeleted,
                        EvaluatorCount = _context.UserCityMappings
-                                           .Count(x => x.CityID == c.CityID && !x.IsDeleted)
+                                           .Count(x => x.CityID == c.CityID && !x.IsDeleted)  
                    }
                    into g
                    select new CityResponseDto
@@ -297,7 +308,7 @@ namespace AssessmentPlatform.Services
                        IsDeleted = g.Key.IsDeleted,
                        Country = g.Key.Country,
                        Image = g.Key.Image,
-                       Score = g.Sum(x => (int?)x.Score ?? 0) / (g.Key.EvaluatorCount == 0 ? 1 : g.Key.EvaluatorCount)
+                       Score = g.Sum(x => (int?)x.Score ?? 0) * 100M / (g.Key.EvaluatorCount == 0 ? 1 : g.Key.EvaluatorCount) 
                    };
                 var response = await cityQuery.ApplyPaginationAsync(
                     request,
@@ -311,6 +322,76 @@ namespace AssessmentPlatform.Services
             catch (Exception ex)
             {
                 await _appLogger.LogAsync("Error Occure in GetCitiesAsync", ex);
+                return new PaginationResponse<CityResponseDto>();
+            }
+        }
+        public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request)
+        {
+            try
+            {
+                var user = await _context.Users
+                    .FirstOrDefaultAsync(x => x.UserID == request.UserId);
+
+                if (user == null || user.Role != UserRole.CityUser)
+                    return new PaginationResponse<CityResponseDto>();
+
+                int currentYear = DateTime.Now.Year;
+
+                // Base city query
+                var query =
+                    from c in _context.Cities
+                    where !c.IsDeleted
+                    select new
+                    {
+                        City = c,
+                        // Average score for the current year
+                        Score = (
+                            from uc in _context.UserCityMappings
+                            join a in _context.Assessments on uc.UserCityMappingID equals a.UserCityMappingID
+                            join pa in _context.PillarAssessments on a.AssessmentID equals pa.AssessmentID
+                            join r in _context.AssessmentResponses on pa.PillarAssessmentID equals r.PillarAssessmentID
+                            where uc.CityID == c.CityID
+                                  && !uc.IsDeleted
+                                  && a.UpdatedAt.Year == currentYear
+                            select (int?)r.Score
+                        ).Average() ?? 0
+                    };
+
+                // Project to response DTO
+                var cityDtos = query.Select(x => new CityResponseDto
+                {
+                    CityID = x.City.CityID,
+                    CityName = x.City.CityName,
+                    State = x.City.State,
+                    Region = x.City.Region,
+                    PostalCode = x.City.PostalCode,
+                    Country = x.City.Country,
+                    Image = x.City.Image,
+                    CreatedDate = x.City.CreatedDate,
+                    UpdatedDate = x.City.UpdatedDate,
+                    IsActive = x.City.IsActive,
+                    Score = Convert.ToDecimal(x.Score) 
+                });
+
+                // Apply search filter
+                if (!string.IsNullOrEmpty(request.SearchText))
+                {
+                    string search = request.SearchText.ToLower();
+                    cityDtos = cityDtos.Where(x =>
+                        x.CityName.ToLower().Contains(search) ||
+                        x.State.ToLower().Contains(search));
+                }
+
+                // Apply pagination
+                var response = await cityDtos
+                    .OrderByDescending(x => x.Score)
+                    .ApplyPaginationAsync(request);
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in GetCitiesAsync", ex);
                 return new PaginationResponse<CityResponseDto>();
             }
         }
@@ -446,6 +527,7 @@ namespace AssessmentPlatform.Services
                 // 3. Get all pillars (ensures even pillars without responses appear)
                 var allPillars = await _context.Pillars
                     .Include(x=>x.Questions)
+                    .ThenInclude(x=>x.QuestionOptions)
                     .OrderBy(x=>x.DisplayOrder)
                     .AsNoTracking()
                     .ToListAsync();
@@ -485,6 +567,10 @@ namespace AssessmentPlatform.Services
                             .Where(r => r != null && r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
                             .ToList();
 
+                        var naUnknownIds = responses.Where(x => !x.Score.HasValue).Select(x => x.QuestionOptionID);
+
+                        var naUnknownOptions = p.Questions.SelectMany(x=>x.QuestionOptions).Where(x=> naUnknownIds.Contains(x.OptionID));
+
                         var totalQuestions = p.Questions.Count();
                         var answeredQuestions = responses.Count;
                         var totalScore = responses.Sum(r => (decimal?)r.Score ?? 0);
@@ -493,21 +579,36 @@ namespace AssessmentPlatform.Services
                             ? (totalScore * 100M) / (answeredQuestions * 4M * assessments.Count)
                             : 0M;
 
-                        return new CityPillarDetailsDto
+                        var isAccess = IsPillarAccess(userCityRequstDto.Tiered, p.DisplayOrder);
+
+                        if (isAccess)
                         {
-                            PillarID = p.PillarID,
-                            PillarName = p.PillarName,
-                            TotalPillar = paForPillar.Count,
-                            TotalAnsPillar = paForPillar.Count(x => x.Responses.Any()),
-                            TotalQuestion = totalQuestions,
-                            AnsQuestion = answeredQuestions,
-                            TotalScore = totalScore,
-                            ScoreProgress = scoreProgress,
-                            AvgHighScore = responses.Any() ? responses.Max(r => (decimal?)r.Score ?? 0) : 0,
-                            AvgLowerScore = responses.Any() ? responses.Min(r => (decimal?)r.Score ?? 0) : 0
-                        };
+                            return new CityPillarDetailsDto
+                            {
+                                PillarID = p.PillarID,
+                                PillarName = p.PillarName,
+                                TotalPillar = paForPillar.Count,
+                                TotalAnsPillar = paForPillar.Count(x => x.Responses.Any()),
+                                TotalQuestion = totalQuestions,
+                                AnsQuestion = answeredQuestions,
+                                TotalScore = totalScore,
+                                ScoreProgress = scoreProgress,
+                                AvgHighScore = responses.Any() ? responses.Max(r => (decimal?)r.Score ?? 0) : 0,
+                                AvgLowerScore = responses.Any() ? responses.Min(r => (decimal?)r.Score ?? 0) : 0,
+                                TotalNA = naUnknownOptions.Where(x => x.OptionText.Contains("N/A")).Count(),
+                                TotalUnKnown = naUnknownOptions.Where(x => x.OptionText.Contains("Unknown")).Count(),
+                                IsAccess = isAccess
+                            };
+                        }
+                        else
+                        {
+                            return new CityPillarDetailsDto
+                            {
+                                PillarID = p.PillarID,
+                                PillarName = p.PillarName
+                            };
+                        }
                     })
-                    .OrderByDescending(x => x.ScoreProgress)
                     .ToList();
 
                 // 7. Compute high/low pillar scores for summary
@@ -528,6 +629,11 @@ namespace AssessmentPlatform.Services
                 await _appLogger.LogAsync("Error Occurred in GetCityDetails", ex);
                 return ResultResponseDto<CityDetailsDto>.Failure(new[] { "There is an error, please try later" });
             }
+        }
+
+        public Task<ResultResponseDto<List<CityPillarQuestionDetailsDto>>> GetCityPillarDetails(UserCityGetPillarInfoRequstDto userCityRequstDto)
+        {
+            throw new NotImplementedException();
         }
     }
 }
