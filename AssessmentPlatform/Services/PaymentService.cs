@@ -62,7 +62,7 @@ namespace AssessmentPlatform.Services
                                 UnitAmount = request.Amount * 100,
                                 ProductData = new SessionLineItemPriceDataProductDataOptions
                                 {
-                                    Name = "UVI App Payment Please don't close the window after clicking on pay button",
+                                    Name = "Veridian Urban Index Payment Please don't close the window after clicking on pay button",
                                     Metadata = new Dictionary<string, string>
                                     {
                                         {request.Tier.ToString(), $"Provide {request.Tier.ToString()} Paid subsciption" }
@@ -73,8 +73,8 @@ namespace AssessmentPlatform.Services
                         }
                     },
                     CustomerEmail = user.Email,
-                    SuccessUrl = $"{_appSettings.ApplicationUrl}/auth/cityuser/payment/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
-                    CancelUrl = $"{_appSettings.ApplicationUrl}/auth/cityuser/payment/payment-cancel",
+                    SuccessUrl = $"{_appSettings.ApplicationUrl}/cityuser/payment/payment-success?session_id={{CHECKOUT_SESSION_ID}}",
+                    CancelUrl = $"{_appSettings.ApplicationUrl}/cityuser/payment/payment-cancel",
                     Metadata = new Dictionary<string, string>
                     {
                         { "UserId", user.UserID.ToString() },
