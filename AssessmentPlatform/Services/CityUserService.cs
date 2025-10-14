@@ -568,7 +568,7 @@ namespace AssessmentPlatform.Services
 
                         var naUnknownOptions = p.Questions.SelectMany(x=>x.QuestionOptions).Where(x=> naUnknownIds.Contains(x.OptionID));
 
-                        var totalQuestions = p.Questions.Count();
+                        var totalQuestions = p.Questions.Count() * assessments.Count;
                         var answeredQuestions = responses.Count;
                         var totalScore = responses.Sum(r => (decimal?)r.Score ?? 0);
 
@@ -689,7 +689,7 @@ namespace AssessmentPlatform.Services
                     .Select(q =>
                     {
                         var qResponses = validResponses.Where(r => r.QuestionID == q.QuestionID).ToList();
-                        var totalQuestions = 1; // Each item represents one question
+                        var totalQuestions = 1 * assessments.Count; // Each item represents one question
                         var answeredQuestions = qResponses.Count;
                         var totalScore = qResponses.Sum(r => (decimal?)r.Score ?? 0);
 
