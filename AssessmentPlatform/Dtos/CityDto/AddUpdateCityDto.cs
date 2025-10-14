@@ -10,6 +10,9 @@
         public string? Region { get; set; }
         public IFormFile? ImageFile { get; set; }
         public string? ImageUrl { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+
     }
     public class BulkAddCityDto
     {

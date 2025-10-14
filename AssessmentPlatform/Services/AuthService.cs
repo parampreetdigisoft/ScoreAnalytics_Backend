@@ -436,11 +436,6 @@ namespace AssessmentPlatform.Services
                         IsLoginBtn = false
                     };
                     isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
-
-                    var passwordHash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Password);
-                    user.Email = inviteUser.Email;
-                    user.PasswordHash = passwordHash;
-                    user.IsEmailConfirmed = false;
                     user.ResetToken = token;
                     user.ResetTokenDate = DateTime.Now;
                     user.IsDeleted = false;

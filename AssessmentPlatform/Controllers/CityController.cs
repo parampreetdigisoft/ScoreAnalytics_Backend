@@ -112,5 +112,8 @@ namespace AssessmentPlatform.Controllers
             var result = await _cityService.GetCitiesProgressByUserId(userID, updatedAt);
             return Ok(result);
         }
+
+        [HttpGet("getAllCityByLocation")]
+        public async Task<IActionResult> getAllCityByLocation([FromQuery] GetNearestCityRequestDto r) => Ok(await _cityService.getAllCityByLocation(r));
     }
 }

@@ -72,6 +72,8 @@ namespace AssessmentPlatform.Services
                     existing.PostalCode = q.PostalCode;
                     existing.Image = image;
                     existing.Country = q.Country;
+                    existing.Latitude = q.Latitude;
+                    existing.Longitude = q.Longitude;
                     _context.Cities.Update(existing);
                     await _context.SaveChangesAsync();
 
@@ -96,7 +98,7 @@ namespace AssessmentPlatform.Services
             {
                 // Normalize input list
                 var inputCities = request.Cities
-                    .Select(c => new { Country = c.Country,PostalCode = c.PostalCode, CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim() })
+                    .Select(c => new { Country = c.Country,PostalCode = c.PostalCode, CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim(), Longitude = c.Longitude, Latitude = c.Latitude })
                     .Distinct()
                     .ToList();
 
@@ -133,7 +135,9 @@ namespace AssessmentPlatform.Services
                         PostalCode = cityDto.PostalCode,
                         IsActive = true,
                         IsDeleted = false,
-                        Image = image
+                        Image = image,
+                        Longitude = cityDto.Longitude,
+                        Latitude = cityDto.Latitude
                     };
                     _context.Cities.Add(city);
                 }
@@ -254,8 +258,11 @@ namespace AssessmentPlatform.Services
                         c.CreatedDate,
                         c.UpdatedDate,
                         c.IsDeleted,
+                        c.Latitude,
+                        c.Longitude,
                         EvaluatorCount = _context.UserCityMappings
                                             .Count(x => x.CityID == c.CityID && !x.IsDeleted)
+
                     }
                     into g
                     select new CityResponseDto
@@ -271,7 +278,9 @@ namespace AssessmentPlatform.Services
                         IsDeleted = g.Key.IsDeleted,
                         Country = g.Key.Country,
                         Image=g.Key.Image,
-                        Score = g.Sum(x => (int?)x.Score ?? 0) / (g.Key.EvaluatorCount == 0 ? 1 : g.Key.EvaluatorCount)
+                        Score = g.Sum(x => (int?)x.Score ?? 0) / (g.Key.EvaluatorCount == 0 ? 1 : g.Key.EvaluatorCount),
+                        Latitude = g.Key.Latitude,
+                        Longitude = g.Key.Longitude
                     };
 
                 }
@@ -294,7 +303,9 @@ namespace AssessmentPlatform.Services
                          CreatedDate = c.CreatedDate,
                          UpdatedDate = c.UpdatedDate,
                          IsDeleted = c.IsDeleted,
-                         AssignedBy = u.FullName
+                         AssignedBy = u.FullName,
+                         Latitude = c.Latitude,
+                         Longitude = c.Longitude
                      };
 
                 }
@@ -541,7 +552,6 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "There is an error please try later" });
             }
         }
-
         public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID, DateTime updatedAt)
         {
             try
@@ -686,6 +696,92 @@ namespace AssessmentPlatform.Services
                 await _appLogger.LogAsync("Error Occure in GetCitiesProgressByUserId", ex);
                 return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Failure(new string[] { "There is an error please try later" });
             }
+        }
+
+        public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByLocation(GetNearestCityRequestDto r)
+        {
+            try
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == r.UserID);
+                if (user == null)
+                    return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new[] { "Invalid user" });
+
+                var year = DateTime.Now.Year;
+
+                Expression<Func<Assessment, bool>> predicate = a =>
+                    !a.UserCityMapping.IsDeleted &&
+                    a.UserCityMapping.UserID == r.UserID &&
+                    a.UpdatedAt.Year == year &&
+                    (a.AssessmentPhase == AssessmentPhase.Completed ||
+                     a.AssessmentPhase == AssessmentPhase.EditRejected ||
+                     a.AssessmentPhase == AssessmentPhase.EditRequested);
+
+                var userCityMappingIds = await _context.Assessments
+                    .Where(predicate)
+                    .Select(a => a.UserCityMappingID)
+                    .Distinct()
+                    .ToListAsync();
+
+                // First get data from DB (no static method call inside query)
+                var cityList = await (
+                    from c in _context.Cities
+                    join cm in _context.UserCityMappings
+                        .Where(x => !x.IsDeleted && x.UserID == r.UserID && !userCityMappingIds.Contains(x.UserCityMappingID))
+                        on c.CityID equals cm.CityID
+                    join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                    select new UserCityMappingResponseDto
+                    {
+                        CityID = c.CityID,
+                        State = c.State,
+                        CityName = c.CityName,
+                        PostalCode = c.PostalCode,
+                        Region = c.Region,
+                        IsActive = c.IsActive,
+                        CreatedDate = c.CreatedDate,
+                        UpdatedDate = c.UpdatedDate,
+                        IsDeleted = c.IsDeleted,
+                        AssignedBy = u.FullName,
+                        UserCityMappingID = cm.UserCityMappingID,
+                        Latitude = c.Latitude,
+                        Longitude = c.Longitude
+                    }).ToListAsync();
+
+                // Then calculate distance in memory using static method
+                foreach (var city in cityList)
+                {
+                    if (city.Latitude.HasValue && city.Longitude.HasValue)
+                        city.Distance = HaversineDistance(r.Latitude, r.Longitude, city.Latitude.Value, city.Longitude.Value);
+                    else
+                        city.Distance = double.MaxValue;
+                }
+
+                var result = cityList.OrderBy(x => x.Distance).ToList();
+
+                if (!result.Any())
+                    return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new[] { "No city is found for assessment" });
+
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new[] { "Retrieved successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetAllCityByLocation", ex);
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new[] { "An error occurred, please try later" });
+            }
+        }
+
+        private double HaversineDistance(double lat1, double lon1, double lat2, double lon2)
+        {
+            double R = 6371; // Radius of Earth in km
+            var dLat = (lat2 - lat1) * Math.PI / 180.0;
+            var dLon = (lon2 - lon1) * Math.PI / 180.0;
+
+            lat1 = lat1 * Math.PI / 180.0;
+            lat2 = lat2 * Math.PI / 180.0;
+
+            var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                    Math.Sin(dLon / 2) * Math.Sin(dLon / 2) * Math.Cos(lat1) * Math.Cos(lat2);
+            var c = 2 * Math.Asin(Math.Sqrt(a));
+            return R * c;
         }
     }
 }

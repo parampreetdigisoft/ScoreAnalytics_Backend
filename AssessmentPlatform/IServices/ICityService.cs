@@ -21,5 +21,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID, DateTime updatedA);
         Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID, DateTime updateAt);
         Task<ResultResponseDto<string>> AddUpdateCity(AddUpdateCityDto q);
+        Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByLocation(GetNearestCityRequestDto r);
     }
 }

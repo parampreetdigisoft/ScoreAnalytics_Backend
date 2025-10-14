@@ -10,5 +10,6 @@ namespace AssessmentPlatform.Dtos.CityDto
     public class UserCityMappingResponseDto : CityResponseDto
     {
         public int UserCityMappingID { get; set; }
+        public double? Distance { get; set; }
     }
 }
