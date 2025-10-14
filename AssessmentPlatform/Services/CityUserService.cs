@@ -31,7 +31,6 @@ namespace AssessmentPlatform.Services
                 _ => false
             };
         }
-
         public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID)
         {
             try
@@ -395,7 +394,6 @@ namespace AssessmentPlatform.Services
                 return new PaginationResponse<CityResponseDto>();
             }
         }
-
         public async Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID)
         {
             try
@@ -491,7 +489,6 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Failure(new[] { "There is an error please try later" });
             }
         }
-
         public async Task<ResultResponseDto<CityDetailsDto>> GetCityDetails(UserCityRequstDto userCityRequstDto)
         {
             try
@@ -630,10 +627,115 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CityDetailsDto>.Failure(new[] { "There is an error, please try later" });
             }
         }
-
-        public Task<ResultResponseDto<List<CityPillarQuestionDetailsDto>>> GetCityPillarDetails(UserCityGetPillarInfoRequstDto userCityRequstDto)
+        public async Task<ResultResponseDto<List<CityPillarQuestionDetailsDto>>> GetCityPillarDetails(UserCityGetPillarInfoRequstDto userCityRequstDto)
         {
-            throw new NotImplementedException();
+            try
+            {
+                var cityId = userCityRequstDto.CityID;
+                var pillarId = userCityRequstDto.PillarID;
+                var date = userCityRequstDto.UpdatedAt;
+
+                // 1. Validate city and pillar
+                var city = await _context.Cities
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.CityID == cityId && x.IsActive && !x.IsDeleted);
+
+                if (city == null)
+                    return ResultResponseDto<List<CityPillarQuestionDetailsDto>>.Failure(new[] { "Invalid city ID" });
+
+                var pillar = await _context.Pillars
+                    .Include(p => p.Questions)
+                        .ThenInclude(q => q.QuestionOptions)
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.PillarID == pillarId);
+
+                if (pillar == null)
+                    return ResultResponseDto<List<CityPillarQuestionDetailsDto>>.Failure(new[] { "Invalid pillar ID" });
+
+                // 2. Get all assessments for this city in the given year
+                var assessments = await (
+                    from a in _context.Assessments
+                        .Include(x => x.PillarAssessments)
+                            .ThenInclude(pa => pa.Responses)
+                                .ThenInclude(r => r.Question)
+                    join uc in _context.UserCityMappings.Where(x => !x.IsDeleted)
+                        on a.UserCityMappingID equals uc.UserCityMappingID
+                    where uc.CityID == cityId && a.IsActive && a.UpdatedAt.Year == date.Year
+                    select a
+                ).ToListAsync();
+
+                if (!assessments.Any())
+                    return ResultResponseDto<List<CityPillarQuestionDetailsDto>>.Failure(new[] { "No assessments found for the given city/year." });
+
+                // 3. Flatten pillar assessments for this pillar
+                var pillarAssessments = assessments
+                    .SelectMany(a => a.PillarAssessments)
+                    .Where(pa => pa.PillarID == pillarId)
+                    .ToList();
+
+                // 4. Flatten all responses for this pillar
+                var allResponses = pillarAssessments
+                    .SelectMany(pa => pa.Responses)
+                    .Where(r => r != null)
+                    .ToList();
+
+                var validResponses = allResponses
+                    .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
+                    .ToList();
+
+                // 5. Generate question-level metrics
+                var result = pillar.Questions
+                    .OrderBy(x=>x.DisplayOrder)
+                    .Select(q =>
+                    {
+                        var qResponses = validResponses.Where(r => r.QuestionID == q.QuestionID).ToList();
+                        var totalQuestions = 1; // Each item represents one question
+                        var answeredQuestions = qResponses.Count;
+                        var totalScore = qResponses.Sum(r => (decimal?)r.Score ?? 0);
+
+                        // Compute "Unknown" and "N/A" counts
+                        var naUnknownIds = allResponses
+                            .Where(r => r.QuestionID == q.QuestionID && !r.Score.HasValue)
+                            .Select(r => r.QuestionOptionID);
+
+                        var naUnknownOptions = q.QuestionOptions
+                            .Where(opt => naUnknownIds.Contains(opt.OptionID))
+                            .ToList();
+
+                        var totalNA = naUnknownOptions.Count(opt => opt.OptionText.Contains("N/A"));
+                        var totalUnknown = naUnknownOptions.Count(opt => opt.OptionText.Contains("Unknown"));
+
+                        var scoreProgress = answeredQuestions > 0
+                            ? (totalScore * 100M) / (answeredQuestions * 4M * assessments.Count)
+                            : 0M;
+
+                        return new CityPillarQuestionDetailsDto
+                        {
+                            QuestionID = q.QuestionID,
+                            QuestionText = q.QuestionText,
+                            TotalQuestion = totalQuestions,
+                            AnsQuestion = answeredQuestions,
+                            TotalScore = totalScore,
+                            ScoreProgress = scoreProgress,
+                            AvgHighScore = qResponses.Any() ? qResponses.Max(r => (decimal?)r.Score ?? 0) : 0,
+                            AvgLowerScore = qResponses.Any() ? qResponses.Min(r => (decimal?)r.Score ?? 0) : 0,
+                            TotalNA = totalNA,
+                            TotalUnKnown = totalUnknown
+                        };
+                    })
+                .ToList();
+
+                return ResultResponseDto<List<CityPillarQuestionDetailsDto>>.Success(
+                    result,
+                    new List<string> { "Get city pillar question details successfully" }
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occurred in GetCityPillarDetails", ex);
+                return ResultResponseDto<List<CityPillarQuestionDetailsDto>>.Failure(new[] { "There is an error, please try later" });
+            }
         }
+
     }
 }

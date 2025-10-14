@@ -3,7 +3,7 @@
     public class CityPillarQuestionDetailsDto
     {
         public int QuestionID { get; set; } = 0;
-        public string Question { get; set; }
+        public string QuestionText { get; set; }
         public decimal TotalScore { get; set; } = 0;
         public decimal ScoreProgress { get; set; } = 0;
         public int TotalQuestion { get; set; } = 0;
