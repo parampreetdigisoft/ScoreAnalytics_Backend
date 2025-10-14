@@ -70,7 +70,10 @@ namespace AssessmentPlatform.Services
                     existing.Region = q.Region;
                     existing.State = q.State;
                     existing.PostalCode = q.PostalCode;
-                    existing.Image = image;
+                    if (!string.IsNullOrEmpty(image))
+                    {
+                        existing.Image = image;
+                    }
                     existing.Country = q.Country;
                     existing.Latitude = q.Latitude;
                     existing.Longitude = q.Longitude;
