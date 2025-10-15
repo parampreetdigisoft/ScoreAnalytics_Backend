@@ -164,7 +164,7 @@ namespace AssessmentPlatform.Services
                         var existing = existingResponses
                             .FirstOrDefault(r => r.ResponseID == response.ResponseID);
 
-                        if (existing == null)
+                        if (existing == null && !string.IsNullOrEmpty(response.Justification))
                         {
                             // Add new
                             pillarAssessment.Responses.Add(new AssessmentResponse
@@ -340,112 +340,104 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var optionList = _context.QuestionOptions.ToHashSet();
                 int recordSaved = 0;
                 using (var stream = new MemoryStream())
                 {
                     await file.CopyToAsync(stream);
                     using (var workbook = new XLWorkbook(stream))
                     {
-                        bool isValidFile = false;
                         foreach (var ws in workbook.Worksheets)
                         {
-                            int userCityMappingID = 0;
-                            int pillarID = 0;
-                            int questionID = 0;
-                            var assesmentResponseList = new List<AddAssesmentResponseDto>();
-                            int row = 1;
-                            while (!IsRowAndNextThreeEmpty(ws, row))
+                            var assessmentResponses = new List<AddAssesmentResponseDto>();
+                            int userCityMappingID = ws.Cell(2, 10).GetValue<int>();
+                            int pillarID = ws.Cell(2, 11).GetValue<int>();
+
+                            int lastRow = ws.LastRowUsed().RowNumber();
+                            for (int row = 2; row <= lastRow; row += 2) // two rows per question
                             {
-                                if (ws.Cell(row, 1).GetString() == "UserCityMappingID")
+                                
+                                int questionID = ws.Cell(row, 12).GetValue<int?>() ?? 0;
+                                int questionOptionID = ws.Cell(row, 13).GetValue<int?>() ?? 0;
+                                int responseID = ws.Cell(row, 14).GetValue<int?>() ?? 0;
+
+                                // Validate user city mapping
+                                if (!_context.UserCityMappings.Any(x => !x.IsDeleted && x.UserID == userID && x.UserCityMappingID == userCityMappingID))
                                 {
-                                    // Metadata row is next
-                                    var metaRow = row + 1;
-                                    userCityMappingID = ws.Cell(metaRow, 1).GetValue<int>();
+                                    return ResultResponseDto<string>.Failure(new[] { "Invalid file uploaded" });
+                                }
 
-                                    if (!isValidFile)
+                                // Read Score and Comment
+                                string scoreText = ws.Cell(row, 4).GetString().Trim();
+                                string comment = ws.Cell(row + 1, 4).GetString().Trim();
+
+                                int? score = null;
+                                var options = optionList.Where(x => x.QuestionID == questionID).ToList();
+
+                                if (int.TryParse(scoreText, out int parsedScore))
+                                {
+                                    if (parsedScore <= 4)
                                     {
-                                        isValidFile = _context.UserCityMappings.Any(x => !x.IsDeleted && x.UserID == userID && x.UserCityMappingID == userCityMappingID);
-                                        if (!isValidFile)
-                                        {
-                                            return ResultResponseDto<string>.Failure(new[] { "Invalid file uploaded" });
-                                        }
-                                    }
-
-                                    pillarID = ws.Cell(metaRow, 2).GetValue<int>();
-                                    var pillarName = ws.Cell(metaRow, 3).GetString();
-                                    questionID = ws.Cell(metaRow, 4).GetValue<int>();
-                                    var questionText = ws.Cell(metaRow, 5).GetString();
-
-                                    // Skip until we reach "Answer" row
-                                    while (!ws.Cell(row, 2).IsEmpty() && ws.Cell(row, 2).GetString() != "Answer")
-                                    {
-                                        row++;
-                                    }
-
-                                    if (ws.Cell(row, 2).GetString() == "Answer")
-                                    {
-                                        var ansRow = row;
-                                        var optionId = ws.Cell(ansRow, 3).GetValue<int?>();
-                                        var score = ws.Cell(ansRow, 4).GetValue<int?>();
-                                        var comment = ws.Cell(ansRow, 5).GetString();
-                                        if (optionId != null && optionId > 0 && comment != null)
-                                        {
-                                            assesmentResponseList.Add(new AddAssesmentResponseDto
-                                            {
-                                                AssessmentID = 0,
-                                                QuestionID = questionID,
-                                                QuestionOptionID = optionId.GetValueOrDefault(),
-                                                Score = score != null ? (ScoreValue)score : null,
-                                                Justification = comment
-                                            });
-                                        }
-                                        row++;
+                                        score = parsedScore;
+                                        questionOptionID = options.FirstOrDefault(x => x.ScoreValue == score)?.OptionID ?? 0;
                                     }
                                 }
-                                row++;
-                            }
-                            if (userCityMappingID > 0 && pillarID > 0)
-                            {
-                                var assessment = new AddAssessmentDto
+                                else if (!string.IsNullOrEmpty(scoreText) && score == null)
                                 {
-                                    AssessmentID = 0,
-                                    UserCityMappingID = userCityMappingID,
-                                    PillarID = pillarID,
-                                    Responses = assesmentResponseList
-                                };
-
-                                var response = await SaveAssessment(assessment);
-                                if (!response.Succeeded)
-                                {
-                                    return response;
+                                    questionOptionID =  options.FirstOrDefault(x => scoreText.Equals(x.OptionText, StringComparison.OrdinalIgnoreCase))?.OptionID ?? 0;
                                 }
-                                recordSaved++;
+                                else
+                                {
+                                    comment = "";
+                                }
+                                if(questionOptionID > 0)
+                                {
+                                    assessmentResponses.Add(new AddAssesmentResponseDto
+                                    {
+                                        AssessmentID = 0,
+                                        QuestionID = questionID,
+                                        ResponseID = responseID,
+                                        QuestionOptionID = questionOptionID,
+                                        Score = score.HasValue ? (ScoreValue)score.Value : null,
+                                        Justification = comment
+                                    });
+                                }
+
+                                
                             }
+                            // Save assessment per pillar
+                            var assessment = new AddAssessmentDto
+                            {
+                                AssessmentID = 0,
+                                UserCityMappingID = userCityMappingID,
+                                PillarID = pillarID,
+                                Responses = assessmentResponses
+                            };
+
+                            var response = await SaveAssessment(assessment);
+                            if (!response.Succeeded)
+                            {
+                                return response;
+                            }
+
+                            recordSaved++;
+                            assessmentResponses.Clear();
                         }
                     }
                 }
-                return ResultResponseDto<string>.Success("", new[] { recordSaved > 0
-                    ? recordSaved + " Pillars Assessment saved successfully"
-                    : "Please fill the sheet in sequece to submit the assessment" });
+
+                return ResultResponseDto<string>.Success("", new[]
+                {
+                    recordSaved > 0
+                        ? $"{recordSaved} Pillars Assessment saved successfully"
+                        : "Please fill the sheet in sequence to submit the assessment"
+                });
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occure in ImportAssessmentAsync", ex);
-                return ResultResponseDto<string>.Failure(new[] { "failed to saved assessment" });
+                await _appLogger.LogAsync("Error occurred in ImportAssessmentAsync", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Failed to save assessment" });
             }
-
-        }
-        private bool IsRowAndNextThreeEmpty(IXLWorksheet ws, int row)
-        {
-            for (int r = row; r < row + 4; r++)            // current + next 3 rows
-            {
-                for (int c = 1; c <= 5; c++)               // first 5 columns
-                {
-                    if (!ws.Cell(r, c).IsEmpty())          // if any cell has value → not empty
-                        return false;
-                }
-            }
-            return true;  // all 4 rows × 5 cols are empty
         }
         public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto)
         {
