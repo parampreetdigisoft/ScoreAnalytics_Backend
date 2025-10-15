@@ -497,17 +497,17 @@ namespace AssessmentPlatform.Services
                         //scoreListRange.Cell(7, 26).Value = "UnKnown";
                         //ws.Column(26).Hide(); // Column Z
 
-                        //var dvScore = scoreCell.GetDataValidation();
+                        var dvScore = scoreCell.GetDataValidation();
                         //dvScore.AllowedValues = XLAllowedValues.List;
                         //dvScore.InCellDropdown = true;
 
                         //// Provide options as a comma-separated list
                         //dvScore.List(scoreListRange);
 
-                        //// Optional: input message for guidance
-                        //dvScore.ShowInputMessage = true;
-                        //dvScore.InputTitle = "Score Selection";
-                        //dvScore.InputMessage = "Select a score between 0–4, or choose N/A or Unknown.";
+                        // Optional: input message for guidance
+                        dvScore.ShowInputMessage = true;
+                        dvScore.InputTitle = "Score Selection";
+                        dvScore.InputMessage = "Select a score between 0–4, or choose N/A or Unknown.";
 
 
 
