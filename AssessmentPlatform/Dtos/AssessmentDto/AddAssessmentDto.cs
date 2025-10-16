@@ -8,6 +8,8 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
         public int UserCityMappingID { get; set; }
         public int PillarID { get; set; }
         public List<AddAssesmentResponseDto> Responses { get; set; }
+        public bool IsAutoSave { get; set; } = false;
+        public bool IsFinalized { get; set; } = false;
     }
     public class AddAssesmentResponseDto
     {

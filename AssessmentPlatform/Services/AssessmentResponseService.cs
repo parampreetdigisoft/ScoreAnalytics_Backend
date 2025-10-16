@@ -146,23 +146,31 @@ namespace AssessmentPlatform.Services
                         assessment.PillarAssessments.Add(pillarAssessment);
                     }
 
-                    // Track existing response IDs
                     var existingResponses = pillarAssessment.Responses.ToList();
-                    var requestResponseIds = request.Responses
-                        .Where(r => r.ResponseID > 0)
-                        .Select(r => r.ResponseID)
-                        .ToHashSet();
-
-                    foreach (var existing in existingResponses.Where(r => !requestResponseIds.Contains(r.ResponseID)))
+                    
+                    if (!request.IsAutoSave) // removed if entire assessement is update for all responses
                     {
-                        _context.AssessmentResponses.Remove(existing); // <-- delete instead of unlink
+                        var pillar = await _context.Pillars.OrderByDescending(x => x.DisplayOrder).FirstOrDefaultAsync();
+                        assessment.AssessmentPhase = pillar?.PillarID == request.PillarID ? AssessmentPhase.Completed : AssessmentPhase.InProgress;
+
+                        var requestResponseIds = request.Responses
+                            .Where(r => r.QuestionID > 0)
+                            .Select(r => r.QuestionID)
+                            .ToHashSet();
+
+                        var toDeleteList = existingResponses.Where(r => !requestResponseIds.Contains(r.QuestionID));
+
+                        foreach (var existing in toDeleteList)
+                        {
+                            _context.AssessmentResponses.Remove(existing); // <-- delete instead of unlink
+                        }
                     }
 
                     // ADD or UPDATE responses
                     foreach (var response in request.Responses)
                     {
                         var existing = existingResponses
-                            .FirstOrDefault(r => r.ResponseID == response.ResponseID);
+                            .FirstOrDefault(r => r.ResponseID == response.ResponseID || r.QuestionID == response.QuestionID);
 
                         if (existing == null && !string.IsNullOrEmpty(response.Justification))
                         {
@@ -184,8 +192,11 @@ namespace AssessmentPlatform.Services
                             existing.Score = response.Score;
                         }
                     }
-                    var pillar = await _context.Pillars.OrderByDescending(x => x.DisplayOrder).FirstOrDefaultAsync();
-                    assessment.AssessmentPhase = pillar?.PillarID == request.PillarID ? AssessmentPhase.Completed : AssessmentPhase.InProgress;
+                    if (request.IsFinalized)
+                    {
+                        assessment.AssessmentPhase = AssessmentPhase.Completed;
+                    }
+
                     assessment.UpdatedAt = now;
                 }
 
