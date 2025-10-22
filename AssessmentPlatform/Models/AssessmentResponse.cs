@@ -11,6 +11,7 @@ namespace AssessmentPlatform.Models
         public int QuestionOptionID { get; set; }
         public ScoreValue? Score { get; set; }
         public string Justification { get; set; } 
+        public string? Source { get; set; } 
         public PillarAssessment PillarAssessment { get; set; } 
         public Question Question { get; set; } 
     }

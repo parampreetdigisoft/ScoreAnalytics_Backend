@@ -353,7 +353,8 @@ namespace AssessmentPlatform.Services
                             IsSelected = submittedQuestion.QuestionOptionID == x.OptionID,
                             OptionText = x.OptionText,
                             ScoreValue = x.ScoreValue,
-                            Justification = submittedQuestion.Justification
+                            Justification = submittedQuestion.Justification,
+                            Source = submittedQuestion.Source
                         }).ToList(),
                     };
                 }).ToList();

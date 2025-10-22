@@ -13,5 +13,6 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
         public string QuestionOptionText { get; set; }
         public string Justification { get; set; }
         public ScoreValue? Score { get; set; }
+        public string Source { get; set; }
     }
 }

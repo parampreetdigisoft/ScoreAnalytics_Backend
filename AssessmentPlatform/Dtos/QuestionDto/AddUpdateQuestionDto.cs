@@ -34,5 +34,6 @@ namespace AssessmentPlatform.Dtos.QuestionDto
         public int? DisplayOrder { get; set; }
         public bool IsSelected { get; set; } = false;
         public string Justification { get; set; } 
+        public string Source { get; set; } 
     }
 }

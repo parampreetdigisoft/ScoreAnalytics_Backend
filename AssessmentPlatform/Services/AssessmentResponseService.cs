@@ -180,6 +180,7 @@ namespace AssessmentPlatform.Services
                                 QuestionID = response.QuestionID,
                                 QuestionOptionID = response.QuestionOptionID,
                                 Justification = response.Justification,
+                                Source = response.Source,
                                 Score = response.Score
                             });
                         }
@@ -190,6 +191,7 @@ namespace AssessmentPlatform.Services
                             existing.QuestionOptionID = response.QuestionOptionID;
                             existing.Justification = response.Justification;
                             existing.Score = response.Score;
+                            existing.Source = response.Source;
                         }
                     }
                     if (request.IsFinalized)
@@ -324,6 +326,7 @@ namespace AssessmentPlatform.Services
                         Score = r.Score,
                         UserID = user.UserID,
                         Justification = r.Justification,
+                        Source = r.Source,
                         QuestionOptionText = r.Question.QuestionOptions
                             .Where(o => o.OptionID == r.QuestionOptionID)
                             .Select(o => o.OptionText)
