@@ -445,13 +445,27 @@ namespace AssessmentPlatform.Services
 
                     int row = 5;
 
-                    // ----------------------------
-                    ws.Range(row, 1, row, 4).Merge().Value = CleanHtml(pillar.Description);
-                    ws.Row(row).Height = 180;
-                    ws.Row(row).Style.Alignment.WrapText = true;
-                    ws.Row(row).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-                    ws.Row(row).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
-                    ws.Row(row).Style.Font.FontColor = XLColor.DarkBlue;
+                    var descRange = ws.Range(row, 1, row, 4).Merge();
+                    descRange.Value = CleanHtml(pillar.Description);
+
+                    // Soothing background and better typography
+                    descRange.Style.Fill.BackgroundColor = XLColor.FromArgb(230, 240, 255); // soft light blue
+                    descRange.Style.Font.FontColor = XLColor.FromArgb(23, 55, 94); // dark navy text
+                    descRange.Style.Font.FontSize = 12;
+                    descRange.Style.Font.Bold = true;
+                    descRange.Style.Alignment.WrapText = true;
+                    descRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                    descRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+
+                    // Add padding effect by increasing row height
+                    ws.Row(row).Height = 160;
+
+                    // Add a border to make it visually separated
+                    descRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+                    descRange.Style.Border.OutsideBorderColor = XLColor.FromArgb(48, 84, 150); // same as header tone
+                    descRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                    descRange.Style.Border.InsideBorderColor = XLColor.LightGray;
+
                     row += 2; // Leave one blank row after intro
 
                     // ----------------------------
@@ -555,8 +569,16 @@ namespace AssessmentPlatform.Services
                         ws.Cell(infoRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
                         ws.Cell(infoRow, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
 
-                        var naCell = ws.Cell(row, 4);
+                        var naCell = ws.Cell(infoRow, 4);
                         naCell.Clear();
+
+                        // Make it editable numeric cell (int only)
+                        naCell.Value = ans.Score == null && ans.Question != null ? ans.Question.QuestionOptions?.FirstOrDefault(x=>x.OptionID == ans.QuestionOptionID)?.OptionText: "";
+                        naCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                        naCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        naCell.Style.Font.Bold = true;
+
+                       
                         var naScore = naCell.GetDataValidation();
                         naScore.ShowInputMessage = true;
                         naScore.InputTitle = "Selection";

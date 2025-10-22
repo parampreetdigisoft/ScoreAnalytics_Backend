@@ -356,6 +356,120 @@ namespace AssessmentPlatform.Services
             {
                 var optionList = _context.QuestionOptions.ToHashSet();
                 int recordSaved = 0;
+
+                using (var stream = new MemoryStream())
+                {
+                    await file.CopyToAsync(stream);
+                    using (var workbook = new XLWorkbook(stream))
+                    {
+                        foreach (var ws in workbook.Worksheets)
+                        {
+                            var assessmentResponses = new List<AddAssesmentResponseDto>();
+
+                            // Get hidden values from first question section
+                            int userCityMappingID = ws.Cell(10, 10).GetValue<int>(); // after header and description
+                            int pillarID = ws.Cell(10, 11).GetValue<int>();
+
+                            int lastRow = ws.LastRowUsed().RowNumber();
+
+                            // Start from first question block (approx row 8)
+                            for (int row = 8; row <= lastRow; row += 4)
+                            {
+                                int questionID = ws.Cell(row+2, 12).GetValue<int?>() ?? 0;
+                                int questionOptionID = ws.Cell(row + 2, 13).GetValue<int?>() ?? 0;
+                                int responseID = ws.Cell(row + 2, 14).GetValue<int?>() ?? 0;
+
+                                if (questionID == 0)
+                                    continue;
+
+                                // Validate city-user mapping
+                                if (!_context.UserCityMappings.Any(x => !x.IsDeleted && x.UserID == userID && x.UserCityMappingID == userCityMappingID))
+                                {
+                                    return ResultResponseDto<string>.Failure(new[] { "Invalid file uploaded" });
+                                }
+
+                                // ===== Read from Sheet =====
+                                string scoreText = ws.Cell(row, 4).GetString().Trim();          // Row 1 - Score
+                                string naText = ws.Cell(row + 1, 4).GetString().Trim();          // Row 2 - N/A or Unknown
+                                string comment = ws.Cell(row + 2, 4).GetString().Trim();         // Row 3 - Comment
+                                string source = ws.Cell(row + 3, 4).GetString().Trim();          // Row 4 - Source (optional)
+
+                                int? score = null;
+                                var options = optionList.Where(x => x.QuestionID == questionID).ToList();
+
+                                // Try to map numeric score
+                                if (int.TryParse(scoreText, out int parsedScore))
+                                {
+                                    if (parsedScore >= 0 && parsedScore <= 4)
+                                    {
+                                        score = parsedScore;
+                                        questionOptionID = options.FirstOrDefault(x => x.ScoreValue == score)?.OptionID ?? 0;
+                                    }
+                                }
+                                else if (!string.IsNullOrWhiteSpace(naText))
+                                {
+                                    // Check N/A or Unknown option
+                                    questionOptionID = options
+                                        .FirstOrDefault(x => naText.Equals(x.OptionText, StringComparison.OrdinalIgnoreCase))?.OptionID ?? 0;
+                                }
+
+                                // Only save if a valid option was selected
+                                if (questionOptionID > 0)
+                                {
+                                    assessmentResponses.Add(new AddAssesmentResponseDto
+                                    {
+                                        AssessmentID = 0,
+                                        QuestionID = questionID,
+                                        ResponseID = responseID,
+                                        QuestionOptionID = questionOptionID,
+                                        Score = score.HasValue ? (ScoreValue)score.Value : null,
+                                        Justification =  comment,
+                                        Source = string.IsNullOrWhiteSpace(source) ? null : source
+                                    });
+                                }
+                            }
+
+                            // Save assessment for each pillar
+                            if (assessmentResponses.Any())
+                            {
+                                var assessment = new AddAssessmentDto
+                                {
+                                    AssessmentID = 0,
+                                    UserCityMappingID = userCityMappingID,
+                                    PillarID = pillarID,
+                                    Responses = assessmentResponses
+                                };
+
+                                var response = await SaveAssessment(assessment);
+                                if (!response.Succeeded)
+                                    return response;
+
+                                recordSaved++;
+                            }
+                        }
+                    }
+                }
+
+                return ResultResponseDto<string>.Success("", new[]
+                {
+            recordSaved > 0
+                ? $"{recordSaved} Pillars Assessment saved successfully"
+                : "Please fill the sheet properly before submitting"
+        });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in ImportAssessmentAsync", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Failed to save assessment" });
+            }
+        }
+
+        public async Task<ResultResponseDto<string>> ImportAssessmentAsync1(IFormFile file, int userID)
+        {
+            try
+            {
+                var optionList = _context.QuestionOptions.ToHashSet();
+                int recordSaved = 0;
                 using (var stream = new MemoryStream())
                 {
                     await file.CopyToAsync(stream);
