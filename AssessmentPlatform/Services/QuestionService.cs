@@ -385,7 +385,7 @@ namespace AssessmentPlatform.Services
 
                 var fileName = (from m in _context.UserCityMappings
                                 join c in _context.Cities on m.CityID equals c.CityID
-                                join u in _context.Users on m.AssignedByUserId equals u.UserID
+                                join u in _context.Users on m.UserID equals u.UserID 
                                 where m.UserCityMappingID == userCityMappingID
                                 select new
                                 {
@@ -408,7 +408,7 @@ namespace AssessmentPlatform.Services
                     .Where(a => a.UserCityMappingID == userCityMappingID && a.IsActive && a.UpdatedAt.Year == year)
                     .SelectMany(x => x.PillarAssessments).ToList();
 
-                var byteArray = MakePillarSheetClientReadable(nextPillars, pillarAssessments, userCityMappingID);
+                var byteArray = MakePillarSheetClientReadable_Updated(nextPillars, pillarAssessments, userCityMappingID, fileName);
 
                 return new(sheetName, byteArray);
             }
@@ -418,54 +418,71 @@ namespace AssessmentPlatform.Services
                 return new Tuple<string, byte[]>("", Array.Empty<byte>());
             }
         }
-        private byte[] MakePillarSheetClientReadable(List<Pillar> pillars, List<PillarAssessment> pillarAssessments, int userCityMappingID)
+        private byte[] MakePillarSheetClientReadable_Updated(
+            List<Pillar> pillars,
+            List<PillarAssessment> pillarAssessments,
+            int userCityMappingID, dynamic? cityUser)
         {
             using (var workbook = new XLWorkbook())
             {
                 foreach (var pillar in pillars)
                 {
                     var ws = workbook.Worksheets.Add(GetValidSheetName(pillar.PillarName));
-                    for (int col = 10; col <= 14; col++)
-                    {
-                        ws.Column(col).Style.Protection.SetLocked(true);
-                    }
 
-                    var protection = ws.Protect();
+                    // ----------------------------
+                    // Sheet Header: City, Year, Evaluator
+                    // ----------------------------
+                    ws.Range("A1:D1").Merge().Value = $"City Name: {cityUser?.CityName}";
+                    ws.Range("A2:D2").Merge().Value = $"Year: {DateTime.Now.Year}";
+                    ws.Range("A3:D3").Merge().Value = $"Evaluator/Analyst: {cityUser?.FullName}";
 
-                    // allow user to resize (format) columns
-                    protection.AllowedElements =
-                       XLSheetProtectionElements.FormatColumns |
-                       XLSheetProtectionElements.SelectLockedCells |
-                       XLSheetProtectionElements.SelectUnlockedCells;
-                    for (int col = 10; col <= 14; col++)
-                    {
-                        ws.Column(col).Style.Protection.SetLocked(true);
-                    }
+                    var headerRange = ws.Range("A1:D3");
+                    headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
+                    headerRange.Style.Font.Bold = true;
+                    headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+                    headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                   
 
+                    int row = 5;
 
-                    // Column widths
+                    // ----------------------------
+                    ws.Range(row, 1, row, 4).Merge().Value = CleanHtml(pillar.Description);
+                    ws.Row(row).Height = 180;
+                    ws.Row(row).Style.Alignment.WrapText = true;
+                    ws.Row(row).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                    ws.Row(row).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+                    ws.Row(row).Style.Font.FontColor = XLColor.DarkBlue;
+                    row += 2; // Leave one blank row after intro
+
+                    // ----------------------------
+                    // Column Widths
+                    // ----------------------------
                     ws.Column(1).Width = 8;    // S.No
                     ws.Column(2).Width = 90;   // Question + Options
                     ws.Column(3).Width = 15;   // Score + Comment
                     ws.Column(4).Width = 40;   // Score + Comment
 
-                    // Header row
-                    ws.Cell(1, 1).Value = "S.NO.";
-                    ws.Cell(1, 2).Value = "Question";
-                    ws.Cell(1, 3).Value = "Score-Comments";
-                    ws.Cell(1, 4).Value = "";
+                    // ----------------------------
+                    // Header Row for Questions
+                    // ----------------------------
+                    ws.Cell(row, 1).Value = "S.NO.";
+                    ws.Cell(row, 2).Value = "Question";
+                    ws.Cell(row, 3).Value = "Score-Comments";
+                    ws.Cell(row, 4).Value = "Answers";
 
-                    var header = ws.Range(1, 1, 1, 3);
+                    var header = ws.Range(row, 1, row, 4);
                     header.Style.Font.Bold = true;
                     header.Style.Fill.BackgroundColor = XLColor.FromArgb(48, 84, 150);
                     header.Style.Font.FontColor = XLColor.White;
                     header.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                     header.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
-                    int row = 2;
+                    row++;
                     int sno = 1;
 
+                    // ----------------------------
                     // Fetch pillar responses
+                    // ----------------------------
                     var submittedResponses = pillarAssessments
                         .Where(x => x.PillarID == pillar.PillarID)
                         .SelectMany(x => x.Responses)
@@ -486,52 +503,79 @@ namespace AssessmentPlatform.Services
                         // Score cell (editable)
                         ws.Cell(row, 3).Value = "Score";
                         ws.Cell(row, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-                        ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right; 
-                        ws.Cell(row, 3).Style.Protection.SetLocked(false);
+                        ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
 
                         var scoreCell = ws.Cell(row, 4);
                         scoreCell.Clear();
-                        // Score cell (editable)
-                        scoreCell.Value = ans.Score == null ? "": ((int)ans.Score).ToString();
+
+                        // Make it editable numeric cell (int only)
+                        scoreCell.Value = (int?)ans.Score;
                         scoreCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
                         scoreCell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                         scoreCell.Style.Font.Bold = true;
-                        scoreCell.Style.Protection.SetLocked(false);
 
+                        // Apply data validation for integer range 0–4
                         var dvScore = scoreCell.GetDataValidation();
+                        dvScore.Clear(); // remove old validations if any
+                        dvScore.AllowedValues = XLAllowedValues.WholeNumber;
+                        dvScore.Operator = XLOperator.Between;
+                        dvScore.MinValue = "0";
+                        dvScore.MaxValue = "4";
+                        dvScore.IgnoreBlanks = true;
+
+                        // Optional: User guidance
                         dvScore.ShowInputMessage = true;
                         dvScore.InputTitle = "Score Selection";
-                        dvScore.InputMessage = "Select a score between 0–4, or choose N/A or Unknown.";
+                        dvScore.InputMessage = "Enter a whole number between 0 and 4.";
+
+                        // Optional: Error message
+                        dvScore.ShowErrorMessage = true;
+                        dvScore.ErrorTitle = "Invalid Score";
+                        dvScore.ErrorMessage = "Please enter an integer between 0 and 4 only.";
 
 
 
-                        // ===== ROW 2: Options + Comment =====
                         row++;
+                        var infoRow = row;
 
-                        // Build options list
+                        // Left side: gray info text
+                        var infoCell = ws.Cell(infoRow, 2);
+                        infoCell.Clear();
+                        infoCell.Value = "Please choose one score between 0-4, N/A, or Unknown based on the conditions below. " +
+                                         "Select the score that best matches the criteria.";
+                        infoCell.Style.Font.FontColor = XLColor.Gray;
+                        infoCell.Style.Font.Italic = true;
+                        infoCell.Style.Alignment.WrapText = true;
+                        infoCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+
+                        // Right side: N/A / Unknown (bold)
+                        ws.Cell(infoRow, 3).Value = "N/A - Unknown";
+                        //ws.Cell(infoRow, 3).Style.Font.Bold = true;
+                        ws.Cell(infoRow, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                        ws.Cell(infoRow, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+
+                        var naCell = ws.Cell(row, 4);
+                        naCell.Clear();
+                        var naScore = naCell.GetDataValidation();
+                        naScore.ShowInputMessage = true;
+                        naScore.InputTitle = "Selection";
+                        naScore.InputMessage = "Type N/A or Unknown.";
+
+                        // ===== ROW 3: Options + Comment =====
+                        row++;
                         var wsCell = ws.Cell(row, 2);
-                         wsCell = wsCell.Clear();
+                        wsCell.Clear();
 
                         if (q.QuestionOptions != null && q.QuestionOptions.Any())
                         {
-                            var infoText = "Please choose one score between 0-4, N/A, or Unknown based on the conditions below. " +
-                                 "Select the score that best matches the criteria.";
-                            wsCell.GetRichText().AddText(infoText).SetFontColor(XLColor.Gray).SetItalic();
-                            wsCell.GetRichText().AddText(Environment.NewLine);
-
                             foreach (var opt in q.QuestionOptions)
                             {
                                 string boldText = "• " + (opt.ScoreValue.HasValue ? opt.ScoreValue.ToString() :
                                     (opt.OptionText.ToLower().Contains("unknown") ? "Unknown" : "N/A")) + ": ";
 
-                                // Add the bold part
                                 wsCell.GetRichText().AddText(boldText).SetBold();
-
-                                // Add the rest of the option text
                                 wsCell.GetRichText().AddText(opt.OptionText.Trim());
-
-                                // Add a newline for spacing
                                 wsCell.GetRichText().AddText(Environment.NewLine);
                             }
                         }
@@ -539,31 +583,36 @@ namespace AssessmentPlatform.Services
                         wsCell.Style.Alignment.WrapText = true;
                         wsCell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
                         wsCell.Style.Font.FontColor = XLColor.FromArgb(79, 129, 189);
-                        wsCell.Style.Protection.SetLocked(false);
 
-                        // Set minimum height to 140
-                        if (ws.Row(row).Height < 140)
-                        {
-                            ws.Row(row).Height = 140;
-                        }
-
-                        // Write comment next to options
+                        // Comment on right side
                         ws.Cell(row, 3).Value = "Comment";
                         ws.Cell(row, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
                         ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
-                        ws.Cell(row, 3).Style.Protection.SetLocked(false);
 
-                        // Write comment next to options
                         ws.Cell(row, 4).Value = ans.Justification ?? "";
                         ws.Cell(row, 4).Style.Alignment.WrapText = true;
-                        ws.Cell(row, 4).Style.Font.FontColor = XLColor.FromArgb(89, 89, 89); // soft grey for readability
+                        ws.Cell(row, 4).Style.Font.FontColor = XLColor.FromArgb(89, 89, 89);
                         ws.Cell(row, 4).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-                        ws.Cell(row, 4).Style.Protection.SetLocked(false);
 
+                        // Ensure proper row height for readability
+                        if (ws.Row(row).Height < 100)
+                            ws.Row(row).Height = 105;
+
+                        row++;
+                        // Comment on right side
+                        ws.Cell(row, 3).Value = "Source";
+                        ws.Cell(row, 3).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                        ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                        ws.Cell(row, 4).Value = ans.Source ?? "";
+                        ws.Cell(row, 4).Style.Alignment.WrapText = true;
+                        ws.Cell(row, 4).Style.Font.FontColor = XLColor.FromArgb(89, 89, 89);
+                        ws.Cell(row, 4).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+                        if (ws.Row(row).Height < 20)
+                            ws.Row(row).Height = 30;
 
                         // ===== Hidden IDs =====
-                        ws.Cell(row - 1, 10).Value = userCityMappingID; 
-                        ws.Cell(row - 1, 11).Value = pillar.PillarID;  
+                        ws.Cell(row - 1, 10).Value = userCityMappingID;
+                        ws.Cell(row - 1, 11).Value = pillar.PillarID;
                         ws.Cell(row - 1, 12).Value = q.QuestionID;
                         ws.Cell(row - 1, 13).Value = ans.QuestionOptionID;
                         ws.Cell(row - 1, 14).Value = ans.ResponseID;
@@ -583,8 +632,47 @@ namespace AssessmentPlatform.Services
                     ws.Column(13).Hide();
                     ws.Column(14).Hide();
 
+                    // ----------------------------
+                    // Pillar Total & Average
+                    // ----------------------------
+                    ws.Cell(row, 3).Value = "Total Score:";
+                    ws.Cell(row, 3).Style.Font.Bold = true;
+                    ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+                    // Identify score rows (every 4th row starting from 8)
+                    var firstScoreRow = 8;
+                    var lastScoreRow = row - 2;
+
+                    string totalFormula =
+                       $"=SUMPRODUCT(--(MOD(ROW(D{firstScoreRow}:D{lastScoreRow})-ROW(D{firstScoreRow}),4)=0),--(ISNUMBER(D{firstScoreRow}:D{lastScoreRow})),D{firstScoreRow}:D{lastScoreRow})";
+
+
+                    ws.Cell(row, 4).FormulaA1 = totalFormula;
+                    ws.Cell(row, 4).Style.Font.Bold = true;
+                    ws.Cell(row, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                    row++;
+
+                    // Average (numeric only)
+                    ws.Cell(row, 3).Value = "Average Score:";
+                    ws.Cell(row, 3).Style.Font.Bold = true;
+                    ws.Cell(row, 3).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+                    string avgFormula =
+                      $"=IFERROR(" +
+                      $"SUMPRODUCT(--(MOD(ROW(D{firstScoreRow}:D{lastScoreRow})-ROW(D{firstScoreRow}),4)=0),--(ISNUMBER(D{firstScoreRow}:D{lastScoreRow})),D{firstScoreRow}:D{lastScoreRow})" +
+                      $"/" +
+                      $"SUMPRODUCT(--(MOD(ROW(D{firstScoreRow}:D{lastScoreRow})-ROW(D{firstScoreRow}),4)=0),--(ISNUMBER(D{firstScoreRow}:D{lastScoreRow}))),\"\")";
+
+                    ws.Cell(row, 4).FormulaA1 = avgFormula;
+                    ws.Cell(row, 4).Style.Font.Bold = true;
+                    ws.Cell(row, 4).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                    row += 2;
+
+
                     // Add thin borders for readability
-                    var usedRange = ws.RangeUsed();
+                    var usedRange = ws.RangeUsed()!;
                     usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.None;
                     usedRange.Style.Border.InsideBorder = XLBorderStyleValues.None;
                 }
@@ -596,124 +684,20 @@ namespace AssessmentPlatform.Services
                 }
             }
         }
-
-        private byte[] MakePillarSheet(List<Pillar> pillars, List<PillarAssessment> pillarAssessments, int userCityMappingID)
+        string CleanHtml(string html)
         {
-            using (var workbook = new XLWorkbook())
-            {
-                foreach (var pillar in pillars)
-                {
-                    var name = GetValidSheetName(pillar.PillarName);
-                    var ws = workbook.Worksheets.Add(name);
-                    ws.Columns().Width = 10;
-                    ws.Column(1).Width = 18;
-                    ws.Column(3).Width = 35;
-                    ws.Column(5).Width = 120;
-                    var protection = ws.Protect();
+            if (string.IsNullOrWhiteSpace(html)) return string.Empty;
 
-                    // allow user to resize (format) columns
-                    protection.AllowedElements =
-                       XLSheetProtectionElements.FormatColumns |
-                       XLSheetProtectionElements.SelectLockedCells |
-                       XLSheetProtectionElements.SelectUnlockedCells;
+            html = html.Replace("&nbsp;", " ")
+                       .Replace("<br>", "\n")
+                       .Replace("<br/>", "\n")
+                       .Replace("<p>", "")
+                       .Replace("</p>", "\n");
 
-                    var submitedPillarResonse = pillarAssessments
-                        .Where(x => x.PillarID == pillar.PillarID)
-                        .SelectMany(x=>x.Responses)
-                        .ToDictionary(x=>x.QuestionID);
-
-                    int row = 0;
-                    var q = pillar?.Questions?.ToList() ?? new();
-                    for (var i = 0; i < q.Count; i++)
-                    {
-                        submitedPillarResonse.TryGetValue(q[i].QuestionID, out var ansQuestion);
-                        ansQuestion = ansQuestion ?? new();
-
-                        ++row;
-                        ws.Row(row).Style.Font.Bold = true;
-                        ws.Cell(row, 1).Value = "UserCityMappingID";
-                        ws.Cell(row, 2).Value = "PillarID";
-                        ws.Cell(row, 3).Value = "PillarName";
-                        ws.Cell(row, 4).Value = "QuestionID";
-                        ws.Cell(row, 5).Value = "QuestionText";
-                        var headerRange = ws.Range(row, 1, row, 5);
-                        headerRange.Style.Font.Bold = true;
-                        headerRange.Style.Fill.BackgroundColor = XLColor.DarkBlue;
-                        headerRange.Style.Font.FontColor = XLColor.White;
-                        headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-
-                        ++row;
-                        ws.Cell(row, 1).Value = userCityMappingID;
-                        ws.Cell(row, 2).Value = q[i].PillarID;
-                        ws.Cell(row, 3).Value = pillar?.PillarName;
-                        ws.Cell(row, 4).Value = q[i].QuestionID;
-                        ws.Cell(row, 5).Value = q[i].QuestionText;
-
-                        ++row;
-                        ws.Row(row).Style.Font.Bold = true;
-                        ws.Cell(row, 2).Value = "S.No";
-                        ws.Cell(row, 3).Value = "OptionID";
-                        ws.Cell(row, 4).Value = "ScoreValue";
-                        ws.Cell(row, 5).Value = "OptionText";
-
-                        var opt = q[i].QuestionOptions.ToList() ?? new();
-                        for (int j = 0; j < opt.Count; j++)
-                        {
-                            ++row;
-                            ws.Cell(row, 2).Value = j + 1;
-                            ws.Cell(row, 3).Value = opt[j].OptionID;
-                            ws.Cell(row, 4).Value = opt[j].ScoreValue;
-                            ws.Cell(row, 5).Value = opt[j].OptionText;
-                        }
-                        ++row;
-                        ws.Row(row).Style.Font.Bold = true;
-                        ws.Cell(row, 2).Value = "Your Assessment";
-                        ws.Cell(row, 3).Value = "OptionID";
-                        ws.Cell(row, 4).Value = "ScoreValue";
-                        ws.Cell(row, 5).Value = "Comment";
-
-                        ++row;
-                        var ansHeader = ws.Range(row, 2, row, 2);
-                        ansHeader.Style.Fill.BackgroundColor = XLColor.Green;
-                        ansHeader.Style.Font.FontColor = XLColor.White;
-                        ansHeader.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        ws.Cell(row, 3).Style.Protection.SetLocked(false);
-                        ws.Cell(row, 4).Style.Protection.SetLocked(false);
-                        ws.Cell(row, 5).Style.Protection.SetLocked(false);
-
-                        var dvOptionId = ws.Cell(row, 3).GetDataValidation();
-                        var values = opt.OrderBy(x => x.OptionID).ToList();
-
-                        if (values.Any())
-                        {
-                            dvOptionId.WholeNumber.Between(values.First().OptionID, values.Last().OptionID);
-                        }
-                        else
-                        {
-                            dvOptionId.WholeNumber.Between(0, 0);
-                            dvOptionId.IgnoreBlanks = true;
-                        }
-
-                        var dvScore = ws.Cell(row, 4).GetDataValidation();
-                        dvScore.WholeNumber.Between(0, 4);
-                        var dvComment = ws.Cell(row, 5).GetDataValidation();
-                        dvComment.TextLength.Between(1, 10000);
-
-                        ws.Cell(row, 2).Value = "Answer";
-                        ws.Cell(row, 3).Value = ansQuestion.QuestionOptionID == 0 ? "" : ansQuestion.QuestionOptionID;
-                        ws.Cell(row, 4).Value = (int?)ansQuestion.Score;
-                        ws.Cell(row, 5).Value = ansQuestion.Justification;
-                        ++row;
-                    }
-                }
-                using (var stream = new MemoryStream())
-                {
-                    workbook.SaveAs(stream);
-                    var content = stream.ToArray();
-                    return content;
-                }
-            }
+            // remove any remaining tags
+            return System.Text.RegularExpressions.Regex.Replace(html, "<.*?>", "").Trim();
         }
+
         private string GetValidSheetName(string safeName)
         {
             // Trim to 31 characters
