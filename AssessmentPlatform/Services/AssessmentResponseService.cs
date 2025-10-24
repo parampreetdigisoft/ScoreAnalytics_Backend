@@ -430,110 +430,7 @@ namespace AssessmentPlatform.Services
                             }
 
                             // Save assessment for each pillar
-                            if (assessmentResponses.Any())
-                            {
-                                var assessment = new AddAssessmentDto
-                                {
-                                    AssessmentID = 0,
-                                    UserCityMappingID = userCityMappingID,
-                                    PillarID = pillarID,
-                                    Responses = assessmentResponses
-                                };
-
-                                var response = await SaveAssessment(assessment);
-                                if (!response.Succeeded)
-                                    return response;
-
-                                recordSaved++;
-                            }
-                        }
-                    }
-                }
-
-                return ResultResponseDto<string>.Success("", new[]
-                {
-            recordSaved > 0
-                ? $"{recordSaved} Pillars Assessment saved successfully"
-                : "Please fill the sheet properly before submitting"
-        });
-            }
-            catch (Exception ex)
-            {
-                await _appLogger.LogAsync("Error occurred in ImportAssessmentAsync", ex);
-                return ResultResponseDto<string>.Failure(new[] { "Failed to save assessment" });
-            }
-        }
-
-        public async Task<ResultResponseDto<string>> ImportAssessmentAsync1(IFormFile file, int userID)
-        {
-            try
-            {
-                var optionList = _context.QuestionOptions.ToHashSet();
-                int recordSaved = 0;
-                using (var stream = new MemoryStream())
-                {
-                    await file.CopyToAsync(stream);
-                    using (var workbook = new XLWorkbook(stream))
-                    {
-                        foreach (var ws in workbook.Worksheets)
-                        {
-                            var assessmentResponses = new List<AddAssesmentResponseDto>();
-                            int userCityMappingID = ws.Cell(2, 10).GetValue<int>();
-                            int pillarID = ws.Cell(2, 11).GetValue<int>();
-
-                            int lastRow = ws.LastRowUsed().RowNumber();
-                            for (int row = 2; row <= lastRow; row += 2) // two rows per question
-                            {
-                                
-                                int questionID = ws.Cell(row, 12).GetValue<int?>() ?? 0;
-                                int questionOptionID = ws.Cell(row, 13).GetValue<int?>() ?? 0;
-                                int responseID = ws.Cell(row, 14).GetValue<int?>() ?? 0;
-
-                                // Validate user city mapping
-                                if (!_context.UserCityMappings.Any(x => !x.IsDeleted && x.UserID == userID && x.UserCityMappingID == userCityMappingID))
-                                {
-                                    return ResultResponseDto<string>.Failure(new[] { "Invalid file uploaded" });
-                                }
-
-                                // Read Score and Comment
-                                string scoreText = ws.Cell(row, 4).GetString().Trim();
-                                string comment = ws.Cell(row + 1, 4).GetString().Trim();
-
-                                int? score = null;
-                                var options = optionList.Where(x => x.QuestionID == questionID).ToList();
-
-                                if (int.TryParse(scoreText, out int parsedScore))
-                                {
-                                    if (parsedScore <= 4)
-                                    {
-                                        score = parsedScore;
-                                        questionOptionID = options.FirstOrDefault(x => x.ScoreValue == score)?.OptionID ?? 0;
-                                    }
-                                }
-                                else if (!string.IsNullOrEmpty(scoreText) && score == null)
-                                {
-                                    questionOptionID =  options.FirstOrDefault(x => scoreText.Equals(x.OptionText, StringComparison.OrdinalIgnoreCase))?.OptionID ?? 0;
-                                }
-                                else
-                                {
-                                    comment = "";
-                                }
-                                if(questionOptionID > 0)
-                                {
-                                    assessmentResponses.Add(new AddAssesmentResponseDto
-                                    {
-                                        AssessmentID = 0,
-                                        QuestionID = questionID,
-                                        ResponseID = responseID,
-                                        QuestionOptionID = questionOptionID,
-                                        Score = score.HasValue ? (ScoreValue)score.Value : null,
-                                        Justification = comment
-                                    });
-                                }
-
-                                
-                            }
-                            // Save assessment per pillar
+                            
                             var assessment = new AddAssessmentDto
                             {
                                 AssessmentID = 0,
@@ -544,12 +441,10 @@ namespace AssessmentPlatform.Services
 
                             var response = await SaveAssessment(assessment);
                             if (!response.Succeeded)
-                            {
                                 return response;
-                            }
 
                             recordSaved++;
-                            assessmentResponses.Clear();
+                            
                         }
                     }
                 }
@@ -558,7 +453,7 @@ namespace AssessmentPlatform.Services
                 {
                     recordSaved > 0
                         ? $"{recordSaved} Pillars Assessment saved successfully"
-                        : "Please fill the sheet in sequence to submit the assessment"
+                        : "Please fill the sheet properly before submitting"
                 });
             }
             catch (Exception ex)
@@ -567,6 +462,7 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "Failed to save assessment" });
             }
         }
+        
         public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto)
         {
             try

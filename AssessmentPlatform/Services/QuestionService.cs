@@ -473,7 +473,7 @@ namespace AssessmentPlatform.Services
                     // ----------------------------
                     ws.Column(1).Width = 8;    // S.No
                     ws.Column(2).Width = 90;   // Question + Options
-                    ws.Column(3).Width = 15;   // Score + Comment
+                    ws.Column(3).Width = 18;   // Score + Comment
                     ws.Column(4).Width = 40;   // Score + Comment
 
                     // ----------------------------
@@ -481,7 +481,7 @@ namespace AssessmentPlatform.Services
                     // ----------------------------
                     ws.Cell(row, 1).Value = "S.NO.";
                     ws.Cell(row, 2).Value = "Question";
-                    ws.Cell(row, 3).Value = "Score-Comments";
+                    ws.Cell(row, 3).Value = "Evaluation Summary";
                     ws.Cell(row, 4).Value = "Answers";
 
                     var header = ws.Range(row, 1, row, 4);
