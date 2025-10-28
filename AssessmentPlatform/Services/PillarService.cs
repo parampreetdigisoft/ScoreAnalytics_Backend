@@ -73,6 +73,8 @@ namespace AssessmentPlatform.Services
                 existing.PillarName = pillar.PillarName;
                 existing.Description = pillar.Description;
                 existing.DisplayOrder = pillar.DisplayOrder;
+                existing.Weight = pillar.Weight;
+                existing.Reliability = pillar.Reliability;
                 await _context.SaveChangesAsync();
                 return existing;
             }

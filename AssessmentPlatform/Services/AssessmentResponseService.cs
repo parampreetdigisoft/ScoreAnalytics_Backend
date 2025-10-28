@@ -326,7 +326,7 @@ namespace AssessmentPlatform.Services
                         Score = r.Score,
                         UserID = user.UserID,
                         Justification = r.Justification,
-                        Source = r.Source,
+                        Source = r.Source ?? "",
                         QuestionOptionText = r.Question.QuestionOptions
                             .Where(o => o.OptionID == r.QuestionOptionID)
                             .Select(o => o.OptionText)
