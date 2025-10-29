@@ -1,4 +1,5 @@
-﻿using AssessmentPlatform.Common.Implementation;
+﻿using AssessmentPlatform.Backgroundjob;
+using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AssessmentDto;
@@ -16,10 +17,12 @@ namespace AssessmentPlatform.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
-        public AssessmentResponseService(ApplicationDbContext context, IAppLogger appLogger)
+        private readonly Download _download;
+        public AssessmentResponseService(ApplicationDbContext context, IAppLogger appLogger, Download download)
         {
             _context = context;
             _appLogger = appLogger;
+            _download = download;
         }
 
         public async Task<List<AssessmentResponse>> GetAllAsync()
@@ -203,6 +206,8 @@ namespace AssessmentPlatform.Services
                 }
 
                 await _context.SaveChangesAsync();
+
+                var d = _download.InsertAnalyticalLayerResults();
 
                 return ResultResponseDto<string>.Success("", new[] { "Pillar saved successfully" }, 1);
             }

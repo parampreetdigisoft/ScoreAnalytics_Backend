@@ -19,6 +19,9 @@ namespace AssessmentPlatform.Data
         public DbSet<AppLogs> AppLogs { get; set; } = default!;
         public DbSet<PaymentRecord> PaymentRecords { get; set; } = default!;
         public DbSet<PublicUserCityMapping> PublicUserCityMappings { get; set; } = default!;
+        public DbSet<AnalyticalLayer> AnalyticalLayers { get; set; } = default!;
+        public DbSet<FiveLevelInterpretation> FiveLevelInterpretations { get; set; } = default!;
+        public DbSet<AnalyticalLayerResult> AnalyticalLayerResults { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -71,6 +74,26 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<UserCityMapping>().HasKey(uc => uc.UserCityMappingID);
             modelBuilder.Entity<PublicUserCityMapping>().HasKey(uc => uc.PublicUserCityMappingID);
 
+            modelBuilder.Entity<AnalyticalLayer>(entity =>
+            {
+                entity.HasKey(al => al.LayerID);
+
+                entity.HasMany(al=>al.AnalyticalLayerResults)
+                .WithOne(x=>x.AnalyticalLayer)
+                .HasForeignKey(x=>x.LayerID);
+
+                entity.HasMany(al => al.FiveLevelInterpretations)
+               .WithOne(x => x.AnalyticalLayer)
+               .HasForeignKey(x => x.LayerID);
+            });
+            modelBuilder.Entity<AnalyticalLayerResult>(entity =>
+            {
+                entity.HasKey(al => al.LayerResultID);
+            });
+            modelBuilder.Entity<FiveLevelInterpretation>(entity =>
+            {
+                entity.HasKey(al => al.InterpretationID);
+            });
 
             base.OnModelCreating(modelBuilder);
         }

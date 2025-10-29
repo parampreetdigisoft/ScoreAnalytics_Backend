@@ -1,3 +1,4 @@
+using AssessmentPlatform.Backgroundjob;
 using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Middlware;
@@ -45,6 +46,11 @@ namespace AssessmentPlatform
 
             // Dependency Injection for Services
             services.AddHttpContextAccessor();
+
+            services.AddHostedService<ChannelWorker>();
+            services.AddSingleton<ChannelService>();
+            services.AddScoped<Download>();
+
             services.AddScoped<IQuestionService, QuestionService>();
             services.AddScoped<IUserService, UserService>();
             services.AddScoped<IPillarService, PillarService>();
@@ -56,6 +62,7 @@ namespace AssessmentPlatform
             services.AddScoped<ICityUserService, CityUserService>();
             services.AddScoped<IPaymentService, PaymentService>();
             services.AddScoped<IPublicService, PublicService>();
+            services.AddScoped<IKpiService, KpiService>();
 
 
             services.AddCors(options =>

@@ -4,26 +4,23 @@ namespace AssessmentPlatform.Backgroundjob
 {
     public class ChannelService
     {
-        private readonly Dictionary<string, Channel<string>> _channels = new();
-
-        public Channel<string> GetChannel(string channelName)
+        public ChannelService()
         {
-            if (!_channels.ContainsKey(channelName))
-            {
-                _channels[channelName] = Channel.CreateUnbounded<string>();
-            }
-            return _channels[channelName];
+            var options = new UnboundedChannelOptions { SingleReader = false, SingleWriter = false };
+            UnboundedChannel = Channel.CreateUnbounded<Download>(options);
         }
 
-        public async Task SendMessageAsync(string channelName, string message)
+        private Channel<Download> UnboundedChannel { get; }
+
+
+        public void Write(Download shipmentInboundV2Channel)
         {
-            var channel = GetChannel(channelName);
-            await channel.Writer.WriteAsync(message);
+            UnboundedChannel.Writer.TryWrite(shipmentInboundV2Channel);
         }
 
-        public ChannelReader<string> GetReader(string channelName)
+        public async Task<Download> Read()
         {
-            return GetChannel(channelName).Reader;
+            return await UnboundedChannel.Reader.ReadAsync();
         }
     }
 }
