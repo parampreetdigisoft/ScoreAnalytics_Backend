@@ -1,12 +1,12 @@
 ﻿using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
-using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.kpiDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -34,13 +34,16 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                Expression<Func<AnalyticalLayerResult,bool>> expression = x => 
+                (!request.CityID.HasValue || x.CityID == request.CityID)
+                && (!request.LayerID.HasValue || x.LayerID == request.LayerID)
+                && (x.LastUpdated.Year == request.UpdatedAt.Year);
+
                 var query = _context.AnalyticalLayerResults
                     .Include(ar => ar.AnalyticalLayer)
                         .ThenInclude(al => al.FiveLevelInterpretations)
                     .Include(ar => ar.City)
-                    .Where(ar => ar.LastUpdated.Year == request.UpdatedAt.Year &&
-                                (!request.CityID.HasValue || ar.CityID == request.CityID)
-                           )
+                    .Where(expression)
                     .Select(ar => new GetAnalyticalLayerResultDto
                     {
                         LayerResultID = ar.LayerResultID,
@@ -75,6 +78,22 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error occurred in GetAnalyticalLayers", ex);
                 return new PaginationResponse<GetAnalyticalLayerResultDto>();
+            }
+        }
+        public async Task<ResultResponseDto<List<AnalyticalLayer>>> GetAllKpi()
+        {
+            try
+            {
+                var result = await _context.AnalyticalLayers
+                    .Where(ar => !ar.IsDeleted)
+                    .ToListAsync();
+                    
+                 return ResultResponseDto<List<AnalyticalLayer>>.Success(result); 
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetAnalyticalLayers", ex);
+                return  ResultResponseDto<List<AnalyticalLayer>>.Failure(new List<string> { "an error occure"});
             }
         }
     }
