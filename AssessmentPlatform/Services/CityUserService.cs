@@ -165,9 +165,8 @@ namespace AssessmentPlatform.Services
                 };
                 // ✅ Pre-fetch total pillars and questions
                 var pillarStats = await _context.Pillars
-                    .Where(x => x.DisplayOrder < pillarPredicate)
                     .OrderBy(x => x.DisplayOrder)
-                    .Select(p => new { p.PillarID, p.PillarName, QuestionCount = p.Questions.Count() })
+                    .Select(p => new { p.PillarID, p.PillarName,p.ImagePath,IsAccess = p.DisplayOrder < pillarPredicate,  QuestionCount = p.Questions.Count() })
                     .ToListAsync();
 
                 int totalPillars = pillarStats.Count;
@@ -208,16 +207,22 @@ namespace AssessmentPlatform.Services
                                 ? totalAnsScore * 100m / (scoreCount * 4m * userCount)
                                 : 0m;
 
-                            return new CityPillarQuestionHistoryReponseDto
+                            var detail = new CityPillarQuestionHistoryReponseDto
                             {
                                 PillarID = p.PillarID,
                                 PillarName = p.PillarName,
-                                Score = totalAnsScore,
-                                ScoreProgress = progress,
-                                AnsPillar = paGroup.Any() ? 1 : 0,
-                                TotalQuestion = p.QuestionCount * userCount,
-                                AnsQuestion = paGroup.Sum(pg => pg.Responses.Count)
+                                ImagePath = p.ImagePath,
+                                IsAccess = p.IsAccess
                             };
+                            if (p.IsAccess)
+                            {
+                                detail.Score = totalAnsScore;
+                                detail.ScoreProgress = progress;
+                                detail.AnsPillar = paGroup.Any() ? 1 : 0;
+                                detail.TotalQuestion = p.QuestionCount * userCount;
+                                detail.AnsQuestion = paGroup.Sum(pg => pg.Responses.Count);
+                            }
+                            return detail;
                         })
                     .ToList();
 

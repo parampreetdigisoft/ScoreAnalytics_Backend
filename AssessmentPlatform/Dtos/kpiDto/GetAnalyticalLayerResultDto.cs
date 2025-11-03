@@ -13,7 +13,7 @@ namespace AssessmentPlatform.Dtos.kpiDto
         public decimal? CalValue2 { get; set; }
         public decimal? CalValue3 { get; set; }
         public decimal? CalValue4 { get; set; }
-        public string? CalValue5 { get; set; }
+        public decimal? CalValue5 { get; set; }
         public DateTime LastUpdated { get; set; } = DateTime.Now;
 
         public string LayerCode { get; set; } = string.Empty;

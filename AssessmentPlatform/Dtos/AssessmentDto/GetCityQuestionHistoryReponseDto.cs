@@ -24,11 +24,13 @@
     {
         public int PillarID { get; set; }
         public string PillarName { get; set; }
-        public decimal Score { get; set; }
-        public decimal ScoreProgress { get; set; }
-        public int AnsPillar { get; set; }
-        public int TotalQuestion { get; set; }
-        public int AnsQuestion { get; set; }
+        public string ImagePath { get; set; }
+        public bool IsAccess { get; set; } = false;
+        public decimal Score { get; set; }=0;
+        public decimal ScoreProgress { get; set; } = 0;
+        public int AnsPillar { get; set; } = 0;
+        public int TotalQuestion { get; set; } = 0;
+        public int AnsQuestion { get; set; } = 0;
     }
     public class GetAssessmentHistoryDto
     {
