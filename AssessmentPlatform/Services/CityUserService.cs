@@ -6,6 +6,7 @@ using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
@@ -163,10 +164,12 @@ namespace AssessmentPlatform.Services
                     Enums.TieredAccessPlan.Premium => 15,
                     _ => 15
                 };
+
+                var choicePillarIds = _context.CityUserPillarMappings.Where(x => x.UserID == userID).Select(x=>x.PillarID);
                 // ✅ Pre-fetch total pillars and questions
                 var pillarStats = await _context.Pillars
                     .OrderBy(x => x.DisplayOrder)
-                    .Select(p => new { p.PillarID, p.PillarName,p.ImagePath,IsAccess = p.DisplayOrder < pillarPredicate,  QuestionCount = p.Questions.Count() })
+                    .Select(p => new { p.PillarID, p.PillarName,p.ImagePath,IsAccess = choicePillarIds.Any(x=>x == p.PillarID),  QuestionCount = p.Questions.Count() })
                     .ToListAsync();
 
                 int totalPillars = pillarStats.Count;
@@ -741,6 +744,105 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<List<CityPillarQuestionDetailsDto>>.Failure(new[] { "There is an error, please try later" });
             }
         }
+        public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetCityUserCities(int userID)
+        {
+            try
+            {
+                var result = await _context.PublicUserCityMappings
+                    .Where(m => m.UserID == userID && !m.IsDeleted && m.City != null)
+                    .Select(m => new PartnerCityResponseDto
+                    {
+                        CityID = m.City.CityID,
+                        State = m.City.State,
+                        CityName = m.City.CityName,
+                        PostalCode = m.City.PostalCode,
+                        Region = m.City.Region,
+                        Country = m.City.Country
+                    })
+                    .OrderBy(x => x.CityName)
+                    .ToListAsync();
 
+                return ResultResponseDto<List<PartnerCityResponseDto>>.Success(
+                    result,
+                    new[] { "Fetched all assigned cities successfully." }
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetCityUserCities", ex);
+                return ResultResponseDto<List<PartnerCityResponseDto>>.Failure(
+                    new[] { "There was an error. Please try again later." }
+                );
+            }
+        }
+
+        public async Task<ResultResponseDto<string>> AddCityUserKpisCityAndPillar(AddCityUserKpisCityAndPillar payload, int userId, string tierName)
+        {
+            try
+            {
+                // Fetch all existing mappings in one go (async)
+                var existingCitiesTask = await _context.PublicUserCityMappings
+                    .Where(m => m.UserID == userId)
+                    .ToListAsync();
+
+                var existingPillarsTask = await _context.CityUserPillarMappings
+                    .Where(m => m.UserID == userId)
+                    .ToListAsync();
+
+                var existingKpisTask = await _context.CityUserKpiMappings
+                    .Where(m => m.UserID == userId)
+                    .ToListAsync();
+
+                
+
+                // Remove existing mappings
+                _context.PublicUserCityMappings.RemoveRange(existingCitiesTask);
+                _context.CityUserPillarMappings.RemoveRange(existingPillarsTask);
+                _context.CityUserKpiMappings.RemoveRange(existingKpisTask);
+
+                var utcNow = DateTime.UtcNow;
+
+                // Add new city mappings
+                var newCityMappings = payload.Cities.Select(cityId => new PublicUserCityMapping
+                {
+                    CityID = cityId,
+                    UserID = userId,
+                    IsDeleted = false,
+                    UpdatedAt = utcNow
+                });
+
+                // Add new pillar mappings
+                var newPillarMappings = payload.Pillars.Select(pillarId => new CityUserPillarMapping
+                {
+                    PillarID = pillarId,
+                    UserID = userId,
+                    IsDeleted = false,
+                    UpdatedAt = utcNow
+                });
+
+                // Add new KPI mappings
+                var newKpiMappings = payload.Kpis.Select(kpiId => new CityUserKpiMapping
+                {
+                    LayerID = kpiId,
+                    UserID = userId,
+                    IsDeleted = false,
+                    UpdatedAt = utcNow
+                });
+
+                // Bulk insert
+                await _context.PublicUserCityMappings.AddRangeAsync(newCityMappings);
+                await _context.CityUserPillarMappings.AddRangeAsync(newPillarMappings);
+                await _context.CityUserKpiMappings.AddRangeAsync(newKpiMappings);
+
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<string>.Success("", new[] { "User mappings updated successfully." });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in AddCityUserKpisCityAndPillar", ex);
+                return ResultResponseDto<string>.Failure(new[] { "There was an error. Please try again later." });
+            }
+        }
     }
 }

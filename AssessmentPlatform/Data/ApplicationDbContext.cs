@@ -22,6 +22,8 @@ namespace AssessmentPlatform.Data
         public DbSet<AnalyticalLayer> AnalyticalLayers { get; set; } = default!;
         public DbSet<FiveLevelInterpretation> FiveLevelInterpretations { get; set; } = default!;
         public DbSet<AnalyticalLayerResult> AnalyticalLayerResults { get; set; } = default!;
+        public DbSet<CityUserKpiMapping> CityUserKpiMappings { get; set; } = default!;
+        public DbSet<CityUserPillarMapping> CityUserPillarMappings { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -94,6 +96,9 @@ namespace AssessmentPlatform.Data
             {
                 entity.HasKey(al => al.InterpretationID);
             });
+
+            modelBuilder.Entity<CityUserKpiMapping>().HasKey(ur => ur.CityUserKpiMappingID);
+            modelBuilder.Entity<CityUserPillarMapping>().HasKey(ur => ur.CityUserPillarMappingID);
 
             base.OnModelCreating(modelBuilder);
         }

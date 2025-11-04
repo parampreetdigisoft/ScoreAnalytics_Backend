@@ -116,6 +116,35 @@ namespace AssessmentPlatform.Controllers
             var result = await _cityUserService.GetCityPillarDetails(userCityRequstDto);
             return Ok(result);
         }
+        [HttpGet("getCityUserCities")]
+        public async Task<IActionResult> GetCityUserCities()
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
+            var response = await _cityUserService.GetCityUserCities(userId.Value);
+            return Ok(response);
+        }
+        [HttpPost("addCityUserKpisCityAndPillar")]
+        public async Task<IActionResult> AddCityUserKpisCityAndPillar([FromBody] AddCityUserKpisCityAndPillar b)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
+            var response = await _cityUserService.AddCityUserKpisCityAndPillar(b, userId.GetValueOrDefault(), tierName);
+            return Ok(response);
+        }
+
     }
 
 }
