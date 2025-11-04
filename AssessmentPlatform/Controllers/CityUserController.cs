@@ -144,7 +144,36 @@ namespace AssessmentPlatform.Controllers
             var response = await _cityUserService.AddCityUserKpisCityAndPillar(b, userId.GetValueOrDefault(), tierName);
             return Ok(response);
         }
+        [HttpGet]
+        [Route("getCityUserKpi")]
+        public async Task<IActionResult> GetCityUserKpi()
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
 
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
+            var result = await _cityUserService.GetCityUserKpi(userId.GetValueOrDefault(), tierName);
+            return Ok(result);
+        }
+
+        [HttpPost]
+        [Route("compareCities")]
+        public async Task<IActionResult> CompareCities([FromBody] CompareCityRequestDto r)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
+            var result = await _cityUserService.CompareCities(r,userId.GetValueOrDefault(), tierName);
+            return Ok(result);
+        }
     }
-
 }

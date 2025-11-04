@@ -6,10 +6,12 @@ using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Dtos.kpiDto;
 using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -168,9 +170,19 @@ namespace AssessmentPlatform.Services
                 var choicePillarIds = _context.CityUserPillarMappings.Where(x => x.UserID == userID).Select(x=>x.PillarID);
                 // ✅ Pre-fetch total pillars and questions
                 var pillarStats = await _context.Pillars
-                    .OrderBy(x => x.DisplayOrder)
-                    .Select(p => new { p.PillarID, p.PillarName,p.ImagePath,IsAccess = choicePillarIds.Any(x=>x == p.PillarID),  QuestionCount = p.Questions.Count() })
+                    .Select(p => new
+                    {
+                        p.PillarID,
+                        p.PillarName,
+                        p.ImagePath,
+                        IsAccess = choicePillarIds.Contains(p.PillarID),
+                        p.DisplayOrder,
+                        QuestionCount = p.Questions.Count()
+                    })
+                    .OrderByDescending(x => x.IsAccess) 
+                    .ThenBy(x => x.DisplayOrder)        
                     .ToListAsync();
+
 
                 int totalPillars = pillarStats.Count;
                 int totalQuestions = pillarStats.Sum(p => p.QuestionCount);
@@ -347,7 +359,8 @@ namespace AssessmentPlatform.Services
                 // Base city query
                 var query =
                     from c in _context.Cities
-                    where !c.IsDeleted
+                    join pc in _context.PublicUserCityMappings on c.CityID equals pc.CityID
+                    where !c.IsDeleted && !pc.IsDeleted
                     select new
                     {
                         City = c,
@@ -533,7 +546,6 @@ namespace AssessmentPlatform.Services
                 var allPillars = await _context.Pillars
                     .Include(x=>x.Questions)
                     .ThenInclude(x=>x.QuestionOptions)
-                    .OrderBy(x=>x.DisplayOrder)
                     .AsNoTracking()
                     .ToListAsync();
 
@@ -548,6 +560,8 @@ namespace AssessmentPlatform.Services
                     .SelectMany(p => p.Responses)
                     .Where(r => r != null)
                     .ToList();
+
+                var accessPillarsIds = await _context.CityUserPillarMappings.Where(x => x.UserID == userCityRequstDto.UserID).Select(x => x.PillarID).ToListAsync();
 
                 var validResponses = allResponses
                     .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
@@ -584,7 +598,8 @@ namespace AssessmentPlatform.Services
                             ? (totalScore * 100M) / (answeredQuestions * 4M * assessments.Count)
                             : 0M;
 
-                        var isAccess = IsPillarAccess(userCityRequstDto.Tiered, p.DisplayOrder);
+
+                        var isAccess = accessPillarsIds.Any(x=>p.PillarID == x);
 
                         if (isAccess)
                         {
@@ -593,6 +608,7 @@ namespace AssessmentPlatform.Services
                                 PillarID = p.PillarID,
                                 PillarName = p.PillarName,
                                 TotalPillar = paForPillar.Count,
+                                DisplayOrder = p.DisplayOrder,
                                 TotalAnsPillar = paForPillar.Count(x => x.Responses.Any()),
                                 TotalQuestion = totalQuestions,
                                 AnsQuestion = answeredQuestions,
@@ -610,10 +626,13 @@ namespace AssessmentPlatform.Services
                             return new CityPillarDetailsDto
                             {
                                 PillarID = p.PillarID,
-                                PillarName = p.PillarName
+                                PillarName = p.PillarName,
+                                DisplayOrder = p.DisplayOrder
                             };
                         }
                     })
+                    .OrderByDescending(x => x.IsAccess)
+                    .ThenBy(x => x.DisplayOrder)
                     .ToList();
 
                 // 7. Compute high/low pillar scores for summary
@@ -844,5 +863,118 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "There was an error. Please try again later." });
             }
         }
+        public async Task<ResultResponseDto<List<AnalyticalLayer>>> GetCityUserKpi(int userId, string tierName)
+        {
+            try
+            {
+                // Get valid KPI IDs for the user (only non-deleted mappings)
+                var validKpiIds = await _context.CityUserKpiMappings
+                    .Where(x => !x.IsDeleted && x.UserID == userId)
+                    .Select(x => x.LayerID)
+                    .ToListAsync();
+
+                if (!validKpiIds.Any())
+                {
+                    return ResultResponseDto<List<AnalyticalLayer>>.Failure(new List<string> { "you don't have kpi access." });
+                }
+
+                // Fetch Analytical Layers that match the user's KPI access
+                var result = await _context.AnalyticalLayers
+                    .Where(ar => !ar.IsDeleted && validKpiIds.Contains(ar.LayerID))
+                    .ToListAsync();
+
+                return ResultResponseDto<List<AnalyticalLayer>>.Success(result);
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetCityUserKpi", ex);
+                return ResultResponseDto<List<AnalyticalLayer>>.Failure(new List<string> { "An error occurred while fetching user KPIs." });
+            }
+        }
+
+        public async Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, string tierName)
+        {
+            try
+            {
+                // Step 1: Get valid KPI IDs for the user (only non-deleted mappings)
+                var validKpiIds = await _context.CityUserKpiMappings
+                    .Where(x => !x.IsDeleted && x.UserID == userId)
+                    .Select(x => x.LayerID)
+                    .ToListAsync();
+
+                if (!validKpiIds.Any())
+                {
+                    return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "You don't have KPI access." });
+                }
+
+                // Step 2: Build query for Analytical Layer Results
+                Expression<Func<AnalyticalLayerResult, bool>> expression = x =>
+                    c.Cities.Contains(x.CityID) &&
+                    x.LastUpdated.Year == c.UpdatedAt.Year &&
+                    validKpiIds.Contains(x.LayerID);
+
+                var cityResults = await _context.AnalyticalLayerResults
+                    .Include(ar => ar.AnalyticalLayer)
+                        .ThenInclude(al => al.FiveLevelInterpretations)
+                    .Include(ar => ar.City)
+                    .Where(expression)
+                    .Select(ar => new GetAnalyticalLayerResultDto
+                    {
+                        LayerResultID = ar.LayerResultID,
+                        LayerID = ar.LayerID,
+                        CityID = ar.CityID,
+                        InterpretationID = ar.InterpretationID,
+                        CalValue5 = ar.CalValue5,
+                        LastUpdated = ar.LastUpdated,
+                        LayerCode = ar.AnalyticalLayer.LayerCode,
+                        LayerName = ar.AnalyticalLayer.LayerName,
+                        Purpose = ar.AnalyticalLayer.Purpose,
+                        CalText1 = ar.AnalyticalLayer.CalText1,
+                        CalText2 = ar.AnalyticalLayer.CalText2,
+                        CalText3 = ar.AnalyticalLayer.CalText3,
+                        CalText4 = ar.AnalyticalLayer.CalText4,
+                        CalText5 = ar.AnalyticalLayer.CalText5,
+                        FiveLevelInterpretations = ar.AnalyticalLayer.FiveLevelInterpretations,
+                        City = ar.City
+                    })
+                    .ToListAsync();
+
+                // Step 3: Group by City and map KPIs
+                var groupedData = cityResults
+                    .GroupBy(x => new { x.CityID, x.City?.CityName })
+                    .Select(g => new CompareCitiesDto
+                    {
+                        CityID = g.Key.CityID,
+                        CityName = g.Key?.CityName ?? "",
+                        Kpis = g.Select(k => new GetAnalyticalLayerSimpleResultDto
+                        {
+                            LayerResultID = k.LayerResultID,
+                            LayerID = k.LayerID,
+                            InterpretationID = k.InterpretationID,
+                            Condition = k.FiveLevelInterpretations?.FirstOrDefault(fi => fi.InterpretationID == k.InterpretationID)?.Condition ?? "",
+                            CalValue5 = k.CalValue5,
+                            LastUpdated = k.LastUpdated,
+                            LayerCode = k.LayerCode,
+                            LayerName = k.LayerName,
+                            CalText5 = k.CalText5
+                        }).ToList()
+                    })
+                    .ToList();
+
+                // Step 4: Prepare final response DTO
+                var response = new CompareCityResponseDto
+                {
+                    Cities = groupedData
+                };
+
+                return ResultResponseDto<CompareCityResponseDto>.Success(response);
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in CompareCities", ex);
+                return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "An error occurred while comparing cities." });
+            }
+        }
+
     }
 }

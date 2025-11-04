@@ -20,6 +20,7 @@
     {
         public int PillarID { get; set; } = 0;
         public string PillarName { get; set; }
+        public int DisplayOrder { get; set; } = 0;
         public decimal TotalScore { get; set; } = 0;
         public decimal ScoreProgress { get; set; } = 0;
         public int TotalPillar { get; set; } = 0;

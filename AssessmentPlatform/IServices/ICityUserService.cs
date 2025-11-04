@@ -3,7 +3,9 @@ using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Dtos.kpiDto;
 using AssessmentPlatform.Dtos.PublicDto;
+using AssessmentPlatform.Models;
 
 namespace AssessmentPlatform.IServices
 {
@@ -17,5 +19,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<CityDetailsDto>> GetCityDetails(UserCityRequstDto userCityRequstDto);
         Task<ResultResponseDto<List<CityPillarQuestionDetailsDto>>> GetCityPillarDetails(UserCityGetPillarInfoRequstDto userCityRequstDto);
         Task<ResultResponseDto<string>> AddCityUserKpisCityAndPillar(AddCityUserKpisCityAndPillar payload,int userID, string tierName);
+        Task<ResultResponseDto<List<AnalyticalLayer>>> GetCityUserKpi(int userID, string tierName);
+        Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, string tierName);
     }
 }
