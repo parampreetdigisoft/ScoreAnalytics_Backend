@@ -79,19 +79,22 @@ namespace AssessmentPlatform.Services
                         : 0
                 }).ToList();
 
+                var accessCity = _context.PublicUserCityMappings.Where(x => x.UserID == userID).Select(x=>x.CityID);
                 // Then your aggregation logic
                 cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
+                cityHistory.TotalAccessCity = accessCity.Count();
                 cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
 
                 var cityScores = cityQuery
                     .GroupBy(x => x.CityID)
-                    .Select(g => Convert.ToDecimal(g.Sum(s => s.Score)) / (g.Count() * 4))
+                    .Select(g => new {g.Key, Score = Convert.ToDecimal(g.Sum(s => s.Score)) / (g.Count() * 4) })
                     .ToList();
 
                 if (cityScores.Any())
                 {
-                    cityHistory.AvgHighScore = cityScores.Max();
-                    cityHistory.AvgLowerScore = cityScores.Min();
+                    cityHistory.AvgHighScore = cityScores.Where(x=> accessCity.Contains(x.Key)).Max(x=>x.Score);
+                    cityHistory.AvgLowerScore = cityScores.Where(x => accessCity.Contains(x.Key)).Min(x => x.Score);
+                    cityHistory.OverallVitalityScore = cityScores.Where(x => accessCity.Contains(x.Key)).Average(x => x.Score);
                 }
                 else
                 {
@@ -946,6 +949,7 @@ namespace AssessmentPlatform.Services
                     {
                         CityID = g.Key.CityID,
                         CityName = g.Key?.CityName ?? "",
+                        ImageUrl = g.FirstOrDefault()?.City?.Image ?? "",
                         Kpis = g.Select(k => new GetAnalyticalLayerSimpleResultDto
                         {
                             LayerResultID = k.LayerResultID,
@@ -956,7 +960,8 @@ namespace AssessmentPlatform.Services
                             LastUpdated = k.LastUpdated,
                             LayerCode = k.LayerCode,
                             LayerName = k.LayerName,
-                            CalText5 = k.CalText5
+                            CalText5 = k.CalText5,
+                            IsAccess=true,
                         }).ToList()
                     })
                     .ToList();

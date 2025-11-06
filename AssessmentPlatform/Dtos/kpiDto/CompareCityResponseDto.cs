@@ -8,6 +8,7 @@
     {
          public int CityID { get; set; }
          public string CityName { get; set; }
+        public string ImageUrl { get; set; } = string.Empty;
         public List<GetAnalyticalLayerSimpleResultDto> Kpis { get; set; }
     }
 }
