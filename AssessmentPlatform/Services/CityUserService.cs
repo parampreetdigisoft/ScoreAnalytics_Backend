@@ -363,7 +363,7 @@ namespace AssessmentPlatform.Services
                 var query =
                     from c in _context.Cities
                     join pc in _context.PublicUserCityMappings on c.CityID equals pc.CityID
-                    where !c.IsDeleted && !pc.IsDeleted
+                    where !c.IsDeleted && !pc.IsDeleted && pc.UserID == request.UserId
                     select new
                     {
                         City = c,
