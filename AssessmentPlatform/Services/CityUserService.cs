@@ -394,7 +394,7 @@ namespace AssessmentPlatform.Services
                     UpdatedDate = x.City.UpdatedDate,
                     IsActive = x.City.IsActive,
                     Score = Convert.ToDecimal(x.Score) 
-                });
+                }).Distinct();
 
                 // Apply search filter
                 if (!string.IsNullOrEmpty(request.SearchText))

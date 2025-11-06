@@ -683,7 +683,6 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
             }
         }
-        #endregion
         public async Task<ResultResponseDto<UserResponseDto>> CityUserSignUp(CityUserSignUpDto request)
         {
             try
@@ -836,6 +835,6 @@ namespace AssessmentPlatform.Services
                 );
             }
         }
-
+        #endregion
     }
 }
