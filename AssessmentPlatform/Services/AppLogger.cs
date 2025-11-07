@@ -1,31 +1,20 @@
-﻿using AssessmentPlatform.Data;
+﻿using AssessmentPlatform.Backgroundjob;
 using AssessmentPlatform.IServices;
-using AssessmentPlatform.Models;
-using System;
-
 namespace AssessmentPlatform.Services
 {
     public class AppLogger : IAppLogger
     {
-        private readonly ApplicationDbContext _db;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        public AppLogger(ApplicationDbContext db, IHttpContextAccessor httpContextAccessor)
+        private readonly Download _download;
+        public AppLogger(IHttpContextAccessor httpContextAccessor, Download download)
         {
-            _db = db;
+            _download = download;
             _httpContextAccessor = httpContextAccessor;
         }
 
-        public async Task LogAsync(string message, Exception ex = null)
+        public  Task LogAsync(string message, Exception ex = null)
         {
-            var log = new AppLogs
-            {
-                Level = GetCurrentUrl() ?? "_",
-                Message = message,
-                Exception = ex?.ToString() ?? ""
-            };
-
-            _db.AppLogs.Add(log);
-            await _db.SaveChangesAsync();
+            return _download.LogException(GetCurrentUrl() ?? "_", message, ex?.ToString() ?? "");
         }
 
         public string? GetCurrentUrl()

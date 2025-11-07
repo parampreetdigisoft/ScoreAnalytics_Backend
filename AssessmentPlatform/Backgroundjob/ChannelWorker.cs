@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Data;
+using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace AssessmentPlatform.Backgroundjob
@@ -19,7 +20,8 @@ namespace AssessmentPlatform.Backgroundjob
 
             _actionHandlers = new Dictionary<string, Func<Download, Task>>
             {
-                { "InsertAnalyticalLayerResults", InsertAnalyticalLayerResults }
+                { "InsertAnalyticalLayerResults", InsertAnalyticalLayerResults },
+                { "LogException", LogException },
             };
         }
 
@@ -93,6 +95,22 @@ namespace AssessmentPlatform.Backgroundjob
             {
                 // log exception
             }
+        }
+
+        private async Task LogException(Download channel)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await Task.Delay(10000);
+            var log = new AppLogs
+            {
+                Level = channel.Level,
+                Message = channel.Message,
+                Exception = channel.Exception
+            };
+
+            dbContext.AppLogs.Add(log);
+            await dbContext.SaveChangesAsync();
         }
     }
 }
