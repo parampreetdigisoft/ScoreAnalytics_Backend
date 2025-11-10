@@ -74,7 +74,11 @@ namespace AssessmentPlatform
                         "http://3.128.142.109:4200",
                         "http://172.31.36.74:4200",
                         "http://veridianurbansystems.com",
-                        "https://veridianurbansystems.com"
+                        "https://veridianurbansystems.com",
+                        "http://3.128.142.109:8081",
+                        "https://3.128.142.109:8081",
+                        "http://portal.veridianurbansystems.com",
+                        "https://portal.veridianurbansystems.com"
                         )
                         .AllowAnyHeader()
                         .AllowAnyMethod()
