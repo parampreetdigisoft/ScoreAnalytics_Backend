@@ -21,5 +21,6 @@ namespace AssessmentPlatform.Models
         public string? ProfileImagePath { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public TieredAccessPlan? Tier { get; set; }
+        public bool Is2FAEnabled { get; set; } = false;
     }
 }

@@ -10,5 +10,6 @@ namespace AssessmentPlatform.Dtos.UserDtos
         public string Password { get; set; }
         public UserRole Role { get; set; }
         public bool IsConfrimed { get; set; } = false;
+        public bool Is2FAEnabled { get; set; } = false;
     }
 }

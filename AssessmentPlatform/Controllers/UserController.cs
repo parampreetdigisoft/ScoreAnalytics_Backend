@@ -23,18 +23,46 @@ namespace AssessmentPlatform.Controllers
 
             return Created($"", new() { });
         }
+        private int? GetUserIdFromClaims()
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
 
+            return null;
+        }
         [HttpGet]
         [Route("GetUserByRoleWithAssignedCity")]
-        public async Task<IActionResult> GetUserByRoleWithAssignedCity([FromQuery] GetUserByRoleRequestDto request) => Ok(await _userService.GetUserByRoleWithAssignedCity(request));
+        public async Task<IActionResult> GetUserByRoleWithAssignedCity([FromQuery] GetUserByRoleRequestDto request)
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != request.UserID)
+                return Unauthorized("User ID not found.");
+
+            return Ok(await _userService.GetUserByRoleWithAssignedCity(request));
+        }
 
         [HttpGet]
         [Route("GetEvaluatorByAnalyst")]
-        public async Task<IActionResult> GetEvaluatorByAnalyst([FromQuery] GetAssignUserDto request) => Ok(await _userService.GetEvaluatorByAnalyst(request));
+        public async Task<IActionResult> GetEvaluatorByAnalyst([FromQuery] GetAssignUserDto request)
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != request.UserID)
+                return Unauthorized("User ID not found.");
+
+            return Ok(await _userService.GetEvaluatorByAnalyst(request));
+        }
 
         [HttpPost]
         [Route("updateUser")]
-        public async Task<IActionResult> UpdateUser([FromForm] UpdateUserDto dto) => Ok(await _userService.UpdateUser(dto));
+        public async Task<IActionResult> UpdateUser([FromForm] UpdateUserDto dto)
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != dto.UserID)
+                return Unauthorized("User ID not found.");
+
+            return Ok(await _userService.UpdateUser(dto));
+        }
 
 
         [HttpGet]

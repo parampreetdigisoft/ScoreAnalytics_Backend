@@ -23,5 +23,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<UserResponseDto>> CityUserSignUp(CityUserSignUpDto request);
         Task<ResultResponseDto<object>> ConfirmMail(string passwordToken);
         Task<ResultResponseDto<object>> ContactUs(ContactUsRequestDto passwordToken);
+        Task<ResultResponseDto<UserResponseDto>> TwofaVerification(string email, int otp);
+        Task<ResultResponseDto<string>> ReSendLoginOtp(string email);
     }
 }

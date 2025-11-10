@@ -16,12 +16,27 @@ namespace AssessmentPlatform.Controllers
         {
             _cityService = cityService;
         }
+        private int? GetUserIdFromClaims()
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
+
+            return null;
+        }
 
         [HttpGet("cities")]
         public async Task<IActionResult> GetCities([FromQuery] PaginationRequest request) => Ok(await _cityService.GetCitiesAsync(request));
 
         [HttpGet("getAllCityByUserId/{userId}")]
-        public async Task<IActionResult> getAllCityByUserId(int userId) => Ok(await _cityService.getAllCityByUserId(userId));
+        public async Task<IActionResult> getAllCityByUserId(int userId)
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != userId)
+                return Unauthorized("User ID not found.");
+
+            return Ok(await _cityService.getAllCityByUserId(userId));
+        }
 
         [HttpGet("cities/{id}")]
         public async Task<IActionResult> GetByIdAsync(int id) => Ok(await _cityService.GetByIdAsync(id));
@@ -63,6 +78,11 @@ namespace AssessmentPlatform.Controllers
         [Route("assignCity")]
         public async Task<IActionResult> AssignCity([FromBody] UserCityMappingRequestDto q)
         {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found.");
+
+            q.UserId = userId.Value;
             var result = await _cityService.AssingCityToUser(q.UserId, q.CityId, q.AssignedByUserId);
             return Ok(result);
         }
@@ -72,6 +92,10 @@ namespace AssessmentPlatform.Controllers
         [Route("assignCity/{id}")]
         public async Task<IActionResult> EditAssignCity(int id, [FromBody] UserCityMappingRequestDto q)
         {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != q.AssignedByUserId)
+                return Unauthorized("User ID not found.");
+
             var result = await _cityService.EditAssingCity(id, q.UserId,q.CityId,q.AssignedByUserId);
             if (result == null) return NotFound();
             return Ok(result);
@@ -82,6 +106,10 @@ namespace AssessmentPlatform.Controllers
         [Route("unAssignCity")]
         public async Task<IActionResult> UnAssignCity([FromBody] UserCityUnMappingRequestDto requestDto)
         {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != requestDto.AssignedByUserId)
+                return Unauthorized("User ID not found.");
+
             var result = await _cityService.UnAssignCity(requestDto);
             return Ok(result);
         }
@@ -91,6 +119,10 @@ namespace AssessmentPlatform.Controllers
         [Route("getCityByUserIdForAssessment/{userId}")]
         public async Task<IActionResult> GetCityByUserIdForAssessment(int userId)
         {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != userId)
+                return Unauthorized("User ID not found.");
+
             var result = await _cityService.GetCityByUserIdForAssessment(userId);
             return Ok(result);
         }
@@ -100,6 +132,10 @@ namespace AssessmentPlatform.Controllers
         [Route("getCityHistory/{userID}/{updatedAt}")]
         public async Task<IActionResult> GetCityHistory(int userID, DateTime updatedAt)
         {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != userID)
+                return Unauthorized("User ID not found.");
+
             var result = await _cityService.GetCityHistory(userID, updatedAt);
             return Ok(result);
         }
@@ -109,6 +145,10 @@ namespace AssessmentPlatform.Controllers
         [Route("getCitiesProgressByUserId/{userID}/{updatedAt}")]
         public async Task<IActionResult> getCitiesProgressByUserId(int userID,DateTime updatedAt)
         {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != userID)
+                return Unauthorized("User ID not found.");
+
             var result = await _cityService.GetCitiesProgressByUserId(userID, updatedAt);
             return Ok(result);
         }

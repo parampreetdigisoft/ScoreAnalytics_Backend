@@ -15,5 +15,6 @@
         public string AdminEmail { get; init; }
         public string ApiUrl { get; set; }
         public string ApplicationInfoMail { get; set; }
+        public int OTPExpiryValidMinutes { get; set; }
     }
 }

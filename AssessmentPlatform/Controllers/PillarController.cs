@@ -2,6 +2,7 @@ using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.PillarDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,6 +17,14 @@ namespace AssessmentPlatform.Controllers
         public PillarController(IPillarService pillarService)
         {
             _pillarService = pillarService;
+        }
+        private int? GetUserIdFromClaims()
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
+
+            return null;
         }
 
         [HttpGet]
@@ -61,6 +70,10 @@ namespace AssessmentPlatform.Controllers
         [HttpPost("GetPillarsHistoryByUserId")]
         public async Task<IActionResult> GetPillarsHistoryByUserId([FromBody] GetCityPillarHistoryRequestDto requestDto)
         {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != requestDto.UserID)
+                return Unauthorized("User ID not found.");
+
             var response = await _pillarService.GetPillarsHistoryByUserId(requestDto);
             return Ok(response);
         }
@@ -69,6 +82,10 @@ namespace AssessmentPlatform.Controllers
         [Authorize]
         public async Task<IActionResult> ExportPillarsHistoryByUserId([FromQuery] GetCityPillarHistoryRequestDto requestDto)
         {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != requestDto.UserID)
+                return Unauthorized("User ID not found.");
+
             var content = await _pillarService.ExportPillarsHistoryByUserId(requestDto);
 
             return File(content.Item2 ?? new byte[1],

@@ -173,11 +173,35 @@ namespace AssessmentPlatform.Controllers
 
             return Ok(response);
         }
+
+        [HttpPost("twofaVerification")]
+        public async Task<IActionResult> TwofaVerification([FromBody] TwofaVerificationRequest request)
+        {
+            var user = await _authService.TwofaVerification(request.Email, request.Otp);
+            if (user == null)
+                return Unauthorized();
+            return Ok(user);
+        }
+        [HttpPost("reSendLoginOtp")]
+        public async Task<IActionResult> ReSendLoginOtp([FromBody] EmailRequest request)
+        {
+            var user = await _authService.ReSendLoginOtp(request.Email);
+            if (user == null)
+                return Unauthorized();
+            return Ok(user);
+        }
     }
 
-    public class LoginRequest
+    public class LoginRequest : EmailRequest
+    {
+        public string Password { get; set; }
+    }
+    public class TwofaVerificationRequest : EmailRequest
+    {
+        public int Otp { get; set; }
+    }
+    public class EmailRequest
     {
         public string Email { get; set; }
-        public string Password { get; set; }
     }
 } 

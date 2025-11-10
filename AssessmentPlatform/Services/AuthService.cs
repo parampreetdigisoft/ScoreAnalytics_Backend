@@ -158,15 +158,28 @@ namespace AssessmentPlatform.Services
                 {
                     return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Invalid request data." });
                 }
-                var response = GetAuthorizedUserDetails(user);
-                return response;
+                if (user.IsEmailConfirmed && !user.IsDeleted && user.Is2FAEnabled)
+                {
+                    var r = await SendTwoFactorOTPAsync(user);
+                    if (r.Succeeded) 
+                    {
+                        var sendOpt = new UserResponseDto {};
+                        return ResultResponseDto<UserResponseDto>.Success(sendOpt,
+                          new string[] { "We've sent a one-time verification code (OTP) to your registered email address. Please check your inbox and enter the OTP to continue." });
+                    }
+                    return ResultResponseDto<UserResponseDto>.Failure(new string[] { "Faild to send OTP Please try again." });
+                }
+                else
+                {
+                    var response = GetAuthorizedUserDetails(user);
+                    return response;
+                }
             }
             catch (Exception ex)
             {
                 await _appLogger.LogAsync("Error login", ex);
                 return ResultResponseDto<UserResponseDto>.Failure(new string[] { ex.Message });
             }
-
         }
         public ResultResponseDto<UserResponseDto> GetAuthorizedUserDetails(User user)
         {
@@ -701,7 +714,7 @@ namespace AssessmentPlatform.Services
                 // Register new user
                 var user = Register(request.FullName, request.Email, request.Phone, request.Password, request.Role);
                 user.IsEmailConfirmed = request.IsConfrimed;
-
+                user.Is2FAEnabled = request.Is2FAEnabled;
                 bool isMailSend = false;
                 // Send verification email
                 if (!request.IsConfrimed)
@@ -835,6 +848,99 @@ namespace AssessmentPlatform.Services
                 );
             }
         }
+
+        public async Task<ResultResponseDto<string>> SendTwoFactorOTPAsync(User user)
+        {
+            try
+            {
+                // 1️⃣ Generate secure random 6-digit OTP
+                var random = new Random();
+                var otp = random.Next(100000, 999999).ToString();
+
+                // 3️⃣ Store hashed OTP + expiry
+                user.ResetToken = otp;
+                user.ResetTokenDate = DateTime.Now; 
+
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+
+                // 4️⃣ Send the OTP via email
+                var model = new EmailInvitationSendRequestDto
+                {
+                    Title = "Two-Factor Authentication (2FA) Code",
+                    ApiUrl = _appSettings.ApiUrl,
+                    ApplicationUrl = _appSettings.ApplicationUrl,
+                    MsgText = $"Your one-time password (OTP) for login verification is <b>{otp}</b>. " +
+                               $"This code will expire in {_appSettings.OTPExpiryValidMinutes} minutes. " +
+                               $"Please do not share this code with anyone.",
+                    IsLoginBtn = false,
+                    IsShowBtnText = false,
+                    DescriptionAboutBtnText = "You are receiving this email because a login attempt was made to your VUI account. " +
+                               "If this was you, please use the above OTP to complete your sign-in. " +
+                               "If you did not request this login, please secure your account immediately by resetting your password."
+                };
+
+                var isMailSent = await _emailService.SendEmailAsync(
+                    user.Email,
+                    "Your 2FA Verification Code",
+                    "~/Views/EmailTemplates/ChangePassword.cshtml",
+                    model
+                );
+
+                if (!isMailSent)
+                    return ResultResponseDto<string>.Failure(new[] { "Failed to send OTP. Please try again." });
+
+                return ResultResponseDto<string>.Success("", new[] { "OTP sent successfully to your email." });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in SendTwoFactorOTPAsync", ex);
+                return ResultResponseDto<string>.Failure(new[] { "There was an error while sending OTP. Please try again later." });
+            }
+        }
+        public async Task<ResultResponseDto<UserResponseDto>> TwofaVerification(string email, int otp)
+        {
+            try
+            {
+                var user = await GetByEmailAysync(email);
+                if (user == null)
+                    return ResultResponseDto<UserResponseDto>.Failure(new[] { "User not found. Please check your email and try again." });
+
+                if (string.IsNullOrEmpty(user.ResetToken) || !int.TryParse(user.ResetToken, out var existingOtp))
+                    return ResultResponseDto<UserResponseDto>.Failure(new[] { "Invalid or missing OTP. Please request a new one." });
+
+                if (existingOtp != otp)
+                    return ResultResponseDto<UserResponseDto>.Failure(new[] { "Incorrect OTP. Please verify and try again." });
+
+                var timeElapsed = (DateTime.Now - user.ResetTokenDate).TotalMinutes;
+                if (timeElapsed > _appSettings.OTPExpiryValidMinutes)
+                    return ResultResponseDto<UserResponseDto>.Failure(new[] { "OTP has expired. Please request a new one." });
+
+                var response = GetAuthorizedUserDetails(user);
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error during 2FA verification", ex);
+                return ResultResponseDto<UserResponseDto>.Failure(new[] { "An unexpected error occurred. Please try again later." });
+            }
+        }
+        public async Task<ResultResponseDto<string>> ReSendLoginOtp(string email)
+        {
+            try
+            {
+                var user = await GetByEmailAysync(email);
+                if (user == null)
+                    return ResultResponseDto<string>.Failure(new[] { "User not found. Please check your email and try again." });
+                return await SendTwoFactorOTPAsync(user);
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in SendTwoFactorOTPAsync", ex);
+                return ResultResponseDto<string>.Failure(new[] { "There was an error while sending OTP. Please try again later." });
+            }
+        }
+
         #endregion
     }
 }

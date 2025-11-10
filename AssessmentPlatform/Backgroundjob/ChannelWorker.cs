@@ -101,7 +101,6 @@ namespace AssessmentPlatform.Backgroundjob
         {
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            await Task.Delay(10000);
             var log = new AppLogs
             {
                 Level = channel.Level,
