@@ -870,7 +870,7 @@ namespace AssessmentPlatform.Services
                     Title = "Two-Factor Authentication (2FA) Code",
                     ApiUrl = _appSettings.ApiUrl,
                     ApplicationUrl = _appSettings.ApplicationUrl,
-                    MsgText = $"Your one-time password (OTP) for login verification is <b>{otp}</b>. " +
+                    MsgText = $"Your one-time password (OTP) for login verification is ( {otp} ). " +
                                $"This code will expire in {_appSettings.OTPExpiryValidMinutes} minutes. " +
                                $"Please do not share this code with anyone.",
                     IsLoginBtn = false,
