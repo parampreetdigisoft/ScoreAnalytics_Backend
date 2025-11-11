@@ -8,10 +8,10 @@ using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.kpiDto;
 using AssessmentPlatform.Dtos.PublicDto;
+using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
-using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -23,16 +23,6 @@ namespace AssessmentPlatform.Services
         {
             _context = context;
             _appLogger = appLogger;
-        }
-        private bool IsPillarAccess(Enums.TieredAccessPlan tier, int order)
-        {
-            return tier switch
-            {
-                Enums.TieredAccessPlan.Basic => order <= 3,
-                Enums.TieredAccessPlan.Standard => order <= 7,
-                Enums.TieredAccessPlan.Premium => order <= 14,
-                _ => false
-            };
         }
         public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID)
         {
@@ -303,7 +293,7 @@ namespace AssessmentPlatform.Services
                     from c in _context.Cities.AsNoTracking()
                     join pc in _context.PublicUserCityMappings.AsNoTracking()
                         on c.CityID equals pc.CityID
-                    where !c.IsDeleted && !pc.IsDeleted && pc.UserID == request.UserId
+                    where !c.IsDeleted && pc.IsActive && pc.UserID == request.UserId
                     select new CityResponseDto
                     {
                         CityID = c.CityID,
@@ -716,7 +706,7 @@ namespace AssessmentPlatform.Services
                 // Fetch cities assigned to the user
                 var result = await _context.PublicUserCityMappings
                     .AsNoTracking()
-                    .Where(m => m.UserID == userID && !m.IsDeleted && m.City != null && !m.City.IsDeleted)
+                    .Where(m => m.UserID == userID && m.IsActive && m.City != null && !m.City.IsDeleted)
                     .Select(m => new PartnerCityResponseDto
                     {
                         CityID = m.City.CityID,
@@ -756,68 +746,94 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                // Fetch all existing mappings in one go (async)
-                var existingCitiesTask = await _context.PublicUserCityMappings
+                if (string.IsNullOrWhiteSpace(tierName))
+                    return ResultResponseDto<string>.Failure(new[] { "Access tier information is missing. Please log in again." });
+
+                if (!Enum.TryParse<TieredAccessPlan>(tierName, true, out var tier))
+                    return ResultResponseDto<string>.Failure(new[] { "Invalid access tier. Please contact support." });
+
+                var tierLimits = tier switch
+                {
+                    TieredAccessPlan.Basic => new { Min = 2, Max = 3, Name = "Basic" },
+                    TieredAccessPlan.Standard => new { Min = 5, Max = 7, Name = "Standard" },
+                    TieredAccessPlan.Premium => new { Min = 0, Max = int.MaxValue, Name = "Premium" },
+                    _ => new { Min = 0, Max = 0, Name = "Unknown" }
+                };
+
+                if (tier != TieredAccessPlan.Premium)
+                {
+                    bool isValid =
+                        payload.Cities.Count >= tierLimits.Min && payload.Cities.Count <= tierLimits.Max &&
+                        payload.Pillars.Count >= tierLimits.Min && payload.Pillars.Count <= tierLimits.Max &&
+                        payload.Kpis.Count >= tierLimits.Min && payload.Kpis.Count <= tierLimits.Max;
+
+                    if (!isValid)
+                    {
+                        return ResultResponseDto<string>.Failure(new[]
+                        {
+                            $"Your {tierLimits.Name} plan allows between {tierLimits.Min} and {tierLimits.Max} selections per category (City, Pillar, and KPI). Please adjust your selections accordingly."
+                        });
+                    }
+                }
+
+                //  Remove existing mappings
+                var existingCities = await _context.PublicUserCityMappings
                     .Where(m => m.UserID == userId)
                     .ToListAsync();
 
-                var existingPillarsTask = await _context.CityUserPillarMappings
+                var existingPillars = await _context.CityUserPillarMappings
                     .Where(m => m.UserID == userId)
                     .ToListAsync();
 
-                var existingKpisTask = await _context.CityUserKpiMappings
+                var existingKpis = await _context.CityUserKpiMappings
                     .Where(m => m.UserID == userId)
                     .ToListAsync();
 
-                
-
-                // Remove existing mappings
-                _context.PublicUserCityMappings.RemoveRange(existingCitiesTask);
-                _context.CityUserPillarMappings.RemoveRange(existingPillarsTask);
-                _context.CityUserKpiMappings.RemoveRange(existingKpisTask);
+                _context.PublicUserCityMappings.RemoveRange(existingCities);
+                _context.CityUserPillarMappings.RemoveRange(existingPillars);
+                _context.CityUserKpiMappings.RemoveRange(existingKpis);
 
                 var utcNow = DateTime.UtcNow;
 
-                // Add new city mappings
                 var newCityMappings = payload.Cities.Select(cityId => new PublicUserCityMapping
                 {
                     CityID = cityId,
                     UserID = userId,
-                    IsDeleted = false,
+                    IsActive = true,
                     UpdatedAt = utcNow
                 });
 
-                // Add new pillar mappings
                 var newPillarMappings = payload.Pillars.Select(pillarId => new CityUserPillarMapping
                 {
                     PillarID = pillarId,
                     UserID = userId,
-                    IsDeleted = false,
+                    IsActive = true,
                     UpdatedAt = utcNow
                 });
 
-                // Add new KPI mappings
                 var newKpiMappings = payload.Kpis.Select(kpiId => new CityUserKpiMapping
                 {
                     LayerID = kpiId,
                     UserID = userId,
-                    IsDeleted = false,
+                    IsActive = true,
                     UpdatedAt = utcNow
                 });
 
-                // Bulk insert
                 await _context.PublicUserCityMappings.AddRangeAsync(newCityMappings);
                 await _context.CityUserPillarMappings.AddRangeAsync(newPillarMappings);
                 await _context.CityUserKpiMappings.AddRangeAsync(newKpiMappings);
 
                 await _context.SaveChangesAsync();
 
-                return ResultResponseDto<string>.Success("", new[] { "User mappings updated successfully." });
+                return ResultResponseDto<string>.Success("", new[] { "Your preferences have been saved successfully." });
             }
             catch (Exception ex)
             {
                 await _appLogger.LogAsync("Error occurred in AddCityUserKpisCityAndPillar", ex);
-                return ResultResponseDto<string>.Failure(new[] { "There was an error. Please try again later." });
+                return ResultResponseDto<string>.Failure(new[]
+                {
+                    "Something went wrong while saving your selections. Please try again later."
+                });
             }
         }
         public async Task<ResultResponseDto<List<AnalyticalLayer>>> GetCityUserKpi(int userId, string tierName)
@@ -826,7 +842,7 @@ namespace AssessmentPlatform.Services
             {
                 // Get valid KPI IDs for the user (only non-deleted mappings)
                 var validKpiIds = await _context.CityUserKpiMappings
-                    .Where(x => !x.IsDeleted && x.UserID == userId)
+                    .Where(x => x.IsActive && x.UserID == userId)
                     .Select(x => x.LayerID)
                     .ToListAsync();
 
@@ -855,7 +871,7 @@ namespace AssessmentPlatform.Services
             {
                 // Step 1: Get valid KPI IDs for this user
                 var validKpiIds = await _context.CityUserKpiMappings
-                    .Where(x => !x.IsDeleted && x.UserID == userId)
+                    .Where(x => x.IsActive && x.UserID == userId)
                     .Select(x => x.LayerID)
                     .ToListAsync();
 
@@ -975,6 +991,5 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "An error occurred while comparing cities." });
             }
         }
-
     }
 }

@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.kpiDto;
 using AssessmentPlatform.Models;
@@ -9,5 +10,6 @@ namespace AssessmentPlatform.IServices
     {
         Task<PaginationResponse<GetAnalyticalLayerResultDto>> GetAnalyticalLayerResults(GetAnalyticalLayerRequestDto request);
         Task<ResultResponseDto<List<AnalyticalLayer>>> GetAllKpi();
+        Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, UserRole role);
     }
 }

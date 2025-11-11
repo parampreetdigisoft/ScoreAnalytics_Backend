@@ -8,7 +8,7 @@
         public City? City { get; set; }
         public User? User { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
-        public bool IsDeleted { get; set; } = false;
+        public bool IsActive { get; set; } = true;
     }
     public class CityUserPillarMapping
     {
@@ -18,7 +18,7 @@
         public Pillar? City { get; set; }
         public User? User { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
-        public bool IsDeleted { get; set; } = false;
+        public bool IsActive { get; set; } = true;
     }
     public class CityUserKpiMapping
     {
@@ -28,6 +28,6 @@
         public AnalyticalLayer? Layer { get; set; }
         public User? User { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.Now;
-        public bool IsDeleted { get; set; } = false;
+        public bool IsActive { get; set; } = true;
     }
 }

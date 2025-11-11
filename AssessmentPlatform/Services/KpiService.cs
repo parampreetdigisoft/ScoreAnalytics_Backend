@@ -1,6 +1,7 @@
 ﻿using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.kpiDto;
 using AssessmentPlatform.IServices;
@@ -19,17 +20,6 @@ namespace AssessmentPlatform.Services
             _context = context;
             _appLogger = appLogger;
         }
-        private bool IsPillarAccess(Enums.TieredAccessPlan tier, int order)
-        {
-            return tier switch
-            {
-                Enums.TieredAccessPlan.Basic => order <= 3,
-                Enums.TieredAccessPlan.Standard => order <= 7,
-                Enums.TieredAccessPlan.Premium => order <= 14,
-                _ => false
-            };
-        }
-
         public async Task<PaginationResponse<GetAnalyticalLayerResultDto>> GetAnalyticalLayerResults(GetAnalyticalLayerRequestDto request)
         {
             try
@@ -94,6 +84,133 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error occurred in GetAnalyticalLayers", ex);
                 return  ResultResponseDto<List<AnalyticalLayer>>.Failure(new List<string> { "an error occure"});
+            }
+        }
+        public async Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, UserRole role)
+        {
+            try
+            {
+                Expression<Func<UserCityMapping, bool>> expression = role switch
+                {
+                    UserRole.Admin => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
+                    UserRole.Analyst => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
+                    _ => x => !x.IsDeleted && c.Cities.Contains(x.CityID)
+                };
+
+                // Step 2: Get all selected cities (even if no analytical data)
+                var selectedCities = await (
+                    from uc in _context.UserCityMappings.Where(expression)
+                    join city in _context.Cities on uc.CityID equals city.CityID
+                    select new
+                    {
+                        city.CityID,
+                        city.CityName
+                    }
+                ).Distinct().ToListAsync();
+
+
+                if (!selectedCities.Any())
+                {
+                    return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "No valid cities found." });
+                }
+
+                // Step 3: Fetch analytical layer results for selected cities
+                var analyticalResults = await _context.AnalyticalLayerResults
+                    .Include(ar => ar.AnalyticalLayer)
+                    .Where(x => selectedCities.Select(x=>x.CityID).Contains(x.CityID) &&
+                                x.LastUpdated.Year == c.UpdatedAt.Year)
+                    .Select(ar => new
+                    {
+                        ar.CityID,
+                        ar.LayerID,
+                        ar.AnalyticalLayer.LayerCode,
+                        ar.AnalyticalLayer.LayerName,
+                        ar.CalValue5
+                    })
+                    .ToListAsync();
+
+                // Step 4: Get all distinct layers
+                var allLayers = analyticalResults
+                    .Select(x => new { x.LayerID, x.LayerCode, x.LayerName })
+                    .Distinct()
+                    .OrderBy(x => x.LayerName)
+                    .ToList();
+
+                // Step 5: Prepare response DTO
+                var response = new CompareCityResponseDto
+                {
+                    Categories = new List<string>(),
+                    Series = new List<ChartSeriesDto>(),
+                    TableData = new List<ChartTableRowDto>()
+                };
+
+                // Initialize chart series for each city
+                foreach (var city in selectedCities)
+                {
+                    response.Series.Add(new ChartSeriesDto
+                    {
+                        Name = city.CityName,
+                        Data = new List<decimal>()
+                    });
+                }
+
+                // Add Peer City Score series
+                var peerSeries = new ChartSeriesDto
+                {
+                    Name = "Peer City Score",
+                    Data = new List<decimal>()
+                };
+
+                // Step 6: Build chart and table data
+                foreach (var layer in allLayers)
+                {
+                    response.Categories.Add(layer.LayerCode);
+
+                    // Map KPI values for each city (0 if missing)
+                    var values = new Dictionary<int, decimal>();
+
+                    foreach (var city in selectedCities)
+                    {
+                        var value = analyticalResults
+                            .FirstOrDefault(r => r.CityID == city.CityID && r.LayerID == layer.LayerID)
+                            ?.CalValue5 ?? 0;
+
+                        var roundedValue = Math.Round(value, 2);
+                        values[city.CityID] = roundedValue;
+
+                        // Add to series
+                        var citySeries = response.Series.First(s => s.Name == city.CityName);
+                        citySeries.Data.Add(roundedValue);
+                    }
+
+                    // ✅ Calculate Peer City Score (average of all cities for this layer)
+                    var peerCityScore = values.Values.Any() ? Math.Round(values.Values.Average(), 2) : 0;
+                    peerSeries.Data.Add(peerCityScore);
+
+                    // Add table data
+                    response.TableData.Add(new ChartTableRowDto
+                    {
+                        LayerCode = layer.LayerCode,
+                        LayerName = layer.LayerName,
+                        CityValues = selectedCities.Select(c => new CityValueDto
+                        {
+                            CityID = c.CityID,
+                            CityName = c.CityName,
+                            Value = values[c.CityID]
+                        }).ToList(),
+                        PeerCityScore = peerCityScore // You can rename property if needed
+                    });
+                }
+
+                // Append Peer City Score series
+                response.Series.Add(peerSeries);
+
+                return ResultResponseDto<CompareCityResponseDto>.Success(response);
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in CompareCities", ex);
+                return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "An error occurred while comparing cities." });
             }
         }
     }

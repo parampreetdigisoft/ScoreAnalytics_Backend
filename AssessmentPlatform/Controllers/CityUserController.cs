@@ -141,6 +141,9 @@ namespace AssessmentPlatform.Controllers
             if (tierName == null)
                 return Unauthorized("You Don't have access.");
 
+            if (!Enum.IsDefined(typeof(TieredAccessPlan), tierName))
+                return Unauthorized("Invalid tier specified.");
+
             var response = await _cityUserService.AddCityUserKpisCityAndPillar(b, userId.GetValueOrDefault(), tierName);
             return Ok(response);
         }
