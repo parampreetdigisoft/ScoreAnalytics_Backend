@@ -8,8 +8,8 @@ namespace AssessmentPlatform.IServices
 {
     public interface ICityService
     {
-        Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request);
-        Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByUserId(int userId);
+        Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request, UserRole userRole);
+        Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByUserId(int userId, UserRole userRole);
         Task<ResultResponseDto<City>> GetByIdAsync(int id);
         Task<ResultResponseDto<string>> AddBulkCityAsync(BulkAddCityDto q, string image = "");
         Task<ResultResponseDto<City>> EditCityAsync(int id, AddUpdateCityDto q);

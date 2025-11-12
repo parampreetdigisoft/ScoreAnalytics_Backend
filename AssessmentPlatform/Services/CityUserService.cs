@@ -271,28 +271,30 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                // ✅ Validate user early
-                var user = await _context.Users
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.UserID == request.UserId && x.Role == UserRole.CityUser);
 
-                if (user == null)
-                    return new PaginationResponse<CityResponseDto>();
+                int year = DateTime.UtcNow.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
 
-                int currentYear = DateTime.UtcNow.Year;
+                var cityScores = from ac in _context.AnalyticalLayerResults
+                                 join pc in _context.PublicUserCityMappings on ac.CityID equals pc.CityID
+                                 where ac.LastUpdated >= startDate && ac.LastUpdated < endDate
+                                 group ac by ac.CityID into g
+                                 select new
+                                 {
+                                     CityID = g.Key,
+                                     Score = g.Average(x => (decimal?)x.CalValue5) ?? 0
+                                 };
 
-                // ✅ Precompute all city scores in one grouped query (avoids N+1 queries)
-                var cityScores = await _context.AnalyticalLayerResults
-                    .Where(a => a.LastUpdated.Year == currentYear)
-                    .GroupBy(a => a.CityID)
-                    .Select(g => new { CityID = g.Key, Score = g.Average(a => (decimal?)a.CalValue5) ?? 0 })
-                    .ToDictionaryAsync(x => x.CityID, x => x.Score);
 
                 // ✅ Fetch cities mapped to the user
                 var query =
                     from c in _context.Cities.AsNoTracking()
                     join pc in _context.PublicUserCityMappings.AsNoTracking()
                         on c.CityID equals pc.CityID
+
+                    join s in cityScores on pc.CityID equals s.CityID into scores
+                    from s in scores.DefaultIfEmpty() // Left join
                     where !c.IsDeleted && pc.IsActive && pc.UserID == request.UserId
                     select new CityResponseDto
                     {
@@ -306,29 +308,20 @@ namespace AssessmentPlatform.Services
                         CreatedDate = c.CreatedDate,
                         UpdatedDate = c.UpdatedDate,
                         IsActive = c.IsActive,
-                        Score = 0 // placeholder, updated below
+                        Score = s.Score 
                     };
 
                 // ✅ Apply search filter
                 if (!string.IsNullOrWhiteSpace(request.SearchText))
                 {
                     string search = request.SearchText.ToLower();
-                    query = query.Where(x =>
-                        x.CityName.ToLower().Contains(search) ||
-                        x.State.ToLower().Contains(search));
+                    query = query.Where(x =>x.CityName.ToLower().Contains(search) || x.State.ToLower().Contains(search));
                 }
 
                 // ✅ Apply ordering and pagination
-                var pagedResult = await query
-                    .ApplyPaginationAsync(request);
+                var pagedResult = await query.ApplyPaginationAsync(request);
 
-                // ✅ Assign precomputed scores
-                foreach (var city in pagedResult.Data)
-                {
-                    if (cityScores.TryGetValue(city.CityID, out var score))
-                        city.Score = score;
-                }
-                pagedResult.Data = pagedResult.Data.OrderByDescending(x => x.Score);
+            
                 return pagedResult;
             }
             catch (Exception ex)
@@ -337,8 +330,6 @@ namespace AssessmentPlatform.Services
                 return new PaginationResponse<CityResponseDto>();
             }
         }
-
-
         public async Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID)
         {
             try
@@ -619,7 +610,6 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CityDetailsDto>.Failure(new[] { "There is an error, please try later" });
             }
         }
-
         public async Task<ResultResponseDto<List<CityPillarQuestionDetailsDto>>> GetCityPillarDetails(UserCityGetPillarInfoRequstDto userCityRequstDto)
         {
             try
@@ -733,42 +723,45 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                int currentYear = DateTime.UtcNow.Year;
+                int year = DateTime.UtcNow.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
 
-                // Precompute all scores in a single grouped query (avoids N+1 subqueries)
-                var scoreDict = await _context.AnalyticalLayerResults
-                    .Where(a => a.LastUpdated.Year == currentYear)
-                    .GroupBy(a => a.CityID)
-                    .Select(g => new { CityID = g.Key, Score = g.Average(a => (decimal?)a.CalValue5) ?? 0 })
+                // Step 1️⃣: Fetch city score averages as a dictionary
+                var cityScoresDict = await _context.AnalyticalLayerResults
+                    .Where(ar => ar.LastUpdated >= startDate && ar.LastUpdated < endDate)
+                    .GroupBy(ar => ar.CityID)
+                    .Select(g => new
+                    {
+                        CityID = g.Key,
+                        Score = g.Average(x => (decimal?)x.CalValue5) ?? 0
+                    })
                     .ToDictionaryAsync(x => x.CityID, x => x.Score);
 
-                // Convert scores to dictionary for quick lookup
-                
-
-                // Fetch cities assigned to the user
-                var result = await _context.PublicUserCityMappings
-                    .AsNoTracking()
-                    .Where(m => m.UserID == userID && m.IsActive && m.City != null && !m.City.IsDeleted)
-                    .Select(m => new PartnerCityResponseDto
+                // Step 2️⃣: Fetch cities assigned to the user
+                var cities = await _context.PublicUserCityMappings
+                    .Where(x => x.IsActive && x.City != null && !x.City.IsDeleted && x.UserID == userID)
+                    .Select(c => new PartnerCityResponseDto
                     {
-                        CityID = m.City.CityID,
-                        CityName = m.City.CityName,
-                        State = m.City.State,
-                        Region = m.City.Region,
-                        PostalCode = m.City.PostalCode,
-                        Country = m.City.Country,
-                        Image = m.City.Image,
-                        Score = 0 // placeholder
+                        CityID = c.City.CityID,
+                        CityName = c.City.CityName,
+                        State = c.City.State,
+                        PostalCode = c.City.PostalCode,
+                        Region = c.City.Region,
+                        Country = c.City.Country,
+                        Image = c.City.Image
                     })
-                    .OrderBy(x => x.CityName)
+                    .AsNoTracking()
                     .ToListAsync();
 
-                // Attach scores efficiently
-                foreach (var city in result)
+                // Step 3️⃣: Map score from dictionary (safe fallback to 0)
+                foreach (var city in cities)
                 {
-                    if (scoreDict.TryGetValue(city.CityID, out var score))
-                        city.Score = Math.Round(score,2);
+                    city.Score = cityScoresDict.TryGetValue(city.CityID, out var score) ? score : 0;
                 }
+
+                // Step 4️⃣: Sort by score descending
+                var result = cities.OrderByDescending(x => x.Score).ToList();
 
                 return ResultResponseDto<List<PartnerCityResponseDto>>.Success(
                     result,

@@ -42,7 +42,34 @@ namespace AssessmentPlatform.Controllers
         [Route("GetAnalyticalLayerResults")]
         public async Task<IActionResult> GetAnalyticalLayerResults([FromQuery] GetAnalyticalLayerRequestDto response)
         {
-            var result = await _kpiService.GetAnalyticalLayerResults(response);
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null && userRole == UserRole.CityUser)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<TieredAccessPlan>(tierName, true, out var userPlan))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _kpiService.GetAnalyticalLayerResults(response, userId.GetValueOrDefault(), userRole, userPlan);
+            if (result == null)
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
             return Ok(result);
         }
         [HttpGet]
@@ -55,16 +82,12 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost]
         [Route("compareCities")]
-        //[Authorize(Policy = "StaffOnly")]
+        [Authorize(Policy = "StaffOnly")]
         public async Task<IActionResult> CompareCities([FromBody] CompareCityRequestDto r)
         {
             var userId = GetUserIdFromClaims();
             if (userId == null)
                 return Unauthorized("User ID not found in token.");
-
-            var tierName = GetTierFromClaims();
-            if (tierName == null)
-                return Unauthorized("You Don't have access.");
 
             var role = GetRoleFromClaims();
             if (role == null)
@@ -74,7 +97,7 @@ namespace AssessmentPlatform.Controllers
             {
                 return Unauthorized("You Don't have access.");
             }
-                var result = await _kpiService.CompareCities(r, userId.GetValueOrDefault(), userRole);
+           var result = await _kpiService.CompareCities(r, userId.GetValueOrDefault(), userRole);
             return Ok(result);
         }
     }

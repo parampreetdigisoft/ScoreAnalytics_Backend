@@ -4,6 +4,7 @@ using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.kpiDto;
+using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
@@ -20,46 +21,107 @@ namespace AssessmentPlatform.Services
             _context = context;
             _appLogger = appLogger;
         }
-        public async Task<PaginationResponse<GetAnalyticalLayerResultDto>> GetAnalyticalLayerResults(GetAnalyticalLayerRequestDto request)
+        public async Task<PaginationResponse<GetAnalyticalLayerResultDto>> 
+            GetAnalyticalLayerResults(GetAnalyticalLayerRequestDto request, int userId, UserRole role, TieredAccessPlan userPlan = TieredAccessPlan.Pending)
         {
             try
             {
-                Expression<Func<AnalyticalLayerResult,bool>> expression = x => 
-                (!request.CityID.HasValue || x.CityID == request.CityID)
-                && (!request.LayerID.HasValue || x.LayerID == request.LayerID)
-                && (x.LastUpdated.Year == request.UpdatedAt.Year);
+                var year = request.UpdatedAt.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
 
-                var query = _context.AnalyticalLayerResults
-                    .Include(ar => ar.AnalyticalLayer)
-                        .ThenInclude(al => al.FiveLevelInterpretations)
-                    .Include(ar => ar.City)
-                    .Where(expression)
-                    .Select(ar => new GetAnalyticalLayerResultDto
-                    {
-                        LayerResultID = ar.LayerResultID,
-                        LayerID = ar.LayerID,
-                        CityID = ar.CityID,
-                        InterpretationID = ar.InterpretationID,
-                        NormalizeValue = ar.NormalizeValue,
-                        CalValue1 = ar.CalValue1,
-                        CalValue2 = ar.CalValue2,
-                        CalValue3 = ar.CalValue3,
-                        CalValue4 = ar.CalValue4,
-                        CalValue5 = ar.CalValue5,
-                        LastUpdated = ar.LastUpdated,
+                IQueryable<GetAnalyticalLayerResultDto> query;
 
-                        LayerCode = ar.AnalyticalLayer.LayerCode,
-                        LayerName = ar.AnalyticalLayer.LayerName,
-                        Purpose = ar.AnalyticalLayer.Purpose,
-                        CalText1 = ar.AnalyticalLayer.CalText1,
-                        CalText2 = ar.AnalyticalLayer.CalText2,
-                        CalText3 = ar.AnalyticalLayer.CalText3,
-                        CalText4 = ar.AnalyticalLayer.CalText4,
-                        CalText5 = ar.AnalyticalLayer.CalText5,
-                        FiveLevelInterpretations = ar.AnalyticalLayer.FiveLevelInterpretations,
-                      
-                        City = ar.City
-                    });
+                if (role == UserRole.CityUser)
+                {
+                    var validCities = _context.PublicUserCityMappings
+                        .Where(x =>
+                            (!request.CityID.HasValue || x.CityID == request.CityID) &&
+                            x.IsActive &&
+                            x.UserID == userId)
+                        .Select(x => x.CityID);
+
+                    var validKpis = _context.CityUserKpiMappings
+                        .Where(x =>
+                            (!request.LayerID.HasValue || x.LayerID == request.LayerID) &&
+                            x.IsActive &&
+                            x.UserID == userId)
+                        .Select(x => x.LayerID);
+
+                    query =
+                        from ar in _context.AnalyticalLayerResults
+                            .Include(ar => ar.AnalyticalLayer)
+                                .ThenInclude(al => al.FiveLevelInterpretations)
+                            .Include(ar => ar.City)
+                        join vc in validCities on ar.CityID equals vc
+                        join vk in validKpis on ar.LayerID equals vk
+                        where ar.LastUpdated >= startDate && ar.LastUpdated < endDate
+                        select new GetAnalyticalLayerResultDto
+                        {
+                            LayerResultID = ar.LayerResultID,
+                            LayerID = ar.LayerID,
+                            CityID = ar.CityID,
+                            InterpretationID = ar.InterpretationID,
+                            NormalizeValue = ar.NormalizeValue,
+                            CalValue1 = ar.CalValue1,
+                            CalValue2 = ar.CalValue2,
+                            CalValue3 = ar.CalValue3,
+                            CalValue4 = ar.CalValue4,
+                            CalValue5 = ar.CalValue5,
+                            LastUpdated = ar.LastUpdated,
+
+                            LayerCode = ar.AnalyticalLayer.LayerCode,
+                            LayerName = ar.AnalyticalLayer.LayerName,
+                            Purpose = ar.AnalyticalLayer.Purpose,
+                            CalText1 = ar.AnalyticalLayer.CalText1,
+                            CalText2 = ar.AnalyticalLayer.CalText2,
+                            CalText3 = ar.AnalyticalLayer.CalText3,
+                            CalText4 = ar.AnalyticalLayer.CalText4,
+                            CalText5 = ar.AnalyticalLayer.CalText5,
+                            FiveLevelInterpretations = ar.AnalyticalLayer.FiveLevelInterpretations,
+
+                            City = ar.City
+                        };
+                }
+                else
+                {
+                    Expression<Func<AnalyticalLayerResult, bool>> expression = x =>
+                       (!request.CityID.HasValue || x.CityID == request.CityID)
+                       && (!request.LayerID.HasValue || x.LayerID == request.LayerID)
+                       && (x.LastUpdated >= startDate && x.LastUpdated < endDate);
+
+                    query = _context.AnalyticalLayerResults
+                        .Include(ar => ar.AnalyticalLayer)
+                            .ThenInclude(al => al.FiveLevelInterpretations)
+                        .Include(ar => ar.City)
+                        .Where(expression)
+                        .Select(ar => new GetAnalyticalLayerResultDto
+                        {
+                            LayerResultID = ar.LayerResultID,
+                            LayerID = ar.LayerID,
+                            CityID = ar.CityID,
+                            InterpretationID = ar.InterpretationID,
+                            NormalizeValue = ar.NormalizeValue,
+                            CalValue1 = ar.CalValue1,
+                            CalValue2 = ar.CalValue2,
+                            CalValue3 = ar.CalValue3,
+                            CalValue4 = ar.CalValue4,
+                            CalValue5 = ar.CalValue5,
+                            LastUpdated = ar.LastUpdated,
+
+                            LayerCode = ar.AnalyticalLayer.LayerCode,
+                            LayerName = ar.AnalyticalLayer.LayerName,
+                            Purpose = ar.AnalyticalLayer.Purpose,
+                            CalText1 = ar.AnalyticalLayer.CalText1,
+                            CalText2 = ar.AnalyticalLayer.CalText2,
+                            CalText3 = ar.AnalyticalLayer.CalText3,
+                            CalText4 = ar.AnalyticalLayer.CalText4,
+                            CalText5 = ar.AnalyticalLayer.CalText5,
+                            FiveLevelInterpretations = ar.AnalyticalLayer.FiveLevelInterpretations,
+
+                            City = ar.City
+                        });
+                }
 
                 var response = await query.ApplyPaginationAsync(request);
                 return response;
@@ -90,6 +152,27 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var year = c.UpdatedAt.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
+
+
+                var validKpiIds = new List<int>();
+                if (c.Kpis.Count == 0)
+                {
+                    var query = _context.AnalyticalLayers
+                    .Where(x => !x.IsDeleted)
+                    .Select(x => x.LayerID)
+                    .OrderBy(x => x);
+
+                    var res = await query.ApplyPaginationAsync(c);
+                    validKpiIds = res.Data.ToList() ;
+                }
+                else
+                {
+                    validKpiIds = c.Kpis;
+                }
+
                 Expression<Func<UserCityMapping, bool>> expression = role switch
                 {
                     UserRole.Admin => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
@@ -118,7 +201,7 @@ namespace AssessmentPlatform.Services
                 var analyticalResults = await _context.AnalyticalLayerResults
                     .Include(ar => ar.AnalyticalLayer)
                     .Where(x => selectedCities.Select(x=>x.CityID).Contains(x.CityID) &&
-                                x.LastUpdated.Year == c.UpdatedAt.Year)
+                                x.LastUpdated >= startDate && x.LastUpdated < endDate && validKpiIds.Contains(x.LayerID))
                     .Select(ar => new
                     {
                         ar.CityID,

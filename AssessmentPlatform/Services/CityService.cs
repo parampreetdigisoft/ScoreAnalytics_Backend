@@ -14,6 +14,8 @@ namespace AssessmentPlatform.Services
 {
     public class CityService : ICityService
     {
+        #region constructor
+
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
         private readonly IWebHostEnvironment _env;
@@ -23,6 +25,10 @@ namespace AssessmentPlatform.Services
             _appLogger = appLogger;
             _env = env;
         }
+
+        #endregion
+
+        #region  methods Implementations
         public async Task<ResultResponseDto<string>> AddUpdateCity(AddUpdateCityDto q)
         {
             try
@@ -221,81 +227,125 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<City>.Failure(new string[] { "There is an error please try later" });
             }
         }
-        public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request)
+        public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request, UserRole role)
         {
             try
             {
-                var user = _context.Users.FirstOrDefault(x => x.UserID == request.UserId);
-                if (user == null)
-                {
-                    return new PaginationResponse<CityResponseDto>();
-                }
+                var year = DateTime.Now.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
 
                 IQueryable<CityResponseDto> cityQuery;
 
-                var year = DateTime.Now.Year;
-
-                if (user.Role == UserRole.Admin)
+                if (role == UserRole.Admin)
                 {
-                    cityQuery =
-                    from c in _context.Cities
-                    join uc in _context.UserCityMappings on c.CityID equals uc.CityID into ucg
-                    from uc in ucg.DefaultIfEmpty()
-                    join a in _context.Assessments on uc.UserCityMappingID equals a.UserCityMappingID into ag
-                    from a in ag.DefaultIfEmpty()
-                    join pa in _context.PillarAssessments on a.AssessmentID equals pa.AssessmentID into pag
-                    from pa in pag.DefaultIfEmpty()
-                    join r in _context.AssessmentResponses on pa.PillarAssessmentID equals r.PillarAssessmentID into rg
-                    from r in rg.DefaultIfEmpty()
-                    where !c.IsDeleted && (uc == null || !uc.IsDeleted) && (a == null || a.UpdatedAt.Year == year)
-                    group r by new
+                    // Pre-calculate averages per city — this is key for EF translation
+                    var cityScoresQuery =
+                    from ar in _context.AnalyticalLayerResults
+                    where ar.LastUpdated >= startDate && ar.LastUpdated < endDate
+                    group ar by ar.CityID into g
+                    select new
                     {
-                        c.CityID,
-                        c.Country,
-                        c.PostalCode,
-                        c.Image,
-                        c.State,
-                        c.CityName,
-                        c.Region,
-                        c.IsActive,
-                        c.CreatedDate,
-                        c.UpdatedDate,
-                        c.IsDeleted,
-                        c.Latitude,
-                        c.Longitude,
-                        EvaluatorCount = _context.UserCityMappings
-                                            .Count(x => x.CityID == c.CityID && !x.IsDeleted)
-
-                    }
-                    into g
-                    select new CityResponseDto
-                    {
-                        CityID = g.Key.CityID,
-                        State = g.Key.State,
-                        CityName = g.Key.CityName,
-                        PostalCode = g.Key.PostalCode,
-                        Region = g.Key.Region,
-                        IsActive = g.Key.IsActive,
-                        CreatedDate = g.Key.CreatedDate,
-                        UpdatedDate = g.Key.UpdatedDate,
-                        IsDeleted = g.Key.IsDeleted,
-                        Country = g.Key.Country,
-                        Image=g.Key.Image,
-                        Score = g.Sum(x => (int?)x.Score ?? 0) / (g.Key.EvaluatorCount == 0 ? 1 : g.Key.EvaluatorCount),
-                        Latitude = g.Key.Latitude,
-                        Longitude = g.Key.Longitude
+                        CityID = g.Key,
+                        Score = g.Average(x => (decimal?)x.CalValue5) ?? 0
                     };
 
+                    cityQuery =
+                    from c in _context.Cities where !c.IsDeleted
+                    join cs in cityScoresQuery on c.CityID equals cs.CityID into scores
+                    from cs in scores.DefaultIfEmpty() // Left join
+                    select new CityResponseDto
+                    {
+                        CityID = c.CityID,
+                        CityName = c.CityName,
+                        State = c.State,
+                        PostalCode = c.PostalCode,
+                        Region = c.Region,
+                        IsActive = c.IsActive,
+                        CreatedDate = c.CreatedDate,
+                        UpdatedDate = c.UpdatedDate,
+                        IsDeleted = c.IsDeleted,
+                        Country = c.Country,
+                        Image = c.Image,
+                        Latitude = c.Latitude,
+                        Longitude = c.Longitude,
+                        Score = cs.Score
+                    };
                 }
                 else
                 {
                     cityQuery =
+                        from c in _context.Cities
+                        join cm in _context.UserCityMappings
+                            .Where(x => !x.IsDeleted && x.UserID == request.UserId)
+                            on c.CityID equals cm.CityID
+                        join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                        select new CityResponseDto
+                        {
+                            CityID = c.CityID,
+                            CityName = c.CityName,
+                            State = c.State,
+                            PostalCode = c.PostalCode,
+                            Region = c.Region,
+                            IsActive = c.IsActive,
+                            CreatedDate = c.CreatedDate,
+                            UpdatedDate = c.UpdatedDate,
+                            IsDeleted = c.IsDeleted,
+                            AssignedBy = u.FullName,
+                            Latitude = c.Latitude,
+                            Longitude = c.Longitude
+                        };
+                }
+
+                // Apply search and pagination
+                var response = await cityQuery
+                    .ApplyPaginationAsync(
+                        request,
+                        x => string.IsNullOrEmpty(request.SearchText)
+                             || x.CityName.Contains(request.SearchText)
+                             || x.State.Contains(request.SearchText)
+                    );
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in GetCitiesAsync", ex);
+                return new PaginationResponse<CityResponseDto>();
+            }
+        }
+
+        public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByUserId(int userId, UserRole userRole)
+        {
+            try
+            {
+
+                IQueryable<UserCityMappingResponseDto> cityQuery;
+
+                int year = DateTime.UtcNow.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
+
+                // Step 1️⃣: Fetch city score averages as a dictionary
+                var cityScoresQuery =
+                   from ar in _context.AnalyticalLayerResults
+                   where ar.LastUpdated >= startDate && ar.LastUpdated < endDate
+                   group ar by ar.CityID into g
+                   select new
+                   {
+                       CityID = g.Key,
+                       Score = g.Average(x => (decimal?)x.CalValue5) ?? 0
+                   };
+
+                if (userRole == UserRole.Admin)
+                {
+                    cityQuery =
                      from c in _context.Cities
-                     join cm in _context.UserCityMappings
-                         .Where(x => !x.IsDeleted && x.UserID == request.UserId)
-                         on c.CityID equals cm.CityID
-                     join u in _context.Users on cm.AssignedByUserId equals u.UserID
-                     select new CityResponseDto
+                     where c.IsActive && !c.IsDeleted
+                     join cs in cityScoresQuery
+                         on c.CityID equals cs.CityID into scoreGroup
+                     from cs in scoreGroup.DefaultIfEmpty() // Left join
+                     select new UserCityMappingResponseDto
                      {
                          CityID = c.CityID,
                          State = c.State,
@@ -306,65 +356,19 @@ namespace AssessmentPlatform.Services
                          CreatedDate = c.CreatedDate,
                          UpdatedDate = c.UpdatedDate,
                          IsDeleted = c.IsDeleted,
-                         AssignedBy = u.FullName,
-                         Latitude = c.Latitude,
-                         Longitude = c.Longitude
-                     };
-
-                }
-                var response = await cityQuery.ApplyPaginationAsync(
-                    request,
-                    x => string.IsNullOrEmpty(request.SearchText) ||
-                         x.CityName.Contains(request.SearchText) ||
-                         x.State.Contains(request.SearchText)
-                );
-
-                return response;
-            }
-            catch (Exception ex)
-            {
-                await _appLogger.LogAsync("Error Occure in GetCitiesAsync", ex);
-                return new PaginationResponse<CityResponseDto>();
-            }
-        }
-        public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByUserId(int userId)
-        {
-            try
-            {
-                var user = _context.Users.FirstOrDefault(x => x.UserID == userId);
-
-                if (user == null)
-                {
-                    return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "Invalid user" });
-                }
-
-                IQueryable<UserCityMappingResponseDto> cityQuery;
-
-                if (user.Role == UserRole.Admin)
-                {
-                    cityQuery =
-                        from c in _context.Cities
-                        select new UserCityMappingResponseDto
-                        {
-                            CityID = c.CityID,
-                            State = c.State,
-                            CityName = c.CityName,
-                            PostalCode = c.PostalCode,
-                            Region = c.Region,
-                            IsActive = c.IsActive,
-                            CreatedDate = c.CreatedDate,
-                            UpdatedDate = c.UpdatedDate,
-                            IsDeleted = c.IsDeleted
-                        };
+                         Score = cs.Score
+                     };                             
                 }
                 else
                 {
-                    cityQuery =
+                     cityQuery =
                      from c in _context.Cities
                      join cm in _context.UserCityMappings
                          .Where(x => !x.IsDeleted && x.UserID == userId)
                          on c.CityID equals cm.CityID
                      join u in _context.Users on cm.AssignedByUserId equals u.UserID
+                     join cs in cityScoresQuery on cm.CityID equals cs.CityID into scoreGroup
+                     from cs in scoreGroup.DefaultIfEmpty()
                      select new UserCityMappingResponseDto
                      {
                          CityID = c.CityID,
@@ -377,10 +381,13 @@ namespace AssessmentPlatform.Services
                          UpdatedDate = c.UpdatedDate,
                          IsDeleted = c.IsDeleted,
                          AssignedBy = u.FullName,
-                         UserCityMappingID = cm.UserCityMappingID
+                         UserCityMappingID = cm.UserCityMappingID,
+                         Score = cs.Score,
                      };
                 }
-                var result = await cityQuery.OrderBy(x=>x.CityName).ToListAsync();
+                var result = await cityQuery
+                    .OrderByDescending(x => x.Score)
+                                .ToListAsync();
 
                 return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "get successfully" });
             }
@@ -786,5 +793,6 @@ namespace AssessmentPlatform.Services
             var c = 2 * Math.Asin(Math.Sqrt(a));
             return R * c;
         }
+        #endregion
     }
 }

@@ -1,8 +1,10 @@
 ﻿using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
+using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -24,18 +26,52 @@ namespace AssessmentPlatform.Controllers
 
             return null;
         }
+        private string? GetTierFromClaims()
+        {
+            return User.FindFirst("Tier")?.Value;
+        }
+        private string? GetRoleFromClaims()
+        {
+            return User.FindFirst(ClaimTypes.Role)?.Value;
+        }
 
         [HttpGet("cities")]
-        public async Task<IActionResult> GetCities([FromQuery] PaginationRequest request) => Ok(await _cityService.GetCitiesAsync(request));
+        public async Task<IActionResult> GetCities([FromQuery] PaginationRequest request)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            request.UserId = userId;
+            return Ok(await _cityService.GetCitiesAsync(request, userRole));
+        }
 
         [HttpGet("getAllCityByUserId/{userId}")]
         public async Task<IActionResult> getAllCityByUserId(int userId)
         {
             var claimUserId = GetUserIdFromClaims();
-            if (claimUserId == null || claimUserId != userId)
+            if (claimUserId == null)
                 return Unauthorized("User ID not found.");
 
-            return Ok(await _cityService.getAllCityByUserId(userId));
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _cityService.getAllCityByUserId(claimUserId.GetValueOrDefault(), userRole));
         }
 
         [HttpGet("cities/{id}")]
@@ -145,8 +181,8 @@ namespace AssessmentPlatform.Controllers
         [Route("getCitiesProgressByUserId/{userID}/{updatedAt}")]
         public async Task<IActionResult> getCitiesProgressByUserId(int userID,DateTime updatedAt)
         {
-            var claimUserId = GetUserIdFromClaims();
-            if (claimUserId == null || claimUserId != userID)
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
                 return Unauthorized("User ID not found.");
 
             var result = await _cityService.GetCitiesProgressByUserId(userID, updatedAt);
