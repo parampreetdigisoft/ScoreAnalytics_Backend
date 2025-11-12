@@ -59,7 +59,7 @@ namespace AssessmentPlatform.Controllers
             if (tierName == null && userRole == UserRole.CityUser)
                 return Unauthorized("You Don't have access.");
 
-            if (!Enum.TryParse<TieredAccessPlan>(tierName, true, out var userPlan) || userRole != UserRole.CityUser)
+            if (!Enum.TryParse<TieredAccessPlan>(tierName, true, out var userPlan) && userRole == UserRole.CityUser)
             {
                 return Unauthorized("You Don't have access.");
             }
