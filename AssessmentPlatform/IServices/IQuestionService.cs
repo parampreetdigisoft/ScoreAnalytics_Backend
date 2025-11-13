@@ -17,7 +17,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<string>> AddBulkQuestion(AddBulkQuestionsDto q);
         Task<Question> EditQuestionAsync(int id, Question q);
         Task<bool> DeleteQuestionAsync(int id);
-        Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request);
+        Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request, int userId);
         Task<Tuple<string,byte[]>> ExportAssessment(int userCityMappingID);
         Task<ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>> GetQuestionsHistoryByPillar(GetCityPillarHistoryRequestDto requestDto);
     }

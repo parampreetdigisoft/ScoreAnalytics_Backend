@@ -169,10 +169,19 @@ namespace AssessmentPlatform.Controllers
         public async Task<IActionResult> GetCityHistory(int userID, DateTime updatedAt)
         {
             var claimUserId = GetUserIdFromClaims();
-            if (claimUserId == null || claimUserId != userID)
+            if (claimUserId == null)
                 return Unauthorized("User ID not found.");
 
-            var result = await _cityService.GetCityHistory(userID, updatedAt);
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _cityService.GetCityHistory(claimUserId.GetValueOrDefault(), updatedAt, userRole);
             return Ok(result);
         }
 

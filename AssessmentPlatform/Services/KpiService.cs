@@ -173,34 +173,41 @@ namespace AssessmentPlatform.Services
                     validKpiIds = c.Kpis;
                 }
 
-                Expression<Func<UserCityMapping, bool>> expression = role switch
+                Expression<Func<City, bool>> expression = role switch
                 {
                     UserRole.Admin => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
                     UserRole.Analyst => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
-                    _ => x => !x.IsDeleted && c.Cities.Contains(x.CityID)
+                    _ => x => false
                 };
 
                 // Step 2: Get all selected cities (even if no analytical data)
-                var selectedCities = await (
-                    from uc in _context.UserCityMappings.Where(expression)
-                    join city in _context.Cities on uc.CityID equals city.CityID
-                    select new
-                    {
-                        city.CityID,
-                        city.CityName
-                    }
-                ).Distinct().ToListAsync();
+                var selectedCities = await _context.Cities
+                    .Where(expression)
+                    .Distinct()
+                    .ToListAsync();
 
+                var selectedCityIds = selectedCities.Select(x => x.CityID).ToList();
 
-                if (!selectedCities.Any())
+                if(role == UserRole.Analyst)
                 {
-                    return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "No valid cities found." });
+                    var validMappedCityIds = await _context.UserCityMappings
+                       .Where(x => x.UserID == userId && !x.IsDeleted)
+                       .Select(x => x.CityID)
+                       .ToListAsync();
+
+                    // ✅ Check if all selected cities are valid
+                    bool allValid = selectedCityIds.All(id => validMappedCityIds.Contains(id));
+
+                    if (!allValid)
+                    {
+                        return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "No valid cities found." });
+                    }
                 }
 
                 // Step 3: Fetch analytical layer results for selected cities
                 var analyticalResults = await _context.AnalyticalLayerResults
                     .Include(ar => ar.AnalyticalLayer)
-                    .Where(x => selectedCities.Select(x=>x.CityID).Contains(x.CityID) &&
+                    .Where(x => selectedCityIds.Contains(x.CityID) &&
                                 x.LastUpdated >= startDate && x.LastUpdated < endDate && validKpiIds.Contains(x.LayerID))
                     .Select(ar => new
                     {

@@ -562,22 +562,17 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "There is an error please try later" });
             }
         }
-        public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID, DateTime updatedAt)
+        public async Task<ResultResponseDto<CityHistoryDto>> GetCityHistory(int userID, DateTime updatedAt, UserRole userRole)
         {
             try
             {
-                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID && x.Role != UserRole.CityUser);
-                if (user == null)
-                {
-                    return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "Invalid request" });
-                }
                 var cityHistory = new CityHistoryDto();
 
                 Expression<Func<UserCityMapping, bool>> predicate;
 
-                if (user.Role == UserRole.Analyst)
+                if (userRole == UserRole.Analyst)
                     predicate = x => !x.IsDeleted && (x.AssignedByUserId == userID || x.UserID == userID);
-                else if(user.Role == UserRole.Evaluator)
+                else if(userRole == UserRole.Evaluator)
                     predicate = x => !x.IsDeleted && x.UserID == userID;
                 else
                     predicate = x => !x.IsDeleted;

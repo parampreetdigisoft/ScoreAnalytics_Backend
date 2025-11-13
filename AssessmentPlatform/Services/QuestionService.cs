@@ -282,95 +282,101 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
             }
         }
-        public async Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request)
+        public async Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request, int userId)
         {
             try
             {
-                var year = DateTime.Now.Year;
-                // Load assessment once (if exists)
-                var answeredPillarIds = new List<int>();
-                var assessment = await _context.Assessments
-                    .Include(x=>x.PillarAssessments).ThenInclude(x=>x.Responses)
-                    .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.UpdatedAt.Year == year && a.IsActive)
-                    .FirstOrDefaultAsync();
-                if (assessment != null)
+                var valid = _context.UserCityMappings.Any(x => x.UserCityMappingID == request.UserCityMappingID && x.UserID == userId && !x.IsDeleted);
+                if (valid)
                 {
-                    answeredPillarIds = assessment.PillarAssessments
-                   .Select(r => r.PillarID)
-                   .ToList();
-                }
-                if(assessment !=null && answeredPillarIds.Count == 14 && !request.PillarID.HasValue)
-                {
-                    request.PillarID = assessment.PillarAssessments.First().PillarID;
-                }
+                    var year = DateTime.Now.Year;
+                    // Load assessment once (if exists)
+                    var answeredPillarIds = new List<int>();
+                    var assessment = await _context.Assessments
+                        .Include(x => x.PillarAssessments).ThenInclude(x => x.Responses)
+                        .Where(a => a.UserCityMappingID == request.UserCityMappingID && a.UpdatedAt.Year == year && a.IsActive)
+                        .FirstOrDefaultAsync();
+                    if (assessment != null)
+                    {
+                        answeredPillarIds = assessment.PillarAssessments
+                       .Select(r => r.PillarID)
+                       .ToList();
+                    }
+                    if (assessment != null && answeredPillarIds.Count == 14 && !request.PillarID.HasValue)
+                    {
+                        request.PillarID = assessment.PillarAssessments.First().PillarID;
+                    }
 
-                // Get next unanswered pillar
-                var selectPillar = await _context.Pillars
-                    .Include(p => p.Questions)
-                        .ThenInclude(q => q.QuestionOptions)
-                    .Where(p =>  !request.PillarID.HasValue ? !answeredPillarIds.Contains(p.PillarID) : p.PillarID == request.PillarID)
-                    .OrderBy(p => p.DisplayOrder)
-                    .FirstOrDefaultAsync();
+                    // Get next unanswered pillar
+                    var selectPillar = await _context.Pillars
+                        .Include(p => p.Questions)
+                            .ThenInclude(q => q.QuestionOptions)
+                        .Where(p => !request.PillarID.HasValue ? !answeredPillarIds.Contains(p.PillarID) : p.PillarID == request.PillarID)
+                        .OrderBy(p => p.DisplayOrder)
+                        .FirstOrDefaultAsync();
 
-                var summitedPillar = await _context.Pillars
-                    .Where(p => !answeredPillarIds.Contains(p.PillarID))
-                    .OrderBy(p => p.DisplayOrder)
-                    .FirstOrDefaultAsync();
+                    var summitedPillar = await _context.Pillars
+                        .Where(p => !answeredPillarIds.Contains(p.PillarID))
+                        .OrderBy(p => p.DisplayOrder)
+                        .FirstOrDefaultAsync();
 
-                if (selectPillar == null || selectPillar?.Questions == null)
-                {
-                    return ResultResponseDto<GetPillarQuestionByCityRespones>.Failure(new[] { "You have submitted assessment for this city" });
-                }
+                    if (selectPillar == null || selectPillar?.Questions == null)
+                    {
+                        return ResultResponseDto<GetPillarQuestionByCityRespones>.Failure(new[] { "You have submitted assessment for this city" });
+                    }
 
-                var editAssessmentResponse = new Dictionary<int, AssessmentResponse>();
-                if(assessment != null)
-                {
-                    editAssessmentResponse = assessment.PillarAssessments
-                    .Where(a => a.PillarID == request.PillarID)
-                    .SelectMany(x => x.Responses)
-                    .ToDictionary(x => x.QuestionID);
-                }
+                    var editAssessmentResponse = new Dictionary<int, AssessmentResponse>();
+                    if (assessment != null)
+                    {
+                        editAssessmentResponse = assessment.PillarAssessments
+                        .Where(a => a.PillarID == request.PillarID)
+                        .SelectMany(x => x.Responses)
+                        .ToDictionary(x => x.QuestionID);
+                    }
 
-                // Project questions
-                var questions = selectPillar.Questions
-                .OrderBy(q => q.DisplayOrder)
-                .Select(q =>
-                {
-                    var questoin = editAssessmentResponse.TryGetValue(q.QuestionID, out var submittedQuestion);
-                    submittedQuestion = submittedQuestion ?? new();
-                   return new AssessmentQuestionResponseDto
-                   {
-                        QuestionID = q.QuestionID,
-                        QuestionText = q.QuestionText,
-                        PillarID = q.PillarID,
-                        ResponseID = submittedQuestion.ResponseID,
-                        IsSelected = submittedQuestion.QuestionID == q.QuestionID,
-                        QuestionOptions = q.QuestionOptions.Select(x => new QuestionOptionDto
+                    // Project questions
+                    var questions = selectPillar.Questions
+                    .OrderBy(q => q.DisplayOrder)
+                    .Select(q =>
+                    {
+                        var questoin = editAssessmentResponse.TryGetValue(q.QuestionID, out var submittedQuestion);
+                        submittedQuestion = submittedQuestion ?? new();
+                        return new AssessmentQuestionResponseDto
                         {
-                            DisplayOrder = x.DisplayOrder,
-                            OptionID = x.OptionID,
-                            QuestionID = x.QuestionID,
-                            IsSelected = submittedQuestion.QuestionOptionID == x.OptionID,
-                            OptionText = x.OptionText,
-                            ScoreValue = x.ScoreValue,
-                            Justification = submittedQuestion.Justification,
-                            Source = submittedQuestion.Source
-                        }).ToList(),
-                    };
-                }).ToList();
+                            QuestionID = q.QuestionID,
+                            QuestionText = q.QuestionText,
+                            PillarID = q.PillarID,
+                            ResponseID = submittedQuestion.ResponseID,
+                            IsSelected = submittedQuestion.QuestionID == q.QuestionID,
+                            QuestionOptions = q.QuestionOptions.Select(x => new QuestionOptionDto
+                            {
+                                DisplayOrder = x.DisplayOrder,
+                                OptionID = x.OptionID,
+                                QuestionID = x.QuestionID,
+                                IsSelected = submittedQuestion.QuestionOptionID == x.OptionID,
+                                OptionText = x.OptionText,
+                                ScoreValue = x.ScoreValue,
+                                Justification = submittedQuestion.Justification,
+                                Source = submittedQuestion.Source
+                            }).ToList(),
+                        };
+                    }).ToList();
 
-                var result = new GetPillarQuestionByCityRespones
-                {
-                    AssessmentID = assessment?.AssessmentID ?? 0,
-                    UserCityMappingID = request.UserCityMappingID,
-                    PillarName = selectPillar.PillarName,
-                    PillarID = selectPillar.PillarID,
-                    Description = selectPillar.Description,
-                    DisplayOrder = selectPillar.DisplayOrder,
-                    SubmittedPillarDisplayOrder = answeredPillarIds.Count == 14 ? 14 : summitedPillar?.DisplayOrder ?? selectPillar.DisplayOrder,
-                    Questions = questions
-                };
-                return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
+                    var result = new GetPillarQuestionByCityRespones
+                    {
+                        AssessmentID = assessment?.AssessmentID ?? 0,
+                        UserCityMappingID = request.UserCityMappingID,
+                        PillarName = selectPillar.PillarName,
+                        PillarID = selectPillar.PillarID,
+                        Description = selectPillar.Description,
+                        DisplayOrder = selectPillar.DisplayOrder,
+                        SubmittedPillarDisplayOrder = answeredPillarIds.Count == 14 ? 14 : summitedPillar?.DisplayOrder ?? selectPillar.DisplayOrder,
+                        Questions = questions
+                    };
+                    return ResultResponseDto<GetPillarQuestionByCityRespones>.Success(result, new[] { "get questions successfully" });
+                }
+                return null;
+
             }
             catch (Exception ex)
             {

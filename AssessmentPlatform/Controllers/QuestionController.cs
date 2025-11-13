@@ -5,6 +5,7 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -17,6 +18,18 @@ namespace AssessmentPlatform.Controllers
         public QuestionController(IQuestionService questionService)
         {
             _questionService = questionService;
+        }
+        private int? GetUserIdFromClaims()
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
+
+            return null;
+        }
+        private string? GetRoleFromClaims()
+        {
+            return User.FindFirst(ClaimTypes.Role)?.Value;
         }
 
         [HttpGet("pillars")]
@@ -64,13 +77,23 @@ namespace AssessmentPlatform.Controllers
         public async Task<IActionResult> DeleteQuestion(int id)
         {
             var success = await _questionService.DeleteQuestionAsync(id);
-            if (!success) return NotFound();
+            if (!success) return BadRequest("You don't have Access");
             return Ok();
         }
 
         [HttpGet("getQuestionsByCityMappingId")]
         [Authorize]
-        public async Task<IActionResult> GetQuestionsByCityIdAsync([FromQuery] CityPillerRequestDto requestDto) => Ok(await _questionService.GetQuestionsByCityIdAsync(requestDto));
+        public async Task<IActionResult> GetQuestionsByCityIdAsync([FromQuery] CityPillerRequestDto requestDto)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var result = await _questionService.GetQuestionsByCityIdAsync(requestDto, userId.GetValueOrDefault());
+            if (result == null) return NotFound();
+
+            return Ok(result);
+        }
         
         [HttpGet("ExportAssessment/{userCityMappingID}")]
         [Authorize]
