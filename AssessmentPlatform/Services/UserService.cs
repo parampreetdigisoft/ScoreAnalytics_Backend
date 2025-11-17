@@ -159,7 +159,7 @@ namespace AssessmentPlatform.Services
                 // Update fields
                 user.FullName = requestDto.FullName;
                 user.Phone = requestDto.Phone;
-
+                user.Is2FAEnabled = requestDto.Is2FAEnabled;
                 // Handle profile image upload
                 if (requestDto.ProfileImage != null)
                 {
@@ -197,7 +197,8 @@ namespace AssessmentPlatform.Services
                     UserID = user.UserID,
                     FullName = user.FullName,
                     Phone = user.Phone,
-                    ProfileImagePath = user?.ProfileImagePath
+                    Is2FAEnabled = user.Is2FAEnabled,
+                    ProfileImagePath = user.ProfileImagePath,
                 };
 
                 return ResultResponseDto<UpdateUserResponseDto>.Success(response, new List<string> { "Updated successfully" });
@@ -263,6 +264,32 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error Occure in GetUsersAssignedToCity", ex);
                 return ResultResponseDto<List<GetAssessmentResponseDto>>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+        public async Task<ResultResponseDto<UpdateUserResponseDto>> GetUserInfo(int userId)
+        {
+            try
+            {
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                    return ResultResponseDto<UpdateUserResponseDto>.Failure(new List<string>() { "Invalid request " });
+
+                var response = new UpdateUserResponseDto
+                {
+                    UserID = user.UserID,
+                    FullName = user.FullName,
+                    Phone = user.Phone,
+                    Email = user.Email,
+                    ProfileImagePath = user?.ProfileImagePath,
+                    Is2FAEnabled = user?.Is2FAEnabled ?? false
+                };
+
+                return ResultResponseDto<UpdateUserResponseDto>.Success(response, new List<string> { "Updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure UpdateUser", ex);
+                return ResultResponseDto<UpdateUserResponseDto>.Failure(new string[] { "There is an error please try later" });
             }
         }
     }

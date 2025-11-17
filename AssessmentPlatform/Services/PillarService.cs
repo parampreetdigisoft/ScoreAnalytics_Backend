@@ -1,3 +1,4 @@
+using AssessmentPlatform.Backgroundjob;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AssessmentDto;
@@ -14,10 +15,12 @@ namespace AssessmentPlatform.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
-        public PillarService(ApplicationDbContext context, IAppLogger appLogger)
+        private readonly Download _download;
+        public PillarService(ApplicationDbContext context, IAppLogger appLogger, Download download)
         {
             _context = context;
             _appLogger = appLogger;
+            _download = download;
         }
 
         public async Task<List<Pillar>> GetAllAsync()
@@ -73,9 +76,15 @@ namespace AssessmentPlatform.Services
                 existing.PillarName = pillar.PillarName;
                 existing.Description = pillar.Description;
                 existing.DisplayOrder = pillar.DisplayOrder;
-                existing.Weight = pillar.Weight;
-                existing.Reliability = pillar.Reliability;
+
+                if (existing.Weight != pillar.Weight || existing.Reliability != pillar.Reliability)
+                {
+                    existing.Weight = pillar.Weight;
+                    existing.Reliability = pillar.Reliability;
+                    _download.InsertAnalyticalLayerResults();
+                }
                 await _context.SaveChangesAsync();
+
                 return existing;
             }
             catch (Exception ex)

@@ -21,7 +21,7 @@ namespace AssessmentPlatform.Backgroundjob
         {
             Type = "InsertAnalyticalLayerResults";
             channelService.Write(this);
-            return "Worked has been started";
+            return "Execution has been started";
         }
 
         public Task LogException(string level, string message,string exception)

@@ -207,7 +207,7 @@ namespace AssessmentPlatform.Services
 
                 await _context.SaveChangesAsync();
 
-                var d = _download.InsertAnalyticalLayerResults();
+                _download.InsertAnalyticalLayerResults();
 
                 return ResultResponseDto<string>.Success("", new[] { "Pillar saved successfully" }, 1);
             }

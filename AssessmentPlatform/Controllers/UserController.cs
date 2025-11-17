@@ -64,6 +64,17 @@ namespace AssessmentPlatform.Controllers
             return Ok(await _userService.UpdateUser(dto));
         }
 
+        [HttpGet]
+        [Route("getUserInfo")]
+        public async Task<IActionResult> getUserInfo()
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null )
+                return Unauthorized("User ID not found.");
+
+            return Ok(await _userService.GetUserInfo(claimUserId.GetValueOrDefault()));
+        }
+
 
         [HttpGet]
         [Authorize(Policy = "AdminOnly")]
