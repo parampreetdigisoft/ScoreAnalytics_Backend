@@ -90,13 +90,14 @@ namespace AssessmentPlatform.Services
                     var passwordToken = hash;
                     var token = passwordToken.Replace("+", " ");
 
-                    string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                    var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
+                    string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
                     var model = new EmailInvitationSendRequestDto
                     {
                         ResetPasswordUrl = passwordResetLink,
                         Title = "Password Recovery",
                         ApiUrl = _appSettings.ApiUrl,
-                        ApplicationUrl = _appSettings.ApplicationUrl,
+                        ApplicationUrl = url,
                         MsgText = "You are receiving this email because you recently requested a password reset for your USVI account."
                     };
                     var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", model);
@@ -270,7 +271,8 @@ namespace AssessmentPlatform.Services
                 var passwordToken = hash;
                 var token = passwordToken.Replace("+", " ");
                 string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
-                string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
+                string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
 
                 var cityName = string.Join(", ",
                                          _context.Cities
@@ -283,7 +285,7 @@ namespace AssessmentPlatform.Services
                     ResetPasswordUrl = passwordResetLink,
                     ApiUrl = _appSettings.ApiUrl,
                     Title = sub,
-                    ApplicationUrl = _appSettings.ApplicationUrl,
+                    ApplicationUrl = url,
                     MsgText = $"You’ve been invited to join the VUI Assessment Platform as an {user.Role.ToString()}."+
                         $"This platform allows you to review indicators, contribute assessments, and collaborate with other experts in evaluating urban systems and sustainability data. ",
                     IsLoginBtn = false,
@@ -437,13 +439,14 @@ namespace AssessmentPlatform.Services
                     var passwordToken = hash;
                     var token = passwordToken.Replace("+", " ");
                     string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
-                    string passwordResetLink = _appSettings.ApplicationUrl + "/auth/reset-password?PasswordToken=" + token;
+                    var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
+                    string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
 
                     var model = new EmailInvitationSendRequestDto
                     {
                         ResetPasswordUrl = passwordResetLink,
                         ApiUrl = _appSettings.ApiUrl,
-                        ApplicationUrl = _appSettings.ApplicationUrl,
+                        ApplicationUrl = url,
                         MsgText = msgText,
                         Title = sub,
                         IsLoginBtn = false
@@ -590,7 +593,9 @@ namespace AssessmentPlatform.Services
                     {
                         // 5. Handle email invitation
                         var token = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email).Replace("+", " ");
-                        string resetLink = $"{_appSettings.ApplicationUrl}/auth/reset-password?PasswordToken={token}";
+                        var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
+
+                        string resetLink = $"{url}/auth/reset-password?PasswordToken={token}";
 
                         var cityName = string.Join(", ",
                          _context.Cities
@@ -603,7 +608,7 @@ namespace AssessmentPlatform.Services
                         {
                             ResetPasswordUrl = resetLink,
                             ApiUrl = _appSettings.ApiUrl,
-                            ApplicationUrl = _appSettings.ApplicationUrl,
+                            ApplicationUrl = url,
                             Title = sub,
                             MsgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({cityName}) for your USVI account."
                         };
@@ -721,14 +726,14 @@ namespace AssessmentPlatform.Services
                 {
                     var hash = BCrypt.Net.BCrypt.HashPassword(request.Email);
                     var token = hash.Replace("+", " "); // Replace + to avoid URL issues
-                    var passwordResetLink = $"{_appSettings.ApplicationUrl}/auth/confirm-mail?PasswordToken={token}";
+                    var passwordResetLink = $"{_appSettings.PublicApplicationUrl}/auth/confirm-mail?PasswordToken={token}";
 
                     var emailModel = new EmailInvitationSendRequestDto
                     {
                         ResetPasswordUrl = passwordResetLink,
                         Title = "Verify Your Email",
                         ApiUrl = _appSettings.ApiUrl,
-                        ApplicationUrl = _appSettings.ApplicationUrl,
+                        ApplicationUrl = _appSettings.PublicApplicationUrl,
                         MsgText = "Thank you for signing up! Please verify your email and reset your password to complete registration."
                     };
 
@@ -813,7 +818,7 @@ namespace AssessmentPlatform.Services
                     ResetPasswordUrl = "",
                     Title = $"{requestDto.Subject} - {requestDto.Email}",
                     ApiUrl = _appSettings.ApiUrl,
-                    ApplicationUrl = _appSettings.ApplicationUrl,
+                    ApplicationUrl = _appSettings.PublicApplicationUrl,
                     MsgText = requestDto.Message,
                     DescriptionAboutBtnText
                         = $"This email was sent by {requestDto.Name} from {requestDto.City}, {requestDto.Country}. You can reach them at: {requestDto.Email}.",
@@ -864,12 +869,13 @@ namespace AssessmentPlatform.Services
                 _context.Users.Update(user);
                 await _context.SaveChangesAsync();
 
+                var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
                 // 4️⃣ Send the OTP via email
                 var model = new EmailInvitationSendRequestDto
                 {
                     Title = "Two-Factor Authentication (2FA) Code",
                     ApiUrl = _appSettings.ApiUrl,
-                    ApplicationUrl = _appSettings.ApplicationUrl,
+                    ApplicationUrl = url,
                     MsgText = $"Your one-time password (OTP) for login verification is ( {otp} ). " +
                                $"This code will expire in {_appSettings.OTPExpiryValidMinutes} minutes. " +
                                $"Please do not share this code with anyone.",
