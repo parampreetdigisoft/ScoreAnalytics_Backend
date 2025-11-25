@@ -456,7 +456,7 @@ namespace AssessmentPlatform.Services
                     user.ResetTokenDate = DateTime.Now;
                     user.IsDeleted = false;
 
-                    msg = "User updated and invitation sent successfully";
+                    msg = $"User updated and invitation {(isMailSent ? "sent successfully" : "failed to send")}";
                     await _context.SaveChangesAsync();
                 }
 
