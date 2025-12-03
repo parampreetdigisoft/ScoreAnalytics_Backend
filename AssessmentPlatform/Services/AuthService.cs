@@ -270,7 +270,7 @@ namespace AssessmentPlatform.Services
                 var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
                 var passwordToken = hash;
                 var token = passwordToken.Replace("+", " ");
-                string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
+                string sub = $"Invitation to the Veridian Urban Index Platform - {inviteUser.Role.ToString()} Access";
                 var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
                 string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
 
@@ -438,7 +438,7 @@ namespace AssessmentPlatform.Services
                     var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
                     var passwordToken = hash;
                     var token = passwordToken.Replace("+", " ");
-                    string sub = $"Invitation to Assessment Platform as a {inviteUser.Role.ToString()}";
+                    string sub = $"Invitation to the Veridian Urban Index Platform - {inviteUser.Role.ToString()} Access";
                     var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
                     string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
 
@@ -603,7 +603,7 @@ namespace AssessmentPlatform.Services
                          .Select(c => c.CityName));
                         var invitedUser = _context.Users.FirstOrDefault(x => x.UserID == inviteUser.InvitedUserID);
 
-                        var sub = $"Invitation to Assessment Platform as a {inviteUser.Role}";
+                        string sub = $"Invitation to the Veridian Urban Index Platform - {inviteUser.Role.ToString()} Access";
                         var model = new EmailInvitationSendRequestDto
                         {
                             ResetPasswordUrl = resetLink,
