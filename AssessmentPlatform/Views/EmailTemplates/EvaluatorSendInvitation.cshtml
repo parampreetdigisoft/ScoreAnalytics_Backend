@@ -1,0 +1,100 @@
+﻿@model AssessmentPlatform.Views.EmailModels.EmailInvitationSendRequestDto
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>@Model.Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+
+<body style="margin:0;padding:0;background:#F4F6FB;font-family:Arial, sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6FB;padding:30px 0;">
+        <tr>
+            <td align="center">
+
+                <!-- MAIN CARD -->
+                <table width="100%" cellpadding="0" cellspacing="0" style="max-width:720px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0px 10px 30px rgba(0,0,0,0.08);">
+
+                    <!-- HEADER -->
+                    <tr>
+                        <td align="center" style="background:#efbf04;padding:40px 30px 25px;">
+
+                            <img src="@($"{Model.ApiUrl}/assets/images/veridian-urban-index.png")"
+                                 alt="VUI Logo"
+                                 style="height:75px;margin-bottom:20px;">
+
+                            <div style="font-size:26px;font-weight:600;color:#304a43;text-align:center;">
+                                @Model.Title
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- CONTENT -->
+                    <tr>
+                        <td style="padding:35px 40px 25px;font-size:15px;color:#444444;line-height:1.7;">
+
+                            <p style="margin:0 0 18px;">Dear Colleague,</p>
+
+                            <p style="margin:0 0 18px;">
+                                Your evaluator account for the <strong>Veridian Urban Index (VUI)</strong> platform has been activated.
+                                You have been added to the evaluation workspace for the cities assigned to you and may now begin reviewing submissions from the analysts.
+                            </p>
+
+                            <p style="margin:0 0 18px;">
+                                Please use the secure link below to create your password and access your evaluator dashboard:
+                            </p>
+
+                            <!-- BUTTON -->
+                            <div style="text-align:center;margin:20px 0 20px;">
+                                <a href="@Model.ResetPasswordUrl"
+                                   style="display:inline-block;padding:14px 20px;background:#efbf04;color:#304a43;font-size:16px;border-radius:10px;font-weight:600;text-decoration:none;">
+                                    Set Your Password
+                                </a>
+                            </div>
+
+                            <p style="margin:0 0 16px;"><strong>As an evaluator, you will be able to:</strong></p>
+
+                            <div style="margin:20px 0;padding:18px;background:#e6eceb;border-left:4px solid #304A43;border-radius:6px;color:#304a43;font-size:14px;">
+                                • Review city assessment inputs submitted by analysts<br />
+                                • Score indicators and provide required narrative comments<br />
+                                • Coordinate directly with analysts for each assigned city<br />
+                                • Submit your completed evaluations for administrative review
+                            </div>
+
+                            <p style="margin:0 0 18px;">
+                                If you already have an active password, simply log in and proceed with your evaluation tasks.
+                            </p>
+
+                            <p style="margin:0 0 18px;">
+                                For support or technical issues, please contact
+                                <a href="mailto:@Model.Mail" style="color:#304a43;text-decoration:none;font-weight:600;">
+                                    @Model.Mail
+                                </a>.
+                            </p>
+                            <p style="margin:0 0 18px;">
+                                Thank you for contributing to the Veridian Urban Index evaluation process.
+                            </p>
+
+                        </td>
+                    </tr>
+
+                    <!-- FOOTER -->
+                    <tr>
+                        <td style="padding:25px 40px 35px;text-align:left;background:#FAFAFA;font-size:14px;color:#808080;border-top:1px solid #eeeeee;">
+                            <p style="margin:6px 0;color:#304a43;">Warm regards,</p>
+                            <p style="margin:6px 0;color:#304a43;font-weight:600;">
+                                <strong>Veridian Urban Systems – Platform Administration</strong>
+                            </p>
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

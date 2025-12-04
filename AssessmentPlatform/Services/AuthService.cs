@@ -92,15 +92,22 @@ namespace AssessmentPlatform.Services
 
                     var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
                     string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
+
+                    var sub = "Password Update Link – Veridian Urban Index Platform";
                     var model = new EmailInvitationSendRequestDto
                     {
                         ResetPasswordUrl = passwordResetLink,
-                        Title = "Password Recovery",
+                        Title = sub,
                         ApiUrl = _appSettings.ApiUrl,
                         ApplicationUrl = url,
-                        MsgText = "You are receiving this email because you recently requested a password reset for your USVI account."
+                        MsgText= "A request was made to update the password for your Veridian Urban Index (VUI) account. To proceed, please use the secure link below:",
+                        IsShowBtnText=true,
+                        IsLoginBtn=false,
+                        BtnText= "Update Password",
+                        Mail=_appSettings.AdminMail,
+                        DescriptionAboutBtnText = $"If you did not make this request, you may ignore this message and your account will remain unchanged."
                     };
-                    var isMailSent = await _emailService.SendEmailAsync(email, "Password Recovery", "~/Views/EmailTemplates/ChangePassword.cshtml", model);
+                    var isMailSent = await _emailService.SendEmailAsync(email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
                     if (isMailSent)
                     {
                         user.ResetToken = token;
@@ -270,8 +277,8 @@ namespace AssessmentPlatform.Services
                 var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
                 var passwordToken = hash;
                 var token = passwordToken.Replace("+", " ");
-                string sub = $"Invitation to the Veridian Urban Index Platform - {inviteUser.Role.ToString()} Access";
-                var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
+                string sub = $"{inviteUser.Role.ToString()} Access Granted – Veridian Urban Index Platform";
+                var url = _appSettings.ApplicationUrl; 
                 string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
 
                 var cityName = string.Join(", ",
@@ -286,14 +293,11 @@ namespace AssessmentPlatform.Services
                     ApiUrl = _appSettings.ApiUrl,
                     Title = sub,
                     ApplicationUrl = url,
-                    MsgText = $"You’ve been invited to join the VUI Assessment Platform as an {user.Role.ToString()}."+
-                        $"This platform allows you to review indicators, contribute assessments, and collaborate with other experts in evaluating urban systems and sustainability data. ",
-                    IsLoginBtn = false,
-                    DescriptionAboutBtnText= "To get started, please click the button below to set your password and activate your account." +
-                        "\r\n If you did not expect this invitation, you can safely ignore this email.",
-                    BtnText = "Activate Account"
+                    Mail= _appSettings.AdminMail
                 };
-                var isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
+                var viewNamePath = inviteUser.Role ==UserRole.Analyst ? "~/Views/EmailTemplates/AnalystSendInvitation.cshtml" : "~/Views/EmailTemplates/EvaluatorSendInvitation.cshtml";
+
+                var isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, viewNamePath, model);
                 user.ResetToken = token;
                 user.ResetTokenDate = DateTime.Now;
                 user.IsDeleted = false;
@@ -438,7 +442,7 @@ namespace AssessmentPlatform.Services
                     var hash = BCrypt.Net.BCrypt.HashPassword(inviteUser.Email);
                     var passwordToken = hash;
                     var token = passwordToken.Replace("+", " ");
-                    string sub = $"Invitation to the Veridian Urban Index Platform - {inviteUser.Role.ToString()} Access";
+                    string sub = $"{inviteUser.Role.ToString()} Access Granted – Veridian Urban Index Platform";
                     var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
                     string passwordResetLink = url + "/auth/reset-password?PasswordToken=" + token;
 
@@ -447,11 +451,12 @@ namespace AssessmentPlatform.Services
                         ResetPasswordUrl = passwordResetLink,
                         ApiUrl = _appSettings.ApiUrl,
                         ApplicationUrl = url,
-                        MsgText = msgText,
                         Title = sub,
-                        IsLoginBtn = false
+                        Mail = _appSettings.AdminMail
                     };
-                    isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, "~/Views/EmailTemplates/ChangePassword.cshtml", model);
+                    var viewNamePath = inviteUser.Role == UserRole.Analyst ? "~/Views/EmailTemplates/AnalystSendInvitation.cshtml" : "~/Views/EmailTemplates/EvaluatorSendInvitation.cshtml";
+
+                    isMailSent = await _emailService.SendEmailAsync(inviteUser.Email, sub, viewNamePath, model);
                     user.ResetToken = token;
                     user.ResetTokenDate = DateTime.Now;
                     user.IsDeleted = false;
@@ -603,20 +608,21 @@ namespace AssessmentPlatform.Services
                          .Select(c => c.CityName));
                         var invitedUser = _context.Users.FirstOrDefault(x => x.UserID == inviteUser.InvitedUserID);
 
-                        string sub = $"Invitation to the Veridian Urban Index Platform - {inviteUser.Role.ToString()} Access";
+                        string sub = $"{inviteUser.Role.ToString()} Access Granted – Veridian Urban Index Platform";
                         var model = new EmailInvitationSendRequestDto
                         {
                             ResetPasswordUrl = resetLink,
                             ApiUrl = _appSettings.ApiUrl,
                             ApplicationUrl = url,
                             Title = sub,
-                            MsgText = $"You are receiving this email because {invitedUser?.FullName} recently requested city assignment ({cityName}) for your USVI account."
+                            Mail = _appSettings.AdminMail
                         };
+                        var viewNamePath = inviteUser.Role == UserRole.Analyst ? "~/Views/EmailTemplates/AnalystSendInvitation.cshtml" : "~/Views/EmailTemplates/EvaluatorSendInvitation.cshtml";
 
                         emailTasks.Add(_emailService.SendEmailAsync(
                             inviteUser.Email,
                             sub,
-                            "~/Views/EmailTemplates/ChangePassword.cshtml",
+                            viewNamePath,
                             model
                         ));
 

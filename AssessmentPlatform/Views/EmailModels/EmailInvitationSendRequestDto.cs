@@ -13,6 +13,7 @@
             BtnText = "Reset Password";
             IsShowBtnText = true;
             IsLoginBtn = true;
+            Mail = "";
         }
         public string Title { get; set; }
         public string ResetPasswordUrl { get; set; }
@@ -23,5 +24,6 @@
         public string BtnText { get; set; }
         public bool IsShowBtnText { get; set; } = true;
         public bool IsLoginBtn { get; set; } = true;
+        public string Mail { get; set; }
     }
 }

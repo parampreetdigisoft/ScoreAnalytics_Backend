@@ -1,0 +1,97 @@
+﻿@model AssessmentPlatform.Views.EmailModels.EmailInvitationSendRequestDto
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#F4F6FB;font-family:Arial, sans-serif;">
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F6FB;padding:30px 0;">
+        <tr>
+            <td align="center">
+
+                <!-- MAIN CONTAINER -->
+                <table width="720" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.08);">
+
+                    <!-- HEADER -->
+                    <tr>
+                        <td align="center" style="background:#efbf04;padding:40px 30px 25px;">
+
+                            <img src="@($"{Model.ApiUrl}/assets/images/veridian-urban-index.png")"
+                                 alt="VUI Logo"
+                                 style="height:75px;margin-bottom:20px;">
+
+                            <div style="font-size:26px;font-weight:600;color:#304a43;text-align:center;">
+                                @Model.Title
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- CONTENT -->
+                    <tr>
+                        <td style="padding:35px 40px 25px;font-size:15px;color:#444;line-height:1.7;">
+
+                            <p>Dear Colleague,</p>
+
+                            <p>
+                                Your analyst account for the <strong>Veridian Urban Index (VUI)</strong> platform is now active. 
+                                You have been added to the assessment workspace for the cities assigned to you and can begin coordinating the evaluation process.
+                            </p>
+
+                            <p>Please use the secure link below to create your password and access your dashboard:</p>
+
+                            <!-- BUTTON -->
+                            <div style="text-align:center;margin:20px 0 20px;">
+                                <a href="@Model.ResetPasswordUrl"
+                                   style="display:inline-block;padding:14px 22px;background:#efbf04;
+                                      color:#304a43;text-decoration:none;font-weight:600;
+                                      border-radius:8px;font-size:16px;">
+                                    Set Your Password
+                                </a>
+                            </div>
+
+                            <p style="margin:0 0 16px;"><strong>As an analyst, you will be able to:</strong></p>
+
+                            <div style="margin:20px 0;padding:18px;background:#e6eceb;border-left:4px solid #304A43;border-radius:6px;color:#304a43;font-size:14px;">
+                                • Complete and submit city assessment questionnaires<br>
+                                • Add or manage evaluators where neededs<br>
+                                • Add or manage evaluators where needed<br>
+                                • Review submissions and prepare materials for administrative review
+                            </div>
+
+                            <p style="margin:0 0 18px;">
+                                If you already have an active password, simply log in and continue your work.
+                            </p>
+
+                            <p style="margin:0 0 18px;">
+                                For assistance or system-related support, contact:
+                                <a href="mailto:@Model.Mail" style="color:#304a43;font-weight:600;">
+                                    @Model.Mail
+                                </a>
+                            </p>
+                            <p style="margin:0 0 18px;">
+                                Thank you for joining the assessment team.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- FOOTER -->
+                    <tr>
+                        <td style="background:#FAFAFA;padding:25px 40px 35px;font-size:14px;color:#808080;border-top:1px solid #eee;">
+
+                            <p style="color:#304a43;">Warm regards,</p>
+                            <p style="color:#304a43;font-weight:600;">
+                                Veridian Urban Systems – Platform Administration
+                            </p>
+
+                        </td>
+                    </tr>
+
+                </table>
+
+            </td>
+        </tr>
+    </table>
+
+</body>
+</html>
