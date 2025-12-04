@@ -6,6 +6,7 @@ using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace AssessmentPlatform.Services
 {
@@ -14,10 +15,19 @@ namespace AssessmentPlatform.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
-        public PublicService(ApplicationDbContext context, IAppLogger appLogger)
+        private readonly IMemoryCache _cache;
+ 
+
+        private const string CacheKey = "COUNTRIES_CITIES_CACHE";
+        private static readonly TimeSpan CacheDuration = TimeSpan.FromDays(30);
+        private static readonly SemaphoreSlim _lock = new SemaphoreSlim(1, 1);
+        private static readonly TimeSpan StaleRefreshThreshold = TimeSpan.FromDays(5);
+
+        public PublicService(ApplicationDbContext context, IAppLogger appLogger, IMemoryCache cache)
         {
             _context = context;
             _appLogger = appLogger;
+            _cache = cache;
         }
         public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetAllCities()
         {
@@ -179,5 +189,88 @@ namespace AssessmentPlatform.Services
                 return new();
             }
         }
+
+        /// <summary>
+        /// If expired → return existing cache first, then refresh in background
+        /// </summary>
+        public async Task<CountryCityResponse> GetCountriesAndCities_WithStaleSupport()
+        {
+            if (_cache.TryGetValue(CacheKey, out CacheWrapper<CountryCityResponse> cached))
+            {
+                var remainingTime = cached.ExpiryTimeUtc - DateTime.UtcNow;
+
+                // ✅ If cache will expire within 5 days → refresh in background
+                if (remainingTime <= StaleRefreshThreshold)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await _lock.WaitAsync();
+                        try
+                        {
+                            await RefreshCacheFromApi();
+                        }
+                        finally
+                        {
+                            _lock.Release();
+                        }
+                    });
+                }
+
+                // ✅ Always return current cached data immediately
+                return cached.Data;
+            }
+
+            // ✅ If no cache at all → block & fetch
+            return await RefreshCacheFromApi();
+        }
+
+        private async Task<CountryCityResponse> RefreshCacheFromApi()
+        {
+            using (var httpClient = new HttpClient())
+            {
+                var apiUrl = "https://countriesnow.space/api/v0.1/countries";
+
+                var freshData = await httpClient.GetFromJsonAsync<CountryCityResponse>(apiUrl);
+
+                if (freshData?.Data?.Count > 50)
+                {
+                    var expiryTime = DateTime.UtcNow.Add(CacheDuration);
+
+                    var cacheObject = new CacheWrapper<CountryCityResponse>
+                    {
+                        Data = freshData,
+                        ExpiryTimeUtc = expiryTime
+                    };
+
+                    var cacheOptions = new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpiration = expiryTime
+                    };
+
+                    _cache.Set(CacheKey, cacheObject, cacheOptions);
+                }
+
+                return freshData;
+            }
+        }
     }
 }
+public class CacheWrapper<T>
+{
+    public T Data { get; set; }
+    public DateTime ExpiryTimeUtc { get; set; }
+}
+
+public class CountryCityResponse
+{
+    public bool Error { get; set; }
+    public string Msg { get; set; }
+    public List<CountryData> Data { get; set; }
+}
+
+public class CountryData
+{
+    public string Country { get; set; }
+    public List<string> Cities { get; set; }
+}
+

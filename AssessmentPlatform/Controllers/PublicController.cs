@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
-using AssessmentPlatform.Dtos.PublicDto;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -76,5 +76,12 @@ namespace AssessmentPlatform.Controllers
                 return StatusCode(500, "Internal server error");
             }
         }
+        [HttpGet("countries-cities")]
+        public async Task<IActionResult> GetCountriesCities()
+        {
+            var data = await _publicService.GetCountriesAndCities_WithStaleSupport();
+            return Ok(data);
+        }
+
     }
 }

@@ -10,5 +10,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<PartnerCityFilterResponse>> GetPartnerCitiesFilterRecord();
         Task<ResultResponseDto<List<PillarResponseDto>>> GetAllPillarAsync();
         Task<PaginationResponse<PartnerCityResponseDto>> GetPartnerCities(PartnerCityRequestDto r);
+        Task<CountryCityResponse> GetCountriesAndCities_WithStaleSupport();
     }
 }

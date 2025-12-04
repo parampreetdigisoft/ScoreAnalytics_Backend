@@ -687,7 +687,8 @@ namespace AssessmentPlatform.Services
                             ApiUrl = _appSettings.ApiUrl,
                             ApplicationUrl = _appSettings.ApplicationUrl,
                             MsgText = $"You are receiving this email because user {user?.FullName} recently requested to update city {city?.CityName} from their USVI account.",
-                            BtnText = "Give Access"
+                            BtnText = "Give Access",
+                            Mail = _appSettings.AdminMail
                         };
                         var isMailSent = await _emailService.SendEmailAsync(mailToUser.Email, "Request to update city", "~/Views/EmailTemplates/ChangePassword.cshtml", model);
                         if (isMailSent)
@@ -740,7 +741,8 @@ namespace AssessmentPlatform.Services
                         Title = "Verify Your Email",
                         ApiUrl = _appSettings.ApiUrl,
                         ApplicationUrl = _appSettings.PublicApplicationUrl,
-                        MsgText = "Thank you for signing up! Please verify your email and reset your password to complete registration."
+                        MsgText = "Thank you for signing up! Please verify your email and reset your password to complete registration.",
+                        Mail = _appSettings.AdminMail
                     };
 
                     isMailSend = await _emailService.SendEmailAsync(
@@ -830,6 +832,7 @@ namespace AssessmentPlatform.Services
                         = $"This email was sent by {requestDto.Name} from {requestDto.City}, {requestDto.Country}. You can reach them at: {requestDto.Email}.",
                     IsLoginBtn = false,
                     IsShowBtnText = false,
+                    Mail = _appSettings.AdminMail
                 };
 
                 var isMailSend = await _emailService.SendEmailAsync(
@@ -887,6 +890,7 @@ namespace AssessmentPlatform.Services
                                $"Please do not share this code with anyone.",
                     IsLoginBtn = false,
                     IsShowBtnText = false,
+                    Mail = _appSettings.AdminMail,
                     DescriptionAboutBtnText = "You are receiving this email because a login attempt was made to your VUI account. " +
                                "If this was you, please use the above OTP to complete your sign-in. " +
                                "If you did not request this login, please secure your account immediately by resetting your password."
