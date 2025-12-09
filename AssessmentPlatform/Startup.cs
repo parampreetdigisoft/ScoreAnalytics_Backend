@@ -47,9 +47,15 @@ namespace AssessmentPlatform
             // Dependency Injection for Services
             services.AddHttpContextAccessor();
 
+            services.AddHttpClient<HttpService>(client =>
+            {
+                client.Timeout = TimeSpan.FromHours(3); // supports very long API calls
+            });
             services.AddHostedService<ChannelWorker>();
+            services.AddHostedService<AiJobService>();
             services.AddSingleton<ChannelService>();
             services.AddScoped<Download>();
+            services.AddScoped<IAIAnalyzeService, AIAnalyzeService>();
 
             services.AddScoped<IQuestionService, QuestionService>();
             services.AddScoped<IUserService, UserService>();

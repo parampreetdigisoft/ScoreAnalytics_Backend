@@ -25,6 +25,11 @@ namespace AssessmentPlatform.Data
         public DbSet<CityUserKpiMapping> CityUserKpiMappings { get; set; } = default!;
         public DbSet<CityUserPillarMapping> CityUserPillarMappings { get; set; } = default!;
 
+        public DbSet<AIDataSourceCitation> AIDataSourceCitations { get; set; } = default!;
+        public DbSet<AICityScore> AICityScores { get; set; } = default!;
+        public DbSet<AIEstimatedQuestionScore> AIEstimatedQuestionScores { get; set; } = default!;
+        public DbSet<AIPillarScore> AIPillarScores { get; set; } = default!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<User>().HasKey(ur => ur.UserID);
@@ -99,6 +104,11 @@ namespace AssessmentPlatform.Data
 
             modelBuilder.Entity<CityUserKpiMapping>().HasKey(ur => ur.CityUserKpiMappingID);
             modelBuilder.Entity<CityUserPillarMapping>().HasKey(ur => ur.CityUserPillarMappingID);
+
+            modelBuilder.Entity<AIDataSourceCitation>().HasKey(ur => ur.CitationID);
+            modelBuilder.Entity<AICityScore>().HasKey(ur => ur.CityScoreID);
+            modelBuilder.Entity<AIEstimatedQuestionScore>().HasKey(ur => ur.QuestionScoreID);
+            modelBuilder.Entity<AIPillarScore>().HasKey(ur => ur.PillarScoreID);
 
             base.OnModelCreating(modelBuilder);
         }
