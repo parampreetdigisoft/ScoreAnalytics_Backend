@@ -1,5 +1,6 @@
 ﻿using AssessmentPlatform.Backgroundjob;
 using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AiDto;
 using AssessmentPlatform.Dtos.CommonDto;
@@ -91,6 +92,90 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error Occured in GetCitiesAsync", ex);
                 return new PaginationResponse<AiCitySummeryDto>();
+            }
+        }
+
+
+        public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole)
+        {
+            try
+            {
+                var res = await _context.AIPillarScores
+                    .Where(x => x.CityID == cityID)
+                    .Include(x => x.Pillar)
+                    .Include(x => x.DataSourceCitations)
+                    .ToListAsync();
+
+                List<int> pillarIds = new();
+                if (userRole == UserRole.CityUser)
+                {
+                    pillarIds = await _context.CityUserPillarMappings
+                                .Where(x => x.IsActive && x.UserID == userID)
+                                .Select(x => x.PillarID)
+                                .Distinct()
+                                .ToListAsync();
+                }
+                var pillars = await _context.Pillars.ToListAsync();
+
+                var result = pillars
+                .GroupJoin(
+                    res,
+                    p => p.PillarID,
+                    s => s.PillarID,
+                    (pillar, scores) => new { pillar, score = scores.FirstOrDefault() }
+                )
+                .Select(x =>
+                {
+                    var isAccess = pillarIds.Count == 0 || pillarIds.Contains(x.pillar.PillarID);
+
+                    var r = new AiCityPillarReponse
+                    {
+                        PillarScoreID = x.score?.PillarScoreID ?? 0,
+                        CityID = x.score?.CityID ?? cityID,
+                        PillarID = x.pillar.PillarID,
+                        PillarName = x.pillar.PillarName,
+                        Description = x.pillar.Description ?? "",
+                        DisplayOrder = x.pillar.DisplayOrder,
+                        ImagePath = x.pillar.ImagePath,
+                        IsAccess = isAccess
+                    };
+
+                    if (isAccess && x.score != null)
+                    {
+                        r.AIDataYear = x.score.Year;
+                        r.AIScore = x.score.AIScore;
+                        r.AIProgress = x.score.AIProgress;
+                        r.EvaluatorProgress = x.score.EvaluatorProgress;
+                        r.Discrepancy = x.score.Discrepancy;
+                        r.ConfidenceLevel = x.score.ConfidenceLevel;
+                        r.EvidenceSummary = x.score.EvidenceSummary;
+                        r.RedFlags = x.score.RedFlags;
+                        r.GeographicEquityNote = x.score.GeographicEquityNote;
+                        r.InstitutionalAssessment = x.score.InstitutionalAssessment;
+                        r.DataGapAnalysis = x.score.DataGapAnalysis;
+                        r.DataSourceCitations = x.score.DataSourceCitations;
+                    }
+                    return r;
+                })
+                .OrderBy(x => x.DisplayOrder)
+                .ToList();
+                var trustLavels = await _context.AITrustLevels.ToListAsync();
+
+                var finalResutl = new AiCityPillarReponseDto
+                {
+                    AITrustLevels = trustLavels,
+                    Pillars = result
+                };
+
+
+                var resposne = ResultResponseDto<AiCityPillarReponseDto>.Success(finalResutl, new[] { "Pillar get successfully", });
+
+                return resposne;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in GetAICityPillars", ex);
+                return ResultResponseDto<AiCityPillarReponseDto>.Failure(new[] { "Error in getting pillar details", });
             }
         }
     }

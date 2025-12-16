@@ -29,6 +29,7 @@ namespace AssessmentPlatform.Data
         public DbSet<AICityScore> AICityScores { get; set; } = default!;
         public DbSet<AIEstimatedQuestionScore> AIEstimatedQuestionScores { get; set; } = default!;
         public DbSet<AIPillarScore> AIPillarScores { get; set; } = default!;
+        public DbSet<AITrustLevel> AITrustLevels { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -109,6 +110,7 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<AICityScore>().HasKey(ur => ur.CityScoreID);
             modelBuilder.Entity<AIEstimatedQuestionScore>().HasKey(ur => ur.QuestionScoreID);
             modelBuilder.Entity<AIPillarScore>().HasKey(ur => ur.PillarScoreID);
+            modelBuilder.Entity<AITrustLevel>().HasKey(ur => ur.TrustID);
 
             base.OnModelCreating(modelBuilder);
         }

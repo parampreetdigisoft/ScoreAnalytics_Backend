@@ -1,4 +1,6 @@
-﻿namespace AssessmentPlatform.Models
+﻿using System.Text.Json.Serialization;
+
+namespace AssessmentPlatform.Models
 {
     public class AIDataSourceCitation
     {
@@ -15,6 +17,7 @@
         public DateTime? CreatedAt { get; set; }
 
         // Navigation
+        [JsonIgnore]
         public AIPillarScore? PillarScore { get; set; }
     }
 }
