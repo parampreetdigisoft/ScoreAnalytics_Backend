@@ -6,4 +6,10 @@ namespace AssessmentPlatform.Dtos.AiDto
     {
         public int? CityID { get; set; }
     }
+
+    public class AiCityPillarSummeryRequestDto : AiCitySummeryRequestDto
+    {
+        public int? PillarID { get; set; }
+    }
+
 }

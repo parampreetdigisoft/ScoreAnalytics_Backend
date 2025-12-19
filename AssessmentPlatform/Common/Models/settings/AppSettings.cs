@@ -11,5 +11,6 @@
         public string ApplicationInfoMail { get; set; }
         public int OTPExpiryValidMinutes { get; set; }
         public string AiUrl { get; set; }
+        public string AiToken { get; set; }
     }
 }

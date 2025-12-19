@@ -7,7 +7,9 @@ namespace AssessmentPlatform.IServices
 {
     public interface IAIComputationService
     {
+        Task<ResultResponseDto<List<AITrustLevel>>> GetAITrustLevels();
         Task<PaginationResponse<AiCitySummeryDto>> GetAICities(AiCitySummeryRequestDto request, int userID, UserRole userRole);
         Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole);
+        Task<PaginationResponse<AIEstimatedQuestionScoreDto>> GetAIPillarsQuestion(AiCityPillarSummeryRequestDto r, int userID, UserRole userRole);
     }
 }

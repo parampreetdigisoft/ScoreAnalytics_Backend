@@ -22,6 +22,15 @@ namespace AssessmentPlatform.Services
             _appLogger = appLogger;
             _download = download;
         }
+
+        public async Task<ResultResponseDto<List<AITrustLevel>>> GetAITrustLevels()
+        {
+            var r = await _context.AITrustLevels.ToListAsync();
+
+            return ResultResponseDto<List<AITrustLevel>>.Success(r, new[] { "Pillar get successfully", });
+
+        }
+
         public async Task<PaginationResponse<AiCitySummeryDto>> GetAICities(AiCitySummeryRequestDto request, int userID, UserRole userRole)
         {
             try
@@ -176,6 +185,64 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error Occured in GetAICityPillars", ex);
                 return ResultResponseDto<AiCityPillarReponseDto>.Failure(new[] { "Error in getting pillar details", });
+            }
+        }
+
+        public async Task<PaginationResponse<AIEstimatedQuestionScoreDto>> GetAIPillarsQuestion(AiCityPillarSummeryRequestDto request, int userID, UserRole userRole)
+        {
+            try
+            {
+                if (userRole == UserRole.CityUser && request.CityID != null && request.PillarID != null)
+                {
+                    var isPillarAccess =  _context.CityUserPillarMappings
+                                .Where(x => x.IsActive && x.UserID == userID)
+                                .Select(x => x.PillarID).Contains(request.PillarID.Value);
+
+                    var isCityAccess =  _context.PublicUserCityMappings
+                               .Where(x => x.IsActive && x.UserID == userID)
+                               .Select(x => x.CityID).Contains(request.CityID.Value);
+                    if(!(isCityAccess && isPillarAccess))
+                    {
+                        return new PaginationResponse<AIEstimatedQuestionScoreDto>();
+                    }
+                }
+
+                var res = _context.AIEstimatedQuestionScores
+                    .Include(x=>x.Question)
+                    .Where(x => x.CityID == request.CityID && x.PillarID == request.PillarID)
+                    .Select(x => new AIEstimatedQuestionScoreDto
+                    {
+                        CityID = x.CityID,
+                        PillarID = x.PillarID,
+                        QuestionID = x.QuestionID,
+                        DataYear = x.Year,
+                        AIScore = x.AIScore,
+                        AIProgress = x.AIProgress,
+                        EvaluatorProgress = x.EvaluatorProgress,
+                        Discrepancy = x.Discrepancy,
+                        ConfidenceLevel = x.ConfidenceLevel,
+                        DataSourcesUsed = x.DataSourcesUsed,
+                        EvidenceSummary = x.EvidenceSummary,
+                        RedFlags = x.RedFlags,
+                        GeographicEquityNote = x.GeographicEquityNote,
+                        SourceType = x.SourceType,
+                        SourceName = x.SourceName,
+                        SourceURL = x.SourceURL,
+                        SourceDataYear = x.SourceDataYear,
+                        SourceDataExtract = x.SourceDataExtract,
+                        SourceTrustLevel = x.SourceTrustLevel,
+                        QuestionText = x.Question.QuestionText,
+
+                    });
+
+                var r =await res.ApplyPaginationAsync(request);
+
+                return r;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in GetAICityPillars", ex);
+                return new PaginationResponse<AIEstimatedQuestionScoreDto>();
             }
         }
     }
