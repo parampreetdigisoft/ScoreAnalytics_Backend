@@ -66,6 +66,11 @@ namespace AssessmentPlatform.Services
                         ? x.Assessment.PillarAssessments
                             .SelectMany(p => p.Responses)
                             .Sum(r => (int?)r.Score) // ✅ Safe enum → int cast
+                        : 0,
+                    Count = x.Assessment != null
+                        ? x.Assessment.PillarAssessments
+                            .SelectMany(p => p.Responses)
+                            .Count(r => r.Score !=null) 
                         : 0
                 }).ToList();
 
@@ -74,11 +79,28 @@ namespace AssessmentPlatform.Services
                 cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
                 cityHistory.TotalAccessCity = accessCity.Count();
                 cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
-
+                
                 var cityScores = cityQuery
                     .GroupBy(x => x.CityID)
-                    .Select(g => new {g.Key, Score = Convert.ToDecimal(g.Sum(s => s.Score)) / (g.Count() * 4) })
-                    .ToList();
+                    .Select(g =>
+                    {
+                        var totalScore = g.Sum(s => s.Score) ?? 0;
+                        var totalCount = g.Sum(x => x.Count);
+                        double result = 0;
+
+                        if (totalCount > 0)
+                        {
+                            result = (totalScore * 100.0) / (totalCount * 4.0);
+                        }
+
+                        return new
+                        {
+                            g.Key,
+                            Score = double.IsNaN(result) || double.IsInfinity(result)
+                                ? 0m
+                                : Convert.ToDecimal(result)
+                        };
+                    }).ToList();
 
                 if (cityScores.Any())
                 {
@@ -211,8 +233,8 @@ namespace AssessmentPlatform.Services
                             var totalAnsScore = scores.Sum();
                             var scoreCount = scores.Count;
 
-                            var progress = scoreCount > 0 && userCount > 0
-                                ? totalAnsScore * 100m / (scoreCount * 4m * userCount)
+                            var progress = scoreCount > 0 
+                                ? totalAnsScore * 100m / (scoreCount * 4m )
                                 : 0m;
 
                             var detail = new CityPillarQuestionHistoryReponseDto

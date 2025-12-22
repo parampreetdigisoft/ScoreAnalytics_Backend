@@ -532,8 +532,8 @@ namespace AssessmentPlatform.Services
                         AnsQuestion = pa != null ? pa.Responses.Count() : 0,
                         HasAnswer = pa != null
                     };
-
-                var cityPillars = (await cityPillarQuery.ToListAsync())
+                var list = await cityPillarQuery.Distinct().ToListAsync();
+                var cityPillars = (list)
                     .GroupBy(x => new { x.PillarID, x.PillarName })
                     .Select(g =>
                     {
@@ -542,7 +542,7 @@ namespace AssessmentPlatform.Services
                         var ansUserCount = g.Where(x => x.UserID > 0).Distinct().Count();
                         var totalQuestionsInPillar = g.Max(x => x.TotalQuestion) * ansUserCount;
 
-                        decimal progress = ScoreCount != 0 && ansUserCount > 0 ? totalAnsScoreOfPillar * 100 / (ScoreCount * 4m * ansUserCount) : 0m;
+                        decimal progress = ScoreCount != 0 && ansUserCount > 0 ? totalAnsScoreOfPillar * 100 / (ScoreCount * 4m ) : 0m;
 
                         return new CityPillarQuestionHistoryReponseDto
                         {
@@ -574,7 +574,7 @@ namespace AssessmentPlatform.Services
                     CityID = cityID,
                     //TotalAssessment = assessmentCount,
                     //Score = cityPillars.Sum(x => x.Score),
-                    //ScoreProgress = cityPillars.Sum(x => x.ScoreProgress)/ totalPillars,
+                    ScoreProgress = cityPillars.Average(x => x.ScoreProgress),
                     //TotalPillar = totalPillars * ucmIds.Count,
                     //TotalAnsPillar = cityPillars.Sum(x => x.AnsPillar),
                     //TotalQuestion = totalQuestions * ucmIds.Count,

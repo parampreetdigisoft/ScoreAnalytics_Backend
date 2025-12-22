@@ -14,12 +14,14 @@ namespace AssessmentPlatform.Services
         private readonly  string aiUrl = "http://127.0.0.1:8000";
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
+        private Dictionary<string, string> headers;
         public AIAnalyzeService(HttpService httpService, IOptions<AppSettings> appSettings, ApplicationDbContext context, IAppLogger appLogger)
         {
             _httpService = httpService;
             aiUrl = appSettings?.Value?.AiUrl ?? aiUrl;
             _context = context;
             _appLogger = appLogger;
+            headers = new Dictionary<string, string> { { "X-API-Key", appSettings?.Value?.AiToken ?? "" } };
         }
         public async Task RunMonthlyJob()
         {
@@ -81,35 +83,35 @@ namespace AssessmentPlatform.Services
         public async Task AnalyzeAllCitiesFull()
         {
              var url = aiUrl + "/api/cities-score-analysis/analyze/full";
-             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url);
+             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
         public async Task AnalyzeSingleCityFull(int cityId)
         {
             var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/full";
-            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
         public async Task AnalyzeSingleCity(int cityId)
         {
             var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}";
-            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
         public async Task AnalyzeCityPillars(int cityId)
         {
             var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/pillars";
-            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
         // Analyze all Pillars Questions data for a city.
         public async Task AnalyzeQuestionsOfCity(int cityId)
         {
             var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/questions";
-            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
         public async Task AnalyzeQuestionsOfCityPillar(int cityId, int pillarId)
         {
             var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/pillars/{pillarId}/questions";
-            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
     }
