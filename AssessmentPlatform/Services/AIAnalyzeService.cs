@@ -58,7 +58,11 @@ namespace AssessmentPlatform.Services
                 await AnalyzeSingleCityFull(id);
             }
 
-            var date = DateTime.UtcNow.AddDays(-31);
+            var now = DateTime.UtcNow;
+
+            // Run at 1st day of every month at 01:00 AM UTC
+            var date = new DateTime(now.Year, now.Month, 1, 1, 0, 0, DateTimeKind.Utc)
+                            .AddMonths(-1);
 
             var importPillarsCityIds = _context.AIPillarScores
                 .GroupBy(x => x.CityID)
