@@ -17,8 +17,9 @@ namespace AssessmentPlatform.Backgroundjob
         public string Message { get; set; } = string.Empty;
         public string Exception { get; set; } = string.Empty;
 
-        public string InsertAnalyticalLayerResults()
+        public string InsertAnalyticalLayerResults(int cityID = 0)
         {
+            CityID = cityID;
             Type = "InsertAnalyticalLayerResults";
             channelService.Write(this);
             return "Execution has been started";

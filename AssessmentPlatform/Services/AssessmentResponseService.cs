@@ -105,6 +105,7 @@ namespace AssessmentPlatform.Services
             {
                 var now = DateTime.Now;
                 var assessment = await _context.Assessments
+                    .Include(x=>x.UserCityMapping)
                     .Include(x => x.PillarAssessments)
                     .ThenInclude(x => x.Responses)
                     .FirstOrDefaultAsync(x =>
@@ -207,7 +208,7 @@ namespace AssessmentPlatform.Services
 
                 await _context.SaveChangesAsync();
 
-                _download.InsertAnalyticalLayerResults();
+                _download.InsertAnalyticalLayerResults(assessment.UserCityMapping.CityID);
 
                 return ResultResponseDto<string>.Success("", new[] { "Pillar saved successfully" }, 1);
             }

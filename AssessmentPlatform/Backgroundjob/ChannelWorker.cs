@@ -1,5 +1,6 @@
 ﻿using AssessmentPlatform.Data;
 using AssessmentPlatform.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace AssessmentPlatform.Backgroundjob
@@ -9,14 +10,14 @@ namespace AssessmentPlatform.Backgroundjob
         private readonly ChannelService _channelService;
         private readonly IServiceProvider _serviceProvider;
         private readonly Dictionary<string, Func<Download, Task>> _actionHandlers;
-        private readonly Dictionary<string, CancellationTokenSource> _debounceTokens;
+        private readonly Dictionary<int, CancellationTokenSource> _debounceTokens;
         private readonly TimeSpan _debounceInterval = TimeSpan.FromMinutes(2);
 
         public ChannelWorker(ChannelService channelService, IServiceProvider serviceProvider)
         {
             _channelService = channelService;
             _serviceProvider = serviceProvider;
-            _debounceTokens = new Dictionary<string, CancellationTokenSource>();
+            _debounceTokens = new Dictionary<int, CancellationTokenSource>();
 
             _actionHandlers = new Dictionary<string, Func<Download, Task>>
             {
@@ -38,7 +39,7 @@ namespace AssessmentPlatform.Backgroundjob
                         if (queueItem.Type == "InsertAnalyticalLayerResults")
                         {
                             //Called sp on latest changes
-                            Debounce(queueItem.Type, async () => await action(queueItem));
+                            Debounce(queueItem.CityID ?? 0, async () => await action(queueItem));
                         }
                         else
                         {
@@ -53,7 +54,7 @@ namespace AssessmentPlatform.Backgroundjob
             }
         }
 
-        private void Debounce(string key, Func<Task> action)
+        private void Debounce(int key, Func<Task> action)
         {
             // Cancel previous timer if it exists
             if (_debounceTokens.TryGetValue(key, out var existingCts))
@@ -89,11 +90,15 @@ namespace AssessmentPlatform.Backgroundjob
                 using var scope = _serviceProvider.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-                await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_InsertAnalyticalLayerResults");
+                var cityIdParam = new SqlParameter("@CityID", channel.CityID ?? 0);
+                await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_InsertAnalyticalLayerResults @CityID", cityIdParam);
             }
             catch (Exception ex)
             {
-                // log exception
+                channel.Level = "Background running";
+                channel.Exception = ex.ToString();
+                channel.Message = $"Error accour in executing sp_InsertAnalyticalLayerResults for city {channel.CityID}";
+                await LogException(channel);
             }
         }
 
