@@ -166,7 +166,8 @@ namespace AssessmentPlatform.Services
                     }
                     return r;
                 })
-                .OrderBy(x => x.DisplayOrder)
+                .OrderBy(x => !x.IsAccess)
+                .ThenBy(x=>x.DisplayOrder)
                 .ToList();
                 var trustLavels = await _context.AITrustLevels.ToListAsync();
 
