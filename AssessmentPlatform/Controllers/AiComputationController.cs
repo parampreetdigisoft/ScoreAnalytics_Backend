@@ -1,17 +1,16 @@
 ﻿using AssessmentPlatform.Dtos.AiDto;
-using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
-using AssessmentPlatform.Services;
-using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace AssessmentPlatform.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    
+
     public class AiComputationController : ControllerBase
     {
 
@@ -98,6 +97,48 @@ namespace AssessmentPlatform.Controllers
             }
 
             return Ok(await _aIComputationService.GetAIPillarsQuestion(r, userId.Value, userRole));
+        }
+
+        [HttpGet("{cityId}/aiCityDetailsReport")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DownloadCityPdf(int cityId)
+        {
+            try
+            {
+                var userId = GetUserIdFromClaims();
+                if (userId == null)
+                    return Unauthorized("User ID not found in token.");
+
+                var role = GetRoleFromClaims();
+                if (role == null)
+                    return Unauthorized("You Don't have access.");
+
+                if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+                {
+                    return Unauthorized("You Don't have access.");
+                }
+
+                IQueryable<AiCitySummeryDto> query = await _aIComputationService.GetCityAiSummeryDetails(userId ?? 0, userRole, cityId);
+
+                var cityDetails = await query.FirstAsync();
+
+                // Generate PDF
+                var pdfBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails);
+
+                // Return PDF with proper headers
+                var fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
+
+                return File(pdfBytes,"application/pdf",fileName);
+            }
+            catch (Exception ex)
+            {
+                // Log error
+                return StatusCode(500, new
+                {
+                    message = "Error generating PDF",
+                    error = ex.Message
+                });
+            }
         }
     }
 }

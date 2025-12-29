@@ -11,6 +11,7 @@ using AssessmentPlatform.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using QuestPDF.Infrastructure;
 using System.Text;
 
 namespace AssessmentPlatform
@@ -139,6 +140,7 @@ namespace AssessmentPlatform
                     }
                 });
             });
+            QuestPDF.Settings.License = LicenseType.Community;
 
             services.AddControllersWithViews();
             services.AddMvc().AddSessionStateTempDataProvider();
