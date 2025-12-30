@@ -118,6 +118,7 @@ namespace AssessmentPlatform.Services
                 var res = await _context.AIPillarScores
                     .Where(x => x.CityID == cityID)
                     .Include(x => x.Pillar)
+                    .Include(x => x.City)
                     .Include(x => x.DataSourceCitations)
                     .ToListAsync();
 
@@ -147,6 +148,9 @@ namespace AssessmentPlatform.Services
                     {
                         PillarScoreID = x.score?.PillarScoreID ?? 0,
                         CityID = x.score?.CityID ?? cityID,
+                        CityName = x.score?.City?.CityName ?? "",
+                        State = x.score?.City?.State ?? "",
+                        Country = x.score?.City?.Country ?? "",
                         PillarID = x.pillar.PillarID,
                         PillarName = x.pillar.PillarName,
                         Description = x.pillar.Description ?? "",
@@ -266,8 +270,8 @@ namespace AssessmentPlatform.Services
                         page.PageColor(Colors.White);
                         page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
-                        page.Header().Element(ComposeHeader);
-                        page.Content().Element(content => ComposeContent(content, cityDetails));
+                        page.Header().Element(PillarComposeHeader);
+                        page.Content().Element(content => CitySummeryComposeContent(content, cityDetails));
                         page.Footer().AlignCenter().Text(x =>
                         {
                             x.CurrentPageNumber();
@@ -284,8 +288,358 @@ namespace AssessmentPlatform.Services
                 return new byte[] { };
             }
         }
+        public async Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse pillarData)
+        {
+            try
+            {
+                var document = Document.Create(container =>
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A4);
+                        page.Margin(25);
+                        page.PageColor("#FAFAFA");
+                        page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Segoe UI"));
 
-        void ComposeHeader(IContainer container)
+                        page.Header().Element(header => PillarComposeHeader(header, pillarData));
+                        page.Content().Element(content => PillarComposeContent(content, pillarData));
+                        page.Footer().Element(PillarComposeFooter);
+                    });
+                });
+
+                return document.GeneratePdf();
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in GeneratePillarDetailsPdf", ex);
+                return new byte[] { };
+            }
+        }
+
+        void PillarComposeHeader(IContainer container, AiCityPillarReponse data)
+        {
+            container.Column(column =>
+            {
+                // Top Bar with Logo/Title
+                column.Item().Background("#1E3A5F").Padding(8).Row(row =>
+                {
+                    row.RelativeItem().Column(col =>
+                    {
+                        col.Item().Text($"Pillar Analysis Report")
+                            .FontSize(16)
+                            .FontColor(Colors.White);
+                    });
+
+                    row.ConstantItem(150).AlignRight().Column(col =>
+                    {
+                        col.Item().AlignRight().Text($"Generated")
+                            .FontSize(9)
+                            .FontColor("#B0C4DE");
+                        col.Item().AlignRight().Text(DateTime.Now.ToString("MMM dd, yyyy"))
+                            .FontSize(10)
+                            .Bold()
+                            .FontColor(Colors.White);
+                    });
+                });
+
+                // Pillar Name Header
+                column.Item().Background("#2C5F8D").Padding(12).Column(col =>
+                {
+                    col.Item().Text(data.PillarName)
+                        .FontSize(22)
+                        .Bold()
+                        .FontColor(Colors.White);
+
+                    col.Item().PaddingTop(3).Text($"{data.CityName},{data.State},{data.Country} | Data Year: {data.AIDataYear}")
+                        .FontSize(10)
+                        .FontColor("#E0E0E0");
+                });
+            });
+        }
+
+        void PillarComposeContent(IContainer container, AiCityPillarReponse data)
+        {
+            container.PaddingTop(8).Column(column =>
+            {
+                // Score Cards Row
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Element(c => PillarScoreCard(c, "AI Confidence",
+                        data.ConfidenceLevel, GetConfidenceBadgeColor(data.ConfidenceLevel), true));
+                    row.Spacing(10);
+
+                    row.RelativeItem().Element(c => PillarScoreCard(c, "AI Score",
+                        data.AIProgress!=null ? $"{data.AIProgress}%" : "N/A", "#FFC107", false));
+                    row.Spacing(10);
+
+                    row.RelativeItem().Element(c => PillarScoreCard(c, "Evaluator Score",
+                        data.EvaluatorProgress != null ? $"{data.EvaluatorProgress}%" : "N/A", "#4CAF50", false));
+                    row.Spacing(10);
+
+                    row.RelativeItem().Element(c => PillarScoreCard(c, "Discrepancy",
+                        $"{data.Discrepancy:F1}%", GetDiscrepancyColor(data.Discrepancy ?? 0), false));
+                    row.Spacing(10);
+
+                    row.RelativeItem().Element(c => PillarScoreCard(c, "Average Score",
+                        $"{((data.AIProgress + data.EvaluatorProgress) ?? 0)/2:F0}%", "#2196F3", false));
+                });
+
+                // Progress Bars
+                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, data));
+
+                // Evidence Summary Section
+                column.Item().PaddingTop(10).Element(c =>
+                    PillarContentSection(c, "AI Evidence Summary", data.EvidenceSummary, "#1976D2"));
+
+                // Red Flags Section (with warning styling)
+                column.Item().PageBreak();
+                column.Item().PaddingTop(10).Element(c =>
+                    PillarContentSection(c, "Red Flags", data.RedFlags, "#D32F2F"));
+
+                // Other Sections
+                column.Item().PaddingTop(10).Element(c =>
+                    PillarContentSection(c, "Geographic Equity Note", data.GeographicEquityNote, "#388E3C"));
+
+                column.Item().PageBreak();
+                column.Item().PaddingTop(10).Element(c =>
+                    PillarContentSection(c, "Institutional Assessment", data.InstitutionalAssessment, "#7B1FA2"));
+
+                column.Item().PaddingTop(10).Element(c =>
+                    PillarContentSection(c, "Data Gap Analysis", data.DataGapAnalysis, "#F57C00"));
+
+                // Data Sources Section
+                if (data.DataSourceCitations?.Any() == true)
+                {
+                    column.Item().PageBreak();
+                    column.Item().PaddingTop(10).Element(c =>
+                        DataSourcesSection(c, data.DataSourceCitations.ToList()));
+                }
+
+                // Description Section (HTML content handled as text)
+                if (!string.IsNullOrEmpty(data.Description))
+                {
+                    column.Item().PageBreak();
+                    column.Item().PaddingTop(10).Element(c =>
+                        PillarContentSection(c, "Pillar Description",
+                            StripHtmlTags(data.Description), "#455A64"));
+                }
+            });
+        }
+
+        void PillarScoreCard(IContainer container, string label, string value, string color, bool isBadge)
+        {
+            container.Background(Colors.White)
+                .Border(1)
+                .BorderColor("#E0E0E0")
+                .Padding(10)
+                .Column(column =>
+                {
+                    column.Item().Text(label)
+                        .FontSize(10)
+                        .FontColor("#757575")
+                        .Bold();
+
+                    if (isBadge)
+                    {
+                        column.Item().PaddingTop(8).Background(color)
+                            .CornerRadius(12)
+                            .Padding(6)
+                            .AlignCenter()
+                            .Text(value)
+                            .FontSize(13)
+                            .Bold()
+                            .FontColor(Colors.Black);
+                    }
+                    else
+                    {
+                        column.Item().PaddingTop(8).Text(value)
+                            .FontSize(16)
+                            .Bold()
+                            .FontColor(color);
+                    }
+                });
+        }
+
+        void PillarProgressSection(IContainer container, AiCityPillarReponse data)
+        {
+            container.Background(Colors.White)
+                .Border(1)
+                .BorderColor("#E0E0E0")
+                .Padding(15)
+                .Column(column =>
+                {
+                    column.Item().Text("Progress Metrics")
+                        .FontSize(16)
+                        .Bold()
+                        .FontColor("#1E3A5F");
+
+                    column.Item().PaddingTop(12).Column(col =>
+                    {
+                        PillarProgressBar(col, "AI Progress", data.AIProgress, "#4CAF50");
+                        col.Item().PaddingTop(10);
+                        PillarProgressBar(col, "Evaluator Progress", data.EvaluatorProgress, "#2196F3");
+                        col.Item().PaddingTop(10);
+                        PillarProgressBar(col, "Discrepancy", data.Discrepancy, "#FF5722");
+                    });
+                });
+        }
+
+        void PillarProgressBar(ColumnDescriptor column, string label, decimal? percentage, string color)
+        {
+            var per  =  (float)(percentage ?? 0);
+            column.Item().Row(row =>
+            {
+                row.ConstantItem(140).Text(label)
+                    .FontSize(11)
+                    .FontColor("#424242");
+
+                row.RelativeItem().PaddingLeft(10).Column(col =>
+                {
+                    col.Item().Height(20).Background("#F5F5F5").Row(barRow =>
+                    {
+                        barRow.RelativeItem(per ).Background(color);
+                        barRow.RelativeItem(100 - per);
+                    });
+                });
+
+                row.ConstantItem(55).AlignRight().Text($"{percentage:F1}%")
+                    .FontSize(11)
+                    .Bold()
+                    .FontColor(color);
+            });
+        }
+
+        void PillarContentSection(IContainer container, string title, string content, string accentColor)
+        {
+            container.Column(column =>
+            {
+                // Section Header with Accent Bar
+                column.Item().Row(row =>
+                {
+                    row.ConstantItem(5).Background(accentColor);
+                    row.RelativeItem().Background("#F5F5F5").Padding(12).Text(title)
+                        .FontSize(15)
+                        .Bold()
+                        .FontColor("#212121");
+                });
+
+                // Content Box
+                column.Item().Background(Colors.White)
+                    .Border(1)
+                    .BorderColor("#E0E0E0")
+                    .Padding(18)
+                    .Text(content)
+                    .FontSize(10)
+                    .LineHeight(1.6f)
+                    .FontColor("#424242")
+                    .Justify();
+            });
+        }
+
+        void DataSourcesSection(IContainer container, List<AIDataSourceCitation> sources)
+        {
+            container.Column(column =>
+            {
+                column.Item().Row(row =>
+                {
+                    row.ConstantItem(5).Background("#1976D2");
+                    row.RelativeItem().Background("#F5F5F5").Padding(12).Text("Data Source Citations")
+                        .FontSize(15)
+                        .Bold()
+                        .FontColor("#212121");
+                });
+
+                column.Item().PaddingTop(10).Background(Colors.White)
+                    .Border(1)
+                    .BorderColor("#E0E0E0")
+                    .Padding(15)
+                    .Column(col =>
+                    {
+                        foreach (var source in sources.Take(10)) // Limit to first 10 for space
+                        {
+                            col.Item().PaddingBottom(15).Column(sourceCol =>
+                            {
+                                // Source Header
+                                sourceCol.Item().Row(row =>
+                                {
+                                    row.RelativeItem().Text(source.SourceName)
+                                        .FontSize(11)
+                                        .Bold()
+                                        .FontColor("#1565C0");
+
+                                    row.ConstantItem(100).AlignRight()
+                                        .Background(GetSourceTypeBadgeColor(source.SourceType))
+                                        .CornerRadius(3)
+                                        .Padding(3)
+                                        .Text(source.SourceType)
+                                        .FontSize(8)
+                                        .FontColor(Colors.White);
+                                });
+
+                                // Trust Level and Year
+                                sourceCol.Item().PaddingTop(4).Row(row =>
+                                {
+                                    row.AutoItem().Text($"Trust Level: {source.TrustLevel}/7")
+                                        .FontSize(9)
+                                        .FontColor("#757575");
+
+                                    row.AutoItem().PaddingLeft(15).Text($"Year: {source.DataYear}")
+                                        .FontSize(9)
+                                        .FontColor("#757575");
+                                });
+
+                                // Data Extract
+                                if (!string.IsNullOrEmpty(source.DataExtract))
+                                {
+                                    sourceCol.Item().PaddingTop(6).Text(TruncateText(source.DataExtract, 200))
+                                        .FontSize(9)
+                                        .FontColor("#616161")
+                                        .Italic();
+                                }
+
+                                // URL
+                                if (!string.IsNullOrEmpty(source.SourceURL))
+                                {
+                                    sourceCol.Item().PaddingTop(4).Text(source.SourceURL)
+                                        .FontSize(8)
+                                        .FontColor("#1976D2")
+                                        .Underline();
+                                }
+                            });
+
+                            if (source != sources.Last())
+                            {
+                                col.Item().PaddingBottom(10).LineHorizontal(1).LineColor("#EEEEEE");
+                            }
+                        }
+                    });
+            });
+        }
+
+        void PillarComposeFooter(IContainer container)
+        {
+            container.AlignCenter().Row(row =>
+            {
+                row.RelativeItem().Column(col =>
+                {
+                    col.Item().AlignCenter().Text(text =>
+                    {
+                        text.Span("Page ");
+                        text.CurrentPageNumber();
+                        text.Span(" of ");
+                        text.TotalPages();
+                       
+                    });
+                    
+
+                    col.Item().PaddingTop(5).AlignCenter().Text("AI Power City Assessment Platform")
+                        .FontSize(8)
+                        .FontColor("#9E9E9E");
+                });
+            });
+        }
+
+        void PillarComposeHeader(IContainer container)
         {
             container.Row(row =>
             {
@@ -304,8 +658,7 @@ namespace AssessmentPlatform.Services
                 });
             });
         }
-
-        void ComposeContent(IContainer container, AiCitySummeryDto data)
+        void CitySummeryComposeContent(IContainer container, AiCitySummeryDto data)
         {
             container.Column(column =>
             {
@@ -383,13 +736,14 @@ namespace AssessmentPlatform.Services
 
                 // Category Summaries
                 AddCategorySection(column, "Cross-Pillar Patterns", data.CrossPillarPatterns, true);
-                AddCategorySection(column, "Institutional Capacity", data.InstitutionalCapacity,false);
+                AddCategorySection(column, "Institutional Capacity", data.InstitutionalCapacity, false);
                 AddCategorySection(column, "Equity Assessment", data.EquityAssessment, false);
                 AddCategorySection(column, "Sustainability Outlook", data.SustainabilityOutlook, true);
                 AddCategorySection(column, "Strategic Recommendations", data.StrategicRecommendations, false);
                 AddCategorySection(column, "Data Transparency Note", data.DataTransparencyNote, false);
             });
         }
+
 
         void AddCategorySection(ColumnDescriptor column, string title, string content, bool pageBreak = true)
         {
@@ -427,5 +781,43 @@ namespace AssessmentPlatform.Services
                 _ => Colors.Grey.Darken1
             };
         }
+
+        // Helper Methods
+        static string GetConfidenceBadgeColor(string confidence) => confidence?.ToLower() switch
+        {
+            "high" => "#4CAF50",
+            "medium" => "#FFC107",
+            "low" => "#F44336",
+            _ => "#9E9E9E"
+        };
+
+        static string GetDiscrepancyColor(decimal discrepancy) => discrepancy switch
+        {
+            < 10 => "#4CAF50",
+            < 25 => "#FFC107",
+            _ => "#F44336"
+        };
+
+        static string GetSourceTypeBadgeColor(string sourceType) => sourceType?.ToLower() switch
+        {
+            "government" => "#1976D2",
+            "academic" => "#7B1FA2",
+            "international" => "#00897B",
+            "news/ngo" => "#F57C00",
+            _ => "#616161"
+        };
+
+        static string StripHtmlTags(string html)
+        {
+            if (string.IsNullOrEmpty(html)) return string.Empty;
+            return System.Text.RegularExpressions.Regex.Replace(html, "<.*?>", string.Empty);
+        }
+
+        static string TruncateText(string text, int maxLength)
+        {
+            if (string.IsNullOrEmpty(text) || text.Length <= maxLength) return text;
+            return text.Substring(0, maxLength) + "...";
+        }
+
     }
 }

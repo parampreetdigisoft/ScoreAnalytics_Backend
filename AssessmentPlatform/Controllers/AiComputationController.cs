@@ -100,7 +100,6 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("{cityId}/aiCityDetailsReport")]
-        [AllowAnonymous]
         public async Task<IActionResult> DownloadCityPdf(int cityId)
         {
             try
@@ -129,6 +128,53 @@ namespace AssessmentPlatform.Controllers
                 var fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
 
                 return File(pdfBytes,"application/pdf",fileName);
+            }
+            catch (Exception ex)
+            {
+                // Log error
+                return StatusCode(500, new
+                {
+                    message = "Error generating PDF",
+                    error = ex.Message
+                });
+            }
+        }
+        [HttpGet("{cityId}/{pillarId}/aiPillarDetailsReport")]
+        public async Task<IActionResult> DownloadPillarPdf(int cityId, int pillarId)
+        {
+            try
+            {
+                var userId = GetUserIdFromClaims();
+                if (userId == null)
+                    return Unauthorized("User ID not found in token.");
+
+                var role = GetRoleFromClaims();
+                if (role == null)
+                    return Unauthorized("You Don't have access.");
+
+                if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+                {
+                    return Unauthorized("You Don't have access.");
+                }
+
+                var pillars = await _aIComputationService.GetAICityPillars(cityId, userId.Value, userRole);
+
+                var pillarDetails =  pillars.Result.Pillars.FirstOrDefault(x=>x.PillarID == pillarId);
+                if (pillarDetails != null)
+                {
+
+                    // Generate PDF
+                    var pdfBytes = await _aIComputationService.GeneratePillarDetailsPdf(pillarDetails);
+
+                    // Return PDF with proper headers
+                    var fileName = $"{pillarDetails.PillarName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
+                    return File(pdfBytes, "application/pdf", fileName);
+                }
+                return StatusCode(500, new
+                {
+                    message = "Error generating PDF"
+                });
+
             }
             catch (Exception ex)
             {

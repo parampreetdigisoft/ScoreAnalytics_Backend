@@ -13,5 +13,6 @@ namespace AssessmentPlatform.IServices
         Task<PaginationResponse<AIEstimatedQuestionScoreDto>> GetAIPillarsQuestion(AiCityPillarSummeryRequestDto r, int userID, UserRole userRole);
         Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID);
         Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails);
+        Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse cityDetails);
     }
 }
