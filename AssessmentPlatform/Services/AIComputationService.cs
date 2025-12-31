@@ -288,6 +288,119 @@ namespace AssessmentPlatform.Services
                 return new byte[] { };
             }
         }
+
+        void CitySummeryComposeContent(IContainer container, AiCitySummeryDto data)
+        {
+            container.Column(column =>
+            {
+                // City Header
+                column.Item().Row(row =>
+                {
+                    row.RelativeItem().Column(col =>
+                    {
+                        col.Item().Text(data.CityName).FontSize(24).Bold();
+                        col.Item().Text($"{data.State}, {data.Country}")
+                            .FontSize(12)
+                            .FontColor(Colors.Grey.Darken2);
+                        col.Item().PaddingTop(5).Text($"Scoring Year: {data.ScoringYear}")
+                            .FontSize(10)
+                            .FontColor(Colors.Grey.Darken1);
+                    });
+                });
+
+                column.Item().PaddingVertical(10).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
+
+                // AI Score Badge
+                column.Item().PaddingVertical(10).Background(Colors.Yellow.Lighten3)
+                    .Padding(10)
+                    .Text($"AI Score: {data.AIProgress}/100")
+                    .FontSize(14)
+                    .Bold();
+
+                // Confidence Level
+                column.Item().PaddingTop(10).Row(row =>
+                {
+                    row.ConstantItem(120).Text("AI Confidence Level:")
+                        .FontSize(11)
+                        .Bold();
+                    row.RelativeItem().Text(data.ConfidenceLevel)
+                        .FontSize(11)
+                        .FontColor(GetConfidenceColor(data.ConfidenceLevel));
+                });
+
+                // Progress Metrics
+                column.Item().PaddingTop(15).Text("Progress Metrics")
+                    .FontSize(14)
+                    .Bold()
+                    .FontColor(Colors.Blue.Darken2);
+
+                column.Item().PaddingTop(5).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(2);
+                        columns.RelativeColumn(1);
+                    });
+
+                    table.Cell().Element(CellStyle).Text("AI Progress");
+                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.AIProgress:F1}%");
+
+                    table.Cell().Element(CellStyle).Text("Evaluator Progress");
+                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.EvaluatorProgress:F1}%");
+
+                    table.Cell().Element(CellStyle).Text("Discrepancy");
+                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.Discrepancy:F1}%");
+
+                    table.Cell().Element(CellStyle).Text("Average Progress");
+                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.AIProgress:F2}%");
+                });
+
+                column.Item().PaddingTop(20).Text("AI Evidence Summary")
+                    .FontSize(14)
+                    .Bold()
+                    .FontColor(Colors.Blue.Darken2);
+
+                column.Item().PaddingTop(5).Text(data.EvidenceSummary)
+                    .FontSize(10)
+                    .LineHeight(1.5f)
+                    .Justify();
+
+                // Category Summaries
+                AddCategorySection(column, "Cross-Pillar Patterns", data.CrossPillarPatterns, true);
+                AddCategorySection(column, "Institutional Capacity", data.InstitutionalCapacity, false);
+                AddCategorySection(column, "Equity Assessment", data.EquityAssessment, false);
+                AddCategorySection(column, "Sustainability Outlook", data.SustainabilityOutlook, true);
+                AddCategorySection(column, "Strategic Recommendations", data.StrategicRecommendations, false);
+                AddCategorySection(column, "Data Transparency Note", data.DataTransparencyNote, false);
+            });
+        }
+
+
+        void AddCategorySection(ColumnDescriptor column, string title, string content, bool pageBreak = true)
+        {
+            if (pageBreak)
+                column.Item().PageBreak();
+
+            column.Item().PaddingTop(20).Background(Colors.Grey.Lighten3)
+                .Padding(8)
+                .Text(title)
+                .FontSize(13)
+                .Bold()
+                .FontColor(Colors.Blue.Darken3);
+
+            column.Item().PaddingTop(8).Text(content)
+                .FontSize(10)
+                .LineHeight(1.5f)
+                .Justify();
+        }
+
+        static IContainer CellStyle(IContainer container)
+        {
+            return container
+                .Border(1)
+                .BorderColor(Colors.Grey.Lighten2)
+                .Padding(8);
+        }
         public async Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse pillarData)
         {
             try
@@ -658,118 +771,6 @@ namespace AssessmentPlatform.Services
                 });
             });
         }
-        void CitySummeryComposeContent(IContainer container, AiCitySummeryDto data)
-        {
-            container.Column(column =>
-            {
-                // City Header
-                column.Item().Row(row =>
-                {
-                    row.RelativeItem().Column(col =>
-                    {
-                        col.Item().Text(data.CityName).FontSize(24).Bold();
-                        col.Item().Text($"{data.State}, {data.Country}")
-                            .FontSize(12)
-                            .FontColor(Colors.Grey.Darken2);
-                        col.Item().PaddingTop(5).Text($"Scoring Year: {data.ScoringYear}")
-                            .FontSize(10)
-                            .FontColor(Colors.Grey.Darken1);
-                    });
-                });
-
-                column.Item().PaddingVertical(10).LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
-
-                // AI Score Badge
-                column.Item().PaddingVertical(10).Background(Colors.Yellow.Lighten3)
-                    .Padding(10)
-                    .Text($"AI Score: {data.AIProgress}/100")
-                    .FontSize(14)
-                    .Bold();
-
-                // Confidence Level
-                column.Item().PaddingTop(10).Row(row =>
-                {
-                    row.ConstantItem(120).Text("AI Confidence Level:")
-                        .FontSize(11)
-                        .Bold();
-                    row.RelativeItem().Text(data.ConfidenceLevel)
-                        .FontSize(11)
-                        .FontColor(GetConfidenceColor(data.ConfidenceLevel));
-                });
-
-                // Progress Metrics
-                column.Item().PaddingTop(15).Text("Progress Metrics")
-                    .FontSize(14)
-                    .Bold()
-                    .FontColor(Colors.Blue.Darken2);
-
-                column.Item().PaddingTop(5).Table(table =>
-                {
-                    table.ColumnsDefinition(columns =>
-                    {
-                        columns.RelativeColumn(2);
-                        columns.RelativeColumn(1);
-                    });
-
-                    table.Cell().Element(CellStyle).Text("AI Progress");
-                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.AIProgress:F1}%");
-
-                    table.Cell().Element(CellStyle).Text("Evaluator Progress");
-                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.EvaluatorProgress:F1}%");
-
-                    table.Cell().Element(CellStyle).Text("Discrepancy");
-                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.Discrepancy:F1}%");
-
-                    table.Cell().Element(CellStyle).Text("Average Progress");
-                    table.Cell().Element(CellStyle).AlignRight().Text($"{data.AIProgress:F2}%");
-                });
-
-                column.Item().PaddingTop(20).Text("AI Evidence Summary")
-                    .FontSize(14)
-                    .Bold()
-                    .FontColor(Colors.Blue.Darken2);
-
-                column.Item().PaddingTop(5).Text(data.EvidenceSummary)
-                    .FontSize(10)
-                    .LineHeight(1.5f)
-                    .Justify();
-
-                // Category Summaries
-                AddCategorySection(column, "Cross-Pillar Patterns", data.CrossPillarPatterns, true);
-                AddCategorySection(column, "Institutional Capacity", data.InstitutionalCapacity, false);
-                AddCategorySection(column, "Equity Assessment", data.EquityAssessment, false);
-                AddCategorySection(column, "Sustainability Outlook", data.SustainabilityOutlook, true);
-                AddCategorySection(column, "Strategic Recommendations", data.StrategicRecommendations, false);
-                AddCategorySection(column, "Data Transparency Note", data.DataTransparencyNote, false);
-            });
-        }
-
-
-        void AddCategorySection(ColumnDescriptor column, string title, string content, bool pageBreak = true)
-        {
-            if(pageBreak)
-            column.Item().PageBreak();
-
-            column.Item().PaddingTop(20).Background(Colors.Grey.Lighten3)
-                .Padding(8)
-                .Text(title)
-                .FontSize(13)
-                .Bold()
-                .FontColor(Colors.Blue.Darken3);
-
-            column.Item().PaddingTop(8).Text(content)
-                .FontSize(10)
-                .LineHeight(1.5f)
-                .Justify();
-        }
-
-        static IContainer CellStyle(IContainer container)
-        {
-            return container
-                .Border(1)
-                .BorderColor(Colors.Grey.Lighten2)
-                .Padding(8);
-        }
 
         static string GetConfidenceColor(string confidence)
         {
@@ -818,6 +819,5 @@ namespace AssessmentPlatform.Services
             if (string.IsNullOrEmpty(text) || text.Length <= maxLength) return text;
             return text.Substring(0, maxLength) + "...";
         }
-
     }
 }
