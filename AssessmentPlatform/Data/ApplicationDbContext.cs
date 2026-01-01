@@ -24,12 +24,12 @@ namespace AssessmentPlatform.Data
         public DbSet<AnalyticalLayerResult> AnalyticalLayerResults { get; set; } = default!;
         public DbSet<CityUserKpiMapping> CityUserKpiMappings { get; set; } = default!;
         public DbSet<CityUserPillarMapping> CityUserPillarMappings { get; set; } = default!;
-
         public DbSet<AIDataSourceCitation> AIDataSourceCitations { get; set; } = default!;
         public DbSet<AICityScore> AICityScores { get; set; } = default!;
         public DbSet<AIEstimatedQuestionScore> AIEstimatedQuestionScores { get; set; } = default!;
         public DbSet<AIPillarScore> AIPillarScores { get; set; } = default!;
         public DbSet<AITrustLevel> AITrustLevels { get; set; } = default!;
+        public DbSet<AnalyticalLayerPillarMapping> AnalyticalLayerPillarMappings { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -111,6 +111,7 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<AIEstimatedQuestionScore>().HasKey(ur => ur.QuestionScoreID);
             modelBuilder.Entity<AIPillarScore>().HasKey(ur => ur.PillarScoreID);
             modelBuilder.Entity<AITrustLevel>().HasKey(ur => ur.TrustID);
+            modelBuilder.Entity<AnalyticalLayerPillarMapping>().HasKey(ur => ur.AnalyticalLayerPillarMappingID);
 
             base.OnModelCreating(modelBuilder);
         }

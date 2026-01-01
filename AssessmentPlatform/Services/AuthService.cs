@@ -217,7 +217,7 @@ namespace AssessmentPlatform.Services
                 new Claim("Tier", user.Tier?.ToString() ?? ""),         
                 new Claim("UserId", user!.UserID.ToString())       
             };
-            var tokenExpired = DateTime.Now.AddHours(1);
+            var tokenExpired = DateTime.UtcNow.AddHours(1);
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSetting.Key));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var securityToken = new JwtSecurityToken(

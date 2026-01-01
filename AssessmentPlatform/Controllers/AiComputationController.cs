@@ -139,7 +139,7 @@ namespace AssessmentPlatform.Controllers
                 });
             }
         }
-        [HttpGet("{cityId}/{pillarId}/aiPillarDetailsReport")]
+        [HttpGet("{cityId}/aiPillarDetailsReport/{pillarId}")]
         public async Task<IActionResult> DownloadPillarPdf(int cityId, int pillarId)
         {
             try
