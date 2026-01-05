@@ -897,10 +897,16 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                // Get valid KPI IDs for the user (only non-deleted mappings)
-                var validKpiIds = await _context.CityUserKpiMappings
+                var validPillarIds = await _context.CityUserPillarMappings
                     .Where(x => x.IsActive && x.UserID == userId)
+                    .Select(x => x.PillarID)
+                    .ToListAsync();
+
+                // Step 1: Get valid KPI IDs for this user
+                var validKpiIds = await _context.AnalyticalLayerPillarMappings
+                    .Where(x => validPillarIds.Contains(x.PillarID))
                     .Select(x => x.LayerID)
+                    .Distinct()
                     .ToListAsync();
 
                 if (!validKpiIds.Any())
@@ -926,11 +932,32 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                // Step 1: Get valid KPI IDs for this user
-                var validKpiIds = await _context.CityUserKpiMappings
+                var year = c.UpdatedAt.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
+
+
+                var validKpiIds = new List<int>();
+                if (c.Kpis.Count == 0)
+                {
+                    var validPillarIds = _context.CityUserPillarMappings
                     .Where(x => x.IsActive && x.UserID == userId)
-                    .Select(x => x.LayerID)
-                    .ToListAsync();
+                    .Select(x => x.PillarID);
+
+                    // Step 1: Get valid KPI IDs for this user
+                    var query = _context.AnalyticalLayerPillarMappings
+                        .Where(x => validPillarIds.Contains(x.PillarID))
+                        .Select(x => x.LayerID)
+                        .Distinct();
+
+                    var res = await query.ApplyPaginationAsync(c);
+                    validKpiIds = res.Data.ToList();
+                }
+                else
+                {
+                    validKpiIds = c.Kpis;
+                }
+
 
                 if (!validKpiIds.Any())
                 {

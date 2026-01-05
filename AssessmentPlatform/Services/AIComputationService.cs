@@ -49,6 +49,7 @@ namespace AssessmentPlatform.Services
         }
         public async Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID)
         {
+            var firstDate = new DateTime(DateTime.Now.Year, 1, 1); 
             IQueryable<AICityScore> baseQuery = _context.AICityScores;
 
             if (userRole == UserRole.Analyst || userRole == UserRole.Evaluator)
@@ -86,28 +87,29 @@ namespace AssessmentPlatform.Services
             }
 
             var query = baseQuery
-                .Include(x => x.City)
-                .Select(x => new AiCitySummeryDto
-                {
-                    CityID = x.CityID,
-                    State = x.City.State ?? "",
-                    CityName = x.City.CityName ?? "",
-                    Country = x.City.Country ?? "",
-                    Image = x.City.Image ?? "",
-                    ScoringYear = x.Year,
-                    AIScore = x.AIScore,
-                    AIProgress = x.AIProgress,
-                    EvaluatorProgress = x.EvaluatorProgress,
-                    Discrepancy = x.Discrepancy,
-                    ConfidenceLevel = x.ConfidenceLevel,
-                    EvidenceSummary = x.EvidenceSummary,
-                    CrossPillarPatterns = x.CrossPillarPatterns,
-                    InstitutionalCapacity = x.InstitutionalCapacity,
-                    EquityAssessment = x.EquityAssessment,
-                    SustainabilityOutlook = x.SustainabilityOutlook,
-                    StrategicRecommendations = x.StrategicRecommendations,
-                    DataTransparencyNote = x.DataTransparencyNote
-                });
+            .Include(x => x.City)
+            .Where(x=>x.UpdatedAt >= firstDate)
+            .Select(x => new AiCitySummeryDto
+            {
+                CityID = x.CityID,
+                State = x.City.State ?? "",
+                CityName = x.City.CityName ?? "",
+                Country = x.City.Country ?? "",
+                Image = x.City.Image ?? "",
+                ScoringYear = x.Year,
+                AIScore = x.AIScore,
+                AIProgress = x.AIProgress,
+                EvaluatorProgress = x.EvaluatorProgress,
+                Discrepancy = x.Discrepancy,
+                ConfidenceLevel = x.ConfidenceLevel,
+                EvidenceSummary = x.EvidenceSummary,
+                CrossPillarPatterns = x.CrossPillarPatterns,
+                InstitutionalCapacity = x.InstitutionalCapacity,
+                EquityAssessment = x.EquityAssessment,
+                SustainabilityOutlook = x.SustainabilityOutlook,
+                StrategicRecommendations = x.StrategicRecommendations,
+                DataTransparencyNote = x.DataTransparencyNote
+            });
 
             return query;
         }
@@ -115,8 +117,10 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
+
                 var res = await _context.AIPillarScores
-                    .Where(x => x.CityID == cityID)
+                    .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate)
                     .Include(x => x.Pillar)
                     .Include(x => x.City)
                     .Include(x => x.DataSourceCitations)
@@ -187,7 +191,6 @@ namespace AssessmentPlatform.Services
                     Pillars = result
                 };
 
-
                 var resposne = ResultResponseDto<AiCityPillarReponseDto>.Success(finalResutl, new[] { "Pillar get successfully", });
 
                 return resposne;
@@ -216,10 +219,10 @@ namespace AssessmentPlatform.Services
                         return new PaginationResponse<AIEstimatedQuestionScoreDto>();
                     }
                 }
-
+                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
                 var res = _context.AIEstimatedQuestionScores
                     .Include(x => x.Question)
-                    .Where(x => x.CityID == request.CityID && x.PillarID == request.PillarID)
+                    .Where(x => x.CityID == request.CityID && x.PillarID == request.PillarID && x.UpdatedAt >= firstDate)
                     .Select(x => new AIEstimatedQuestionScoreDto
                     {
                         CityID = x.CityID,

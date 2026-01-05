@@ -41,12 +41,18 @@ namespace AssessmentPlatform.Services
                             x.UserID == userId)
                         .Select(x => x.CityID);
 
-                    var validKpis = _context.CityUserKpiMappings
-                        .Where(x =>
-                            (!request.LayerID.HasValue || x.LayerID == request.LayerID) &&
-                            x.IsActive &&
-                            x.UserID == userId)
-                        .Select(x => x.LayerID);
+                    var validPillarIds = _context.CityUserPillarMappings
+                    .Where(x => x.IsActive && x.UserID == userId)
+                    .Select(x => x.PillarID);
+
+
+                    // Step 1: Get valid KPI IDs for this user
+                    var validKpis = _context.AnalyticalLayerPillarMappings
+                        .Where(x => validPillarIds.Contains(x.PillarID))
+                        .Select(x => x.LayerID)
+                        .Distinct();
+
+
 
                     query =
                         from ar in _context.AnalyticalLayerResults

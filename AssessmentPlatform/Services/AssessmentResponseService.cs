@@ -912,7 +912,7 @@ namespace AssessmentPlatform.Services
                     //existingAssessment.PillarAssessments.Remove(pillar);
                     _context.PillarAssessments.Remove(pillar);
                 }
-
+                _download.InsertAnalyticalLayerResults(transferAssessment.UserCityMapping.CityID);
                 await _context.SaveChangesAsync();
 
                 return ResultResponseDto<string>.Success("", new[] { "Assessment transferred successfully." });
