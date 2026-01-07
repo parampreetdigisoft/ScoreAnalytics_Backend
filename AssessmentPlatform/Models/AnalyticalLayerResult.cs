@@ -13,6 +13,14 @@
         public decimal? CalValue4 { get; set; }
         public decimal? CalValue5 { get; set; }
         public DateTime LastUpdated { get; set; } = DateTime.Now;
+        public int? AiInterpretationID { get; set; }
+        public decimal? AiNormalizeValue { get; set; }
+        public decimal? AiCalValue1 { get; set; }
+        public decimal? AiCalValue2 { get; set; }
+        public decimal? AiCalValue3 { get; set; }
+        public decimal? AiCalValue4 { get; set; }
+        public decimal? AiCalValue5 { get; set; }
+        public DateTime? AiLastUpdated { get; set; }
         public AnalyticalLayer AnalyticalLayer { get; set; } = new();
         public City? City { get; set; }
     }

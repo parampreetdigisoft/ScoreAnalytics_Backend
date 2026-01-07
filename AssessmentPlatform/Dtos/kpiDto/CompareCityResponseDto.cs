@@ -11,6 +11,7 @@
     {
         public string Name { get; set; }
         public List<decimal> Data { get; set; }
+        public List<decimal> AiData { get; set; }
     }
 
     public class ChartTableRowDto
@@ -26,5 +27,6 @@
         public int CityID { get; set; }
         public string CityName { get; set; }
         public decimal Value { get; set; }
+        public decimal AiValue { get; set; }
     }
 }

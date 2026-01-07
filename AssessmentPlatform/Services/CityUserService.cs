@@ -756,9 +756,10 @@ namespace AssessmentPlatform.Services
                     .Select(g => new
                     {
                         CityID = g.Key,
-                        Score = g.Average(x => (decimal?)x.CalValue5) ?? 0
+                        Score = g.Average(x => (decimal?)x.CalValue5) ?? 0,
+                        AiScore = g.Average(x => (decimal?)x.AiCalValue5) ?? 0
                     })
-                    .ToDictionaryAsync(x => x.CityID, x => x.Score);
+                    .ToDictionaryAsync(x => x.CityID, x => new { x.Score , x.AiScore});
 
                 // Step 2️⃣: Fetch cities assigned to the user
                 var cities = await _context.PublicUserCityMappings
@@ -779,7 +780,11 @@ namespace AssessmentPlatform.Services
                 // Step 3️⃣: Map score from dictionary (safe fallback to 0)
                 foreach (var city in cities)
                 {
-                    city.Score = cityScoresDict.TryGetValue(city.CityID, out var score) ? score : 0;
+                    if(cityScoresDict.TryGetValue(city.CityID, out var score))
+                    {
+                        city.Score = score.Score;
+                        city.AiScore = score.AiScore;
+                    }
                 }
 
                 // Step 4️⃣: Sort by score descending
@@ -807,7 +812,7 @@ namespace AssessmentPlatform.Services
                     return ResultResponseDto<string>.Failure(new[] { "Access tier information is missing. Please log in again." });
 
                 if (!Enum.TryParse<TieredAccessPlan>(tierName, true, out var tier))
-                    return ResultResponseDto<string>.Failure(new[] { "Invalid access tier. Please contact support." });
+                    return ResultResponseDto<string>.Failure(new[] { "Invalid tier access. Please contact support team." });
 
                 var tierLimits = tier switch
                 {
@@ -966,7 +971,7 @@ namespace AssessmentPlatform.Services
 
                 // Step 2: Get all selected cities (even if no analytical data)
                 var selectedCities = await _context.Cities
-                    .Where(x => c.Cities.Contains(x.CityID))
+                    .Where(x => c.Cities.Contains(x.CityID) && x.IsActive && !x.IsDeleted)
                     .Select(x => new { x.CityID, x.CityName })
                     .ToListAsync();
 
@@ -987,7 +992,8 @@ namespace AssessmentPlatform.Services
                         ar.LayerID,
                         ar.AnalyticalLayer.LayerCode,
                         ar.AnalyticalLayer.LayerName,
-                        ar.CalValue5
+                        ar.CalValue5,
+                        ar.AiCalValue5
                     })
                     .ToListAsync();
 
@@ -1012,7 +1018,8 @@ namespace AssessmentPlatform.Services
                     response.Series.Add(new ChartSeriesDto
                     {
                         Name = city.CityName,
-                        Data = new List<decimal>()
+                        Data = new List<decimal>(),
+                        AiData = new List<decimal>()
                     });
                 }
 
@@ -1020,7 +1027,8 @@ namespace AssessmentPlatform.Services
                 var peerSeries = new ChartSeriesDto
                 {
                     Name = "Peer City Score",
-                    Data = new List<decimal>()
+                    Data = new List<decimal>(),
+                    AiData = new List<decimal>()
                 };
 
                 // Step 6: Build chart and table data
@@ -1029,25 +1037,29 @@ namespace AssessmentPlatform.Services
                     response.Categories.Add(layer.LayerCode);
 
                     // Map KPI values for each city (0 if missing)
-                    var values = new Dictionary<int, decimal>();
+                    var values = new Dictionary<int, List<decimal>>();
 
                     foreach (var city in selectedCities)
                     {
                         var value = analyticalResults
-                            .FirstOrDefault(r => r.CityID == city.CityID && r.LayerID == layer.LayerID)
-                            ?.CalValue5 ?? 0;
+                            .FirstOrDefault(r => r.CityID == city.CityID && r.LayerID == layer.LayerID);
 
-                        var roundedValue = Math.Round(value, 2);
-                        values[city.CityID] = roundedValue;
+                        var evaluatedValue = Math.Round(value?.CalValue5 ?? 0, 2);
+                        var aiValue = Math.Round(value?.AiCalValue5 ?? 0, 2);
+                        values[city.CityID] = new List<decimal> { evaluatedValue, aiValue };
 
                         // Add to series
                         var citySeries = response.Series.First(s => s.Name == city.CityName);
-                        citySeries.Data.Add(roundedValue);
+                        citySeries.Data.Add(evaluatedValue);
+
+                        citySeries.AiData.Add(aiValue);
                     }
 
                     // ✅ Calculate Peer City Score (average of all cities for this layer)
-                    var peerCityScore = values.Values.Any() ? Math.Round(values.Values.Average(), 2) : 0;
+                    var peerCityScore = values.Values.Any() ? Math.Round(values.Values.Select(x=>x.First()).Average(), 2) : 0;
                     peerSeries.Data.Add(peerCityScore);
+                    var aiPeerCityScore = values.Values.Any() ? Math.Round(values.Values.Select(x=>x.Last()).Average(), 2) : 0;
+                    peerSeries.AiData.Add(aiPeerCityScore);
 
                     // Add table data
                     response.TableData.Add(new ChartTableRowDto
@@ -1058,7 +1070,8 @@ namespace AssessmentPlatform.Services
                         {
                             CityID = c.CityID,
                             CityName = c.CityName,
-                            Value = values[c.CityID]
+                            Value = values[c.CityID].First(),
+                            AiValue =  values[c.CityID].Last()
                         }).ToList(),
                         PeerCityScore = peerCityScore // You can rename property if needed
                     });

@@ -19,6 +19,7 @@ namespace AssessmentPlatform.Dtos.PublicDto
         public decimal HighScore { get; set; }
         public decimal LowerScore { get; set; }
         public decimal Progress { get; set; }
-        
+        public decimal AiScore { get; set; }
+
     }
 }
