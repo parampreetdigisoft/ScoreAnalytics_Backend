@@ -237,7 +237,8 @@ namespace AssessmentPlatform.Services
                         ar.LayerID,
                         ar.AnalyticalLayer.LayerCode,
                         ar.AnalyticalLayer.LayerName,
-                        ar.CalValue5
+                        ar.CalValue5,
+                        ar.AiCalValue5
                     })
                     .ToListAsync();
 
@@ -262,7 +263,8 @@ namespace AssessmentPlatform.Services
                     response.Series.Add(new ChartSeriesDto
                     {
                         Name = city.CityName,
-                        Data = new List<decimal>()
+                        Data = new List<decimal>(),
+                        AiData = new List<decimal>()
                     });
                 }
 
@@ -270,7 +272,8 @@ namespace AssessmentPlatform.Services
                 var peerSeries = new ChartSeriesDto
                 {
                     Name = "Peer City Score",
-                    Data = new List<decimal>()
+                    Data = new List<decimal>(),
+                    AiData = new List<decimal>()
                 };
 
                 // Step 6: Build chart and table data
@@ -279,25 +282,28 @@ namespace AssessmentPlatform.Services
                     response.Categories.Add(layer.LayerCode);
 
                     // Map KPI values for each city (0 if missing)
-                    var values = new Dictionary<int, decimal>();
+                    var values = new Dictionary<int, List<decimal>>();
 
                     foreach (var city in selectedCities)
                     {
                         var value = analyticalResults
-                            .FirstOrDefault(r => r.CityID == city.CityID && r.LayerID == layer.LayerID)
-                            ?.CalValue5 ?? 0;
+                            .FirstOrDefault(r => r.CityID == city.CityID && r.LayerID == layer.LayerID);
 
-                        var roundedValue = Math.Round(value, 2);
-                        values[city.CityID] = roundedValue;
+                        var evaluatedValue = Math.Round(value?.CalValue5 ?? 0, 2);
+                        var aiValue = Math.Round(value?.AiCalValue5 ?? 0, 2);
+                        values[city.CityID] = new List<decimal> { evaluatedValue, aiValue };
 
                         // Add to series
                         var citySeries = response.Series.First(s => s.Name == city.CityName);
-                        citySeries.Data.Add(roundedValue);
-                    }
+                        citySeries.Data.Add(evaluatedValue);
 
+                        citySeries.AiData.Add(aiValue);
+                    }
                     // ✅ Calculate Peer City Score (average of all cities for this layer)
-                    var peerCityScore = values.Values.Any() ? Math.Round(values.Values.Average(), 2) : 0;
+                    var peerCityScore = values.Values.Any() ? Math.Round(values.Values.Select(x => x.First()).Average(), 2) : 0;
                     peerSeries.Data.Add(peerCityScore);
+                    var aiPeerCityScore = values.Values.Any() ? Math.Round(values.Values.Select(x => x.Last()).Average(), 2) : 0;
+                    peerSeries.AiData.Add(aiPeerCityScore);
 
                     // Add table data
                     response.TableData.Add(new ChartTableRowDto
@@ -308,7 +314,8 @@ namespace AssessmentPlatform.Services
                         {
                             CityID = c.CityID,
                             CityName = c.CityName,
-                            Value = values[c.CityID]
+                            Value = values[c.CityID].First(),
+                            AiValue = values[c.CityID].Last()
                         }).ToList(),
                         PeerCityScore = peerCityScore // You can rename property if needed
                     });
