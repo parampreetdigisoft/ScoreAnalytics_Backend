@@ -14,5 +14,6 @@ namespace AssessmentPlatform.IServices
         Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID);
         Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails);
         Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse cityDetails);
+        Task<ResultResponseDto<AiCrossCityResponseDto>> GetAICrossCityPillars(AiCityIdsDto ids, int userID, UserRole userRole);
     }
 }

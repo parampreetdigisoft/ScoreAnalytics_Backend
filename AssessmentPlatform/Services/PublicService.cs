@@ -100,7 +100,8 @@ namespace AssessmentPlatform.Services
                 {
                     DisplayOrder = x.DisplayOrder,
                     PillarID = x.PillarID,
-                    PillarName = x.PillarName
+                    PillarName = x.PillarName,
+                    ImagePath = x.ImagePath
                 }).ToListAsync();
                 return ResultResponseDto<List<PillarResponseDto>>.Success(res, new List<string> { "Get Cities history successfully" });
 

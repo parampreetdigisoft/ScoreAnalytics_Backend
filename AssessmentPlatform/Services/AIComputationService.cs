@@ -29,10 +29,9 @@ namespace AssessmentPlatform.Services
         {
             var r = await _context.AITrustLevels.ToListAsync();
 
-            return ResultResponseDto<List<AITrustLevel>>.Success(r, new[] { "Pillar get successfully", });
+            return ResultResponseDto<List<AITrustLevel>>.Success(r, new[] { "Pillar get successfully" });
 
         }
-
         public async Task<PaginationResponse<AiCitySummeryDto>> GetAICities(AiCitySummeryRequestDto request, int userID, UserRole userRole)
         {
             try
@@ -258,8 +257,6 @@ namespace AssessmentPlatform.Services
                 return new PaginationResponse<AIEstimatedQuestionScoreDto>();
             }
         }
-
-
         public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails)
         {
             try
@@ -462,7 +459,6 @@ namespace AssessmentPlatform.Services
                 });
             });
         }
-
         void PillarComposeContent(IContainer container, AiCityPillarReponse data)
         {
             container.PaddingTop(8).Column(column =>
@@ -523,7 +519,6 @@ namespace AssessmentPlatform.Services
 
             });
         }
-
         void PillarScoreCard(IContainer container, string label, string value, string color, bool isBadge)
         {
             container.Background(Colors.White)
@@ -557,7 +552,6 @@ namespace AssessmentPlatform.Services
                     }
                 });
         }
-
         void PillarProgressSection(IContainer container, AiCityPillarReponse data)
         {
             container.Background(Colors.White)
@@ -581,7 +575,6 @@ namespace AssessmentPlatform.Services
                     });
                 });
         }
-
         void PillarProgressBar(ColumnDescriptor column, string label, decimal? percentage, string color)
         {
             var per = (float)(percentage ?? 0);
@@ -606,7 +599,6 @@ namespace AssessmentPlatform.Services
                     .FontColor(color);
             });
         }
-
         void PillarContentSection(IContainer container, string title, string content, string accentColor)
         {
             container.Column(column =>
@@ -633,7 +625,6 @@ namespace AssessmentPlatform.Services
                     .Justify();
             });
         }
-
         void DataSourcesSection(IContainer container, List<AIDataSourceCitation> sources)
         {
             container.Column(column =>
@@ -713,7 +704,6 @@ namespace AssessmentPlatform.Services
                 });
             });
         }
-
         void PillarComposeFooter(IContainer container)
         {
             container.AlignCenter().Row(row =>
@@ -736,8 +726,6 @@ namespace AssessmentPlatform.Services
                 });
             });
         }
-
-        // Helper Methods
         static string GetConfidenceBadgeColor(string confidence) => confidence?.ToLower() switch
         {
             "high" => "#4CAF50",
@@ -745,14 +733,12 @@ namespace AssessmentPlatform.Services
             "low" => "#F44336",
             _ => "#9E9E9E"
         };
-
         static string GetDiscrepancyColor(decimal discrepancy) => discrepancy switch
         {
             < 10 => "#4CAF50",
             < 25 => "#FFC107",
             _ => "#F44336"
         };
-
         static string GetSourceTypeBadgeColor(string sourceType) => sourceType?.ToLower() switch
         {
             "government" => "#1976D2",
@@ -761,11 +747,101 @@ namespace AssessmentPlatform.Services
             "news/ngo" => "#F57C00",
             _ => "#616161"
         };
-
         static string TruncateText(string text, int maxLength)
         {
             if (string.IsNullOrEmpty(text) || text.Length <= maxLength) return text;
             return text.Substring(0, maxLength) + "...";
+        }
+        public async Task<ResultResponseDto<AiCrossCityResponseDto>> GetAICrossCityPillars(AiCityIdsDto cityIds, int userID, UserRole userRole)
+        {
+            try
+            {
+                var response = new AiCrossCityResponseDto();
+
+                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
+
+                var aiPillarScores = await _context.AIPillarScores
+                    .Where(x => cityIds.CityIDs.Contains(x.CityID) && x.UpdatedAt >= firstDate)
+                    .ToListAsync();
+
+                var cities = await _context.Cities
+                    .Where(x => cityIds.CityIDs.Contains(x.CityID))
+                    .ToListAsync();
+
+                // Pillar access based on role
+                List<int> pillarIds = new();
+                if (userRole == UserRole.CityUser)
+                {
+                    pillarIds = await _context.CityUserPillarMappings
+                        .Where(x => x.IsActive && x.UserID == userID)
+                        .Select(x => x.PillarID)
+                        .Distinct()
+                        .ToListAsync();
+                }
+
+                var pillars = await _context.Pillars.ToListAsync();
+
+                // Categories
+                response.Categories.AddRange(
+                    pillars
+                        .Where(x => pillarIds.Count == 0 || pillarIds.Contains(x.PillarID))
+                        .OrderBy(x=>x.DisplayOrder)
+                        .Select(x => x.PillarName)
+                );
+                // Per city processing
+                foreach (var city in cities)
+                {
+                    var pillarResults = pillars
+                    .GroupJoin(
+                        aiPillarScores.Where(x => x.CityID == city.CityID),
+                        p => p.PillarID,
+                        s => s.PillarID,
+                        (pillar, scores) => new
+                        {
+                            Pillar = pillar,
+                            Score = scores.FirstOrDefault()
+                        })
+                    .Select(x =>
+                    {
+                        var isAccess = pillarIds.Count == 0 || pillarIds.Contains(x.Pillar.PillarID);
+
+                        return new PillarValueDto
+                        {
+                            PillarID = x.Pillar.PillarID,
+                            PillarName = x.Pillar.PillarName,
+                            Value = isAccess ? x.Score?.AIProgress ?? 0 : 0,
+                            IsAccess = isAccess,
+                            DisplayOrder = x.Pillar.DisplayOrder
+                        };
+                    })
+                    .OrderBy(x => !x.IsAccess)
+                    .ThenBy(x => x.DisplayOrder)
+                    .ToList();
+                    var chartRow = new ChartTableRowDto
+                    {
+                        CityID = city.CityID,
+                        CityName = city.CityName,
+                        PillarValues = pillarResults.ToList()
+                    };
+                    response.TableData.Add(chartRow);
+
+                    var series = new ChartSeriesDto
+                    {
+                        Name = city.CityName,
+                        Data = pillarResults
+                            .Where(x => x.IsAccess)
+                            .Select(x => x.Value).ToList()
+                    };
+                    response.Series.Add(series);
+                }
+
+                return ResultResponseDto<AiCrossCityResponseDto>.Success(response,new[] { "Pillars fetched successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetAICrossCityPillars", ex);
+                return ResultResponseDto<AiCrossCityResponseDto>.Failure(new[] { "Error in getting pillar details" });
+            }
         }
     }
 }
