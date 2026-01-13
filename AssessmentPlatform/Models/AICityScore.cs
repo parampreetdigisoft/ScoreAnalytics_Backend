@@ -21,6 +21,8 @@
         public string DataTransparencyNote { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public City? City { get; set; }
+        public bool IsVerified { get; set; }
+        public int? VerifiedBy { get; set; }
     }
 
 }

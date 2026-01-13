@@ -876,5 +876,33 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<AiCrossCityResponseDto>.Failure(new[] { "Error in getting pillar details" });
             }
         }
+
+        public async Task<ResultResponseDto<bool>> ChangedAiCityEvaluationStatus(ChangedAiCityEvaluationStatusDto dto, int userID, UserRole userRole)
+        {
+            try
+            {
+                var v = _context.UserCityMappings.Any(x => x.UserID == userID && x.CityID == dto.CityID);
+                if (v)
+                {
+
+                    var aiResponse = await _context.AICityScores.Where(x => x.CityID == dto.CityID).FirstOrDefaultAsync();
+                    if (aiResponse != null)
+                    {
+                        if (userRole == UserRole.Analyst || userRole == UserRole.Admin)
+                        {
+                            aiResponse.IsVerified = dto.IsVerified;
+                            aiResponse.VerifiedBy = userID;
+                        }
+                        return ResultResponseDto<bool>.Success(true, new[] { dto.IsVerified ? "Finalize and lock the AI-generated score successfully" : "" });
+                    }
+                }
+                return ResultResponseDto<bool>.Failure(new[] { "Invalid city, please try again" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in ChangedAiCityEvaluationStatus", ex);
+                return ResultResponseDto<bool>.Failure(new[] { "Error in Changed AiCity Evaluation Status" });
+            }
+        }
     }
 }

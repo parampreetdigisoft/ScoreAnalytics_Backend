@@ -32,6 +32,7 @@ namespace AssessmentPlatform.Data
         public DbSet<AITrustLevel> AITrustLevels { get; set; } = default!;
         public DbSet<AnalyticalLayerPillarMapping> AnalyticalLayerPillarMappings { get; set; } = default!;
         public DbSet<EvaluationCityProgressResultDto> CityProgressResults { get; set; }
+        public DbSet<AIUserCityMapping> AIUserCityMappings { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -115,6 +116,7 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<AIPillarScore>().HasKey(ur => ur.PillarScoreID);
             modelBuilder.Entity<AITrustLevel>().HasKey(ur => ur.TrustID);
             modelBuilder.Entity<AnalyticalLayerPillarMapping>().HasKey(ur => ur.AnalyticalLayerPillarMappingID);
+            modelBuilder.Entity<AIUserCityMapping>().HasKey(ur => ur.AIUserCityMappingID);
             modelBuilder.Entity<EvaluationCityProgressResultDto>().HasNoKey().ToView(null); 
 
             base.OnModelCreating(modelBuilder);
