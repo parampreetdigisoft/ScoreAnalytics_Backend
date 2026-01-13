@@ -199,6 +199,7 @@ namespace AssessmentPlatform.Services
                 {
                     UserRole.Admin => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
                     UserRole.Analyst => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
+                    UserRole.Evaluator => x => !x.IsDeleted && c.Cities.Contains(x.CityID),
                     _ => x => false
                 };
 
@@ -210,7 +211,7 @@ namespace AssessmentPlatform.Services
 
                 var selectedCityIds = selectedCities.Select(x => x.CityID).ToList();
 
-                if(role == UserRole.Analyst)
+                if(role == UserRole.Analyst || role == UserRole.Evaluator)
                 {
                     var validMappedCityIds = await _context.UserCityMappings
                        .Where(x => x.UserID == userId && !x.IsDeleted)

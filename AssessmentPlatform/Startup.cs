@@ -71,6 +71,7 @@ namespace AssessmentPlatform
             services.AddScoped<IPublicService, PublicService>();
             services.AddScoped<IKpiService, KpiService>();
             services.AddScoped<IAIComputationService, AIComputationService>();
+            services.AddScoped<ICommonService, CommonService>();
 
             services.AddCors(options =>
             {

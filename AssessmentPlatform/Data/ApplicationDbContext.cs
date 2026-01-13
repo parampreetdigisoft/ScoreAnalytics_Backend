@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace AssessmentPlatform.Data
 {
@@ -30,6 +31,8 @@ namespace AssessmentPlatform.Data
         public DbSet<AIPillarScore> AIPillarScores { get; set; } = default!;
         public DbSet<AITrustLevel> AITrustLevels { get; set; } = default!;
         public DbSet<AnalyticalLayerPillarMapping> AnalyticalLayerPillarMappings { get; set; } = default!;
+        public DbSet<EvaluationCityProgressResultDto> CityProgressResults { get; set; }
+
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -112,6 +115,7 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<AIPillarScore>().HasKey(ur => ur.PillarScoreID);
             modelBuilder.Entity<AITrustLevel>().HasKey(ur => ur.TrustID);
             modelBuilder.Entity<AnalyticalLayerPillarMapping>().HasKey(ur => ur.AnalyticalLayerPillarMappingID);
+            modelBuilder.Entity<EvaluationCityProgressResultDto>().HasNoKey().ToView(null); 
 
             base.OnModelCreating(modelBuilder);
         }

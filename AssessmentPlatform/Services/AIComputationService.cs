@@ -1,5 +1,6 @@
 ﻿using AssessmentPlatform.Backgroundjob;
 using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AiDto;
@@ -17,12 +18,12 @@ namespace AssessmentPlatform.Services
     {
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
-        private readonly Download _download;
-        public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, Download download)
+        private readonly ICommonService _commonService;
+        public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService)
         {
             _context = context;
             _appLogger = appLogger;
-            _download = download;
+            _commonService = commonService;
         }
 
         public async Task<ResultResponseDto<List<AITrustLevel>>> GetAITrustLevels()
@@ -38,7 +39,26 @@ namespace AssessmentPlatform.Services
             {
                 IQueryable<AiCitySummeryDto> query = await GetCityAiSummeryDetails(userID, userRole, request.CityID);
 
-                return await query.ApplyPaginationAsync(request);
+                var result = await query.ApplyPaginationAsync(request); 
+
+                var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+
+                var cities = progress.Where(x=> result.Data.Select(x => x.CityID).Contains(x.CityID));
+
+                foreach(var c in result.Data)
+                {
+                    var cityScore = cities
+                        .Where(x => x.CityID == c.CityID)
+                        .Select(x => x.ScoreProgress)
+                        .DefaultIfEmpty(0)
+                        .Average();
+
+
+                    c.EvaluatorProgress = cityScore;
+                }
+                
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -54,10 +74,8 @@ namespace AssessmentPlatform.Services
             if (userRole == UserRole.Analyst || userRole == UserRole.Evaluator)
             {
                 // Allowed city IDs
-                var allowedCityIds = cityID.HasValue
-                    ? new List<int> { cityID.Value }   // <-- FIXED
-                    : await _context.UserCityMappings
-                            .Where(x => !x.IsDeleted && x.UserID == userID)
+                var allowedCityIds = await _context.UserCityMappings
+                            .Where(x => !x.IsDeleted && x.UserID == userID && (!cityID.HasValue || x.CityID == cityID.Value))
                             .Select(x => x.CityID)
                             .Distinct()
                             .ToListAsync();
@@ -66,10 +84,8 @@ namespace AssessmentPlatform.Services
             }
             else if (userRole == UserRole.CityUser)
             {
-                var allowedCityIds = cityID.HasValue
-                    ? new List<int> { cityID.Value }
-                    : await _context.PublicUserCityMappings
-                            .Where(x => x.IsActive && x.UserID == userID)
+                var allowedCityIds = await _context.PublicUserCityMappings
+                            .Where(x => x.IsActive && x.UserID == userID && (!cityID.HasValue || x.CityID == cityID.Value))
                             .Select(x => x.CityID)
                             .Distinct()
                             .ToListAsync();
@@ -183,6 +199,23 @@ namespace AssessmentPlatform.Services
                 .ThenBy(x => x.DisplayOrder)
                 .ToList();
                 var trustLavels = await _context.AITrustLevels.ToListAsync();
+
+
+                var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+
+                var cities = progress.Where(x => x.CityID== cityID);
+
+                foreach (var c in result)
+                {
+                    var cityScore = cities
+                        .Where(x => x.PillarID == c.PillarID)
+                        .Select(x => x.ScoreProgress)
+                        .DefaultIfEmpty(0)
+                        .Average();
+
+
+                    c.EvaluatorProgress = cityScore;
+                }
 
                 var finalResutl = new AiCityPillarReponseDto
                 {
