@@ -20,5 +20,7 @@
         public string SustainabilityOutlook { get; set; }
         public string StrategicRecommendations { get; set; }
         public string DataTransparencyNote { get; set; }
+        public DateTime? UpdatedAt { get; set; }
+        public bool IsVerified { get; set; }
     }
 }

@@ -206,7 +206,7 @@ namespace AssessmentPlatform.Controllers
             return Ok(await _aIComputationService.GetAICrossCityPillars(aiCityIdsDto, userId.Value, userRole));
         }
 
-        [HttpPost("ChangedAiCityEvaluationStatus")]
+        [HttpPost("changedAiCityEvaluationStatus")]
         [Authorize(Policy = "StaffOnly")]
         public async Task<IActionResult> ChangedAiCityEvaluationStatus([FromBody] ChangedAiCityEvaluationStatusDto aiCityIdsDto)
         {
@@ -224,6 +224,26 @@ namespace AssessmentPlatform.Controllers
             }
 
             return Ok(await _aIComputationService.ChangedAiCityEvaluationStatus(aiCityIdsDto, userId.Value, userRole));
+        }
+
+        [HttpPost("regenerateAiSearch")]
+        [Authorize(Policy = "StaffOnly")]
+        public async Task<IActionResult> RegenerateAiSearch([FromBody] RegenerateAiSearchDto aiCityIdsDto)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _aIComputationService.RegenerateAiSearch(aiCityIdsDto, userId.Value, userRole));
         }
     }
 }

@@ -16,16 +16,24 @@ namespace AssessmentPlatform.Services
 {
     public class AIComputationService : IAIComputationService
     {
+        #region constructor
+        
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
         private readonly ICommonService _commonService;
-        public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService)
+        private readonly Download _download;
+        public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService, Download download)
         {
             _context = context;
             _appLogger = appLogger;
             _commonService = commonService;
+            _download = download;
         }
+        #endregion
 
+        #region implementation
+
+     
         public async Task<ResultResponseDto<List<AITrustLevel>>> GetAITrustLevels()
         {
             var r = await _context.AITrustLevels.ToListAsync();
@@ -123,7 +131,9 @@ namespace AssessmentPlatform.Services
                 EquityAssessment = x.EquityAssessment,
                 SustainabilityOutlook = x.SustainabilityOutlook,
                 StrategicRecommendations = x.StrategicRecommendations,
-                DataTransparencyNote = x.DataTransparencyNote
+                DataTransparencyNote = x.DataTransparencyNote,
+                UpdatedAt = x.UpdatedAt,
+                IsVerified = x.IsVerified
             });
 
             return query;
@@ -192,13 +202,13 @@ namespace AssessmentPlatform.Services
                         r.InstitutionalAssessment = x.score.InstitutionalAssessment;
                         r.DataGapAnalysis = x.score.DataGapAnalysis;
                         r.DataSourceCitations = x.score.DataSourceCitations;
+                        r.UpdatedAt = x.score.UpdatedAt;
                     }
                     return r;
                 })
                 .OrderBy(x => !x.IsAccess)
                 .ThenBy(x => x.DisplayOrder)
                 .ToList();
-                var trustLavels = await _context.AITrustLevels.ToListAsync();
 
 
                 var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
@@ -219,7 +229,6 @@ namespace AssessmentPlatform.Services
 
                 var finalResutl = new AiCityPillarReponseDto
                 {
-                    AITrustLevels = trustLavels,
                     Pillars = result
                 };
 
@@ -276,6 +285,7 @@ namespace AssessmentPlatform.Services
                         SourceDataYear = x.SourceDataYear,
                         SourceDataExtract = x.SourceDataExtract,
                         SourceTrustLevel = x.SourceTrustLevel,
+                        UpdatedAt = x.UpdatedAt,
                         QuestionText = x.Question.QuestionText,
 
                     });
@@ -882,18 +892,17 @@ namespace AssessmentPlatform.Services
             try
             {
                 var v = _context.UserCityMappings.Any(x => x.UserID == userID && x.CityID == dto.CityID);
-                if (v)
+                if ((v && userRole == UserRole.Analyst) || userRole == UserRole.Admin)
                 {
 
                     var aiResponse = await _context.AICityScores.Where(x => x.CityID == dto.CityID).FirstOrDefaultAsync();
                     if (aiResponse != null)
                     {
-                        if (userRole == UserRole.Analyst || userRole == UserRole.Admin)
-                        {
-                            aiResponse.IsVerified = dto.IsVerified;
-                            aiResponse.VerifiedBy = userID;
-                        }
-                        return ResultResponseDto<bool>.Success(true, new[] { dto.IsVerified ? "Finalize and lock the AI-generated score successfully" : "" });
+                        aiResponse.IsVerified = dto.IsVerified;
+                        aiResponse.VerifiedBy = userID;
+
+                        await _context.SaveChangesAsync();
+                        return ResultResponseDto<bool>.Success(true, new[] { dto.IsVerified ? "Finalize and lock the AI-generated score successfully" : "Reject the current AI-generated score Successfully" });
                     }
                 }
                 return ResultResponseDto<bool>.Failure(new[] { "Invalid city, please try again" });
@@ -904,5 +913,68 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<bool>.Failure(new[] { "Error in Changed AiCity Evaluation Status" });
             }
         }
+        public async Task<ResultResponseDto<bool>> RegenerateAiSearch(RegenerateAiSearchDto dto,int userID, UserRole userRole)
+        {
+            try
+            {
+                await _download.AiResearchByCityId(dto.CityID,dto.CityEnable,dto.PillarEnable,dto.QuestionEnable);
+
+                // Assign viewers (optional)
+
+                var um = _context.UserCityMappings.All(x => !x.IsDeleted && dto.ViewerUserIDs.Contains(x.UserID) && x.CityID == dto.CityID);
+                string msg = "Viewer not have access of this city please try again";
+
+                if (dto.ViewerUserIDs != null && dto.ViewerUserIDs.Any() && um)
+                {
+                    var existingMappings = await _context.AIUserCityMappings
+                        .Where(x => x.CityID == dto.CityID &&
+                                    dto.ViewerUserIDs.Contains(x.UserID))
+                        .ToListAsync();
+
+                    var existingUserIds = existingMappings.Select(x => x.UserID).ToHashSet();
+
+                    // Update existing mappings
+                    foreach (var mapping in existingMappings)
+                    {
+                        mapping.IsActive = true;
+                        mapping.UpdatedAt = DateTime.UtcNow;
+                        mapping.AssignBy = userID;
+                    }
+
+                    // Insert new mappings
+                    var newMappings = dto.ViewerUserIDs
+                        .Where(userId => !existingUserIds.Contains(userId))
+                        .Select(userId => new AIUserCityMapping
+                        {
+                            UserID = userId,
+                            CityID = dto.CityID,
+                            AssignBy = userID,
+                            UpdatedAt = DateTime.UtcNow,
+                            IsActive = true
+                        });
+
+                    await _context.AIUserCityMappings.AddRangeAsync(newMappings);
+                    await _context.SaveChangesAsync();
+                    msg = "Evaluator have access to view the city";
+                }
+                
+                var msglist = new[] { " AI research import has been initiated successfully " };
+                if (dto.ViewerUserIDs != null && dto.ViewerUserIDs.Any())
+                {
+                    msglist.Append(msg);
+                }
+                return ResultResponseDto<bool>.Success(true, msglist);
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in RegenerateAiSearch", ex);
+
+                return ResultResponseDto<bool>.Failure(
+                    new[] { "Something went wrong while importing AI research. Please try again later." }
+                );
+            }
+        }
+
+        #endregion
     }
 }

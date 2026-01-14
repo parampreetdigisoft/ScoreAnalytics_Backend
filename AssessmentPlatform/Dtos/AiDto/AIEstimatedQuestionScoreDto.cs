@@ -24,6 +24,7 @@ namespace AssessmentPlatform.Dtos.AiDto
         public int? SourceDataYear { get; set; }
         public string SourceDataExtract { get; set; }
         public int? SourceTrustLevel { get; set; }
+        public DateTime? UpdatedAt { get; set; }
 
     }
 }

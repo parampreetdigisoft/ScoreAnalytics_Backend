@@ -923,6 +923,5 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "Failed to transfer assessment, please try again later." });
             }
         }
-
     }
 }

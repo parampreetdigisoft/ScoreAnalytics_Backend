@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Data;
+using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,8 @@ namespace AssessmentPlatform.Backgroundjob
 {
     public class ChannelWorker : BackgroundService
     {
+        #region Constructor
+      
         private readonly ChannelService _channelService;
         private readonly IServiceProvider _serviceProvider;
         private readonly Dictionary<string, Func<Download, Task>> _actionHandlers;
@@ -23,8 +26,10 @@ namespace AssessmentPlatform.Backgroundjob
             {
                 { "InsertAnalyticalLayerResults", InsertAnalyticalLayerResults },
                 { "LogException", LogException },
+                { "AiResearchByCityId", AiResearchByCityId },
             };
         }
+        #endregion
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -53,7 +58,8 @@ namespace AssessmentPlatform.Backgroundjob
                 }
             }
         }
-
+        #region Debounce
+ 
         private void Debounce(int key, Func<Task> action)
         {
             // Cancel previous timer if it exists
@@ -82,6 +88,9 @@ namespace AssessmentPlatform.Backgroundjob
                 }
             });
         }
+        #endregion
+
+        #region InsertAnalyticalLayerResults
 
         private async Task InsertAnalyticalLayerResults(Download channel)
         {
@@ -101,6 +110,9 @@ namespace AssessmentPlatform.Backgroundjob
                 await LogException(channel);
             }
         }
+        #endregion
+       
+        #region LogException
 
         private async Task LogException(Download channel)
         {
@@ -116,5 +128,38 @@ namespace AssessmentPlatform.Backgroundjob
             dbContext.AppLogs.Add(log);
             await dbContext.SaveChangesAsync();
         }
+        #endregion
+        
+        #region AiResearchByCityId
+
+        private async Task AiResearchByCityId(Download channel)
+        {
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var aiService = scope.ServiceProvider.GetRequiredService<IAIAnalyzeService>();
+                if(channel.CityID > 0)
+                {
+                    if (channel.QuestionEnable)
+                        await aiService.AnalyzeQuestionsOfCity(channel.CityID.Value);
+
+                    if (channel.PillarEnable)
+                        await aiService.AnalyzeCityPillars(channel.CityID.Value);
+
+                    if (channel.CityEnable)
+                        await aiService.AnalyzeSingleCity(channel.CityID.Value);
+                }
+
+                
+            }
+            catch (Exception ex)
+            {
+                channel.Level = "Background running";
+                channel.Exception = ex.ToString();
+                channel.Message = $"Error accour in executing sp_InsertAnalyticalLayerResults for city {channel.CityID}";
+                await LogException(channel);
+            }
+        }
+        #endregion
     }
 }

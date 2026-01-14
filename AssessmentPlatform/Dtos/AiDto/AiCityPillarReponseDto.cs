@@ -6,7 +6,6 @@ namespace AssessmentPlatform.Dtos.AiDto
     public class AiCityPillarReponseDto
     {
         public List<AiCityPillarReponse> Pillars { get; set; }
-        public List<AITrustLevel> AITrustLevels { get; set; } 
     }
     public class AiCityPillarReponse
     {
@@ -32,6 +31,7 @@ namespace AssessmentPlatform.Dtos.AiDto
         public string GeographicEquityNote { get; set; }
         public string InstitutionalAssessment { get; set; }
         public string DataGapAnalysis { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public ICollection<AIDataSourceCitation>? DataSourceCitations { get; set; }
     }
 }
