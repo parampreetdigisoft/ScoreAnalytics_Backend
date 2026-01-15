@@ -51,16 +51,16 @@ namespace AssessmentPlatform.Services
 
                 var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
 
-                var cities = progress.Where(x=> result.Data.Select(x => x.CityID).Contains(x.CityID));
+                var ids = result.Data.Select(x => x.CityID);
+                var cities = progress.Where(x=> ids.Contains(x.CityID));
 
-                foreach(var c in result.Data)
+                foreach (var c in result.Data)
                 {
                     var cityScore = cities
                         .Where(x => x.CityID == c.CityID)
                         .Select(x => x.ScoreProgress)
                         .DefaultIfEmpty(0)
                         .Average();
-
 
                     c.EvaluatorProgress = cityScore;
                 }
@@ -79,11 +79,22 @@ namespace AssessmentPlatform.Services
             var firstDate = new DateTime(DateTime.Now.Year, 1, 1); 
             IQueryable<AICityScore> baseQuery = _context.AICityScores;
 
-            if (userRole == UserRole.Analyst || userRole == UserRole.Evaluator)
+            if (userRole == UserRole.Analyst)
             {
                 // Allowed city IDs
                 var allowedCityIds = await _context.UserCityMappings
                             .Where(x => !x.IsDeleted && x.UserID == userID && (!cityID.HasValue || x.CityID == cityID.Value))
+                            .Select(x => x.CityID)
+                            .Distinct()
+                            .ToListAsync();
+
+                baseQuery = baseQuery.Where(x => allowedCityIds.Contains(x.CityID));
+            }
+            else if (userRole == UserRole.Evaluator)
+            {
+                // Allowed city IDs
+                var allowedCityIds = await _context.AIUserCityMappings
+                            .Where(x => x.IsActive && x.UserID == userID && (!cityID.HasValue || x.CityID == cityID.Value))
                             .Select(x => x.CityID)
                             .Distinct()
                             .ToListAsync();
@@ -108,33 +119,56 @@ namespace AssessmentPlatform.Services
                     baseQuery = baseQuery.Where(x => x.CityID == cityID.Value);
                 }
             }
+            var commentQuery = _context.AIUserCityMappings
+                .Where(x =>
+                    (
+                        userRole == UserRole.Admin ||
+                        (userRole == UserRole.Analyst && x.AssignBy == userID) ||
+                        (userRole == UserRole.Evaluator && x.UserID == userID)
+                    )
+                )
+                .GroupBy(x => x.CityID)
+                .Select(g => new
+                {
+                    CityID = g.Key,
+                    Comment = g
+                        .OrderByDescending(x => x.UpdatedAt)
+                        .Select(x => x.Comment)
+                        .FirstOrDefault()
+                });
 
-            var query = baseQuery
-            .Include(x => x.City)
-            .Where(x=>x.UpdatedAt >= firstDate)
-            .Select(x => new AiCitySummeryDto
-            {
-                CityID = x.CityID,
-                State = x.City.State ?? "",
-                CityName = x.City.CityName ?? "",
-                Country = x.City.Country ?? "",
-                Image = x.City.Image ?? "",
-                ScoringYear = x.Year,
-                AIScore = x.AIScore,
-                AIProgress = x.AIProgress,
-                EvaluatorProgress = x.EvaluatorProgress,
-                Discrepancy = x.Discrepancy,
-                ConfidenceLevel = x.ConfidenceLevel,
-                EvidenceSummary = x.EvidenceSummary,
-                CrossPillarPatterns = x.CrossPillarPatterns,
-                InstitutionalCapacity = x.InstitutionalCapacity,
-                EquityAssessment = x.EquityAssessment,
-                SustainabilityOutlook = x.SustainabilityOutlook,
-                StrategicRecommendations = x.StrategicRecommendations,
-                DataTransparencyNote = x.DataTransparencyNote,
-                UpdatedAt = x.UpdatedAt,
-                IsVerified = x.IsVerified
-            });
+
+            var query =
+             from score in baseQuery
+                 .Include(x => x.City)
+             where score.UpdatedAt >= firstDate
+             join cmt in commentQuery
+                 on score.CityID equals cmt.CityID into cmtJoin
+             from cmt in cmtJoin.DefaultIfEmpty()   // LEFT JOIN
+             select new AiCitySummeryDto
+             {
+                 CityID = score.CityID,
+                 State = score.City.State ?? "",
+                 CityName = score.City.CityName ?? "",
+                 Country = score.City.Country ?? "",
+                 Image = score.City.Image ?? "",
+                 ScoringYear = score.Year,
+                 AIScore = score.AIScore,
+                 AIProgress = score.AIProgress,
+                 EvaluatorProgress = score.EvaluatorProgress,
+                 Discrepancy = score.Discrepancy,
+                 ConfidenceLevel = score.ConfidenceLevel,
+                 EvidenceSummary = score.EvidenceSummary,
+                 CrossPillarPatterns = score.CrossPillarPatterns,
+                 InstitutionalCapacity = score.InstitutionalCapacity,
+                 EquityAssessment = score.EquityAssessment,
+                 SustainabilityOutlook = score.SustainabilityOutlook,
+                 StrategicRecommendations = score.StrategicRecommendations,
+                 DataTransparencyNote = score.DataTransparencyNote,
+                 UpdatedAt = score.UpdatedAt,
+                 IsVerified = score.IsVerified,
+                 Comment = cmt.Comment
+             };
 
             return query;
         }
@@ -900,8 +934,10 @@ namespace AssessmentPlatform.Services
                     {
                         aiResponse.IsVerified = dto.IsVerified;
                         aiResponse.VerifiedBy = userID;
-
+                        
                         await _context.SaveChangesAsync();
+
+                        _download.InsertAnalyticalLayerResults(dto.CityID);
                         return ResultResponseDto<bool>.Success(true, new[] { dto.IsVerified ? "Finalize and lock the AI-generated score successfully" : "Reject the current AI-generated score Successfully" });
                     }
                 }
@@ -917,7 +953,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                await _download.AiResearchByCityId(dto.CityID,dto.CityEnable,dto.PillarEnable,dto.QuestionEnable);
+                await _download.AiResearchByCityId(dto.CityID, dto.CityEnable, dto.PillarEnable, dto.QuestionEnable);
                 var aiResponse = await _context.AICityScores.FirstOrDefaultAsync(x => x.CityID == dto.CityID);
                 if(aiResponse != null)
                 {
@@ -925,10 +961,12 @@ namespace AssessmentPlatform.Services
                 }
                 // Assign viewers (optional)
 
-                var um = _context.UserCityMappings.All(x => !x.IsDeleted && dto.ViewerUserIDs.Contains(x.UserID) && x.CityID == dto.CityID);
+                var um = _context.UserCityMappings.Where(x => !x.IsDeleted && x.CityID == dto.CityID && dto.ViewerUserIDs.Contains(x.UserID));
+                var valid = um.All(x => dto.ViewerUserIDs.Contains(x.UserID));
+
                 string msg = "Evaluator not have access of this city please try again";
 
-                if (dto.ViewerUserIDs != null && dto.ViewerUserIDs.Any() && um)
+                if (dto.ViewerUserIDs != null && dto.ViewerUserIDs.Any() && valid)
                 {
                     var existingMappings = await _context.AIUserCityMappings
                         .Where(x => x.CityID == dto.CityID &&
@@ -982,7 +1020,30 @@ namespace AssessmentPlatform.Services
                 );
             }
         }
+        public async Task<ResultResponseDto<bool>> AddComment(AddCommentDto dto, int userID, UserRole userRole)
+        {
+            try
+            {
+                var aIUserCityMappings = await _context.AIUserCityMappings.FirstOrDefaultAsync(x => x.UserID == userID && x.IsActive && x.CityID == dto.CityID);
+                if (aIUserCityMappings !=null && userRole == UserRole.Evaluator)
+                {
+                    aIUserCityMappings.Comment = dto.Comment;
 
+                    await _context.SaveChangesAsync();
+
+
+                    await _context.SaveChangesAsync();
+                    return ResultResponseDto<bool>.Success(true, new[] {"Comment Added Successfully"});
+
+                }
+                return ResultResponseDto<bool>.Failure(new[] { "Invalid city, please try again" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in ChangedAiCityEvaluationStatus", ex);
+                return ResultResponseDto<bool>.Failure(new[] { "Error in Changed AiCity Evaluation Status" });
+            }
+        }
         #endregion
     }
 }

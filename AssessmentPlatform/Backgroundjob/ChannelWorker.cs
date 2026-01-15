@@ -101,6 +101,7 @@ namespace AssessmentPlatform.Backgroundjob
 
                 var cityIdParam = new SqlParameter("@CityID", channel.CityID ?? 0);
                 await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_InsertAnalyticalLayerResults @CityID", cityIdParam);
+                await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_AiInsertAnalyticalLayerResults @CityID", cityIdParam);
             }
             catch (Exception ex)
             {

@@ -200,5 +200,24 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet("getAllCityByLocation")]
         public async Task<IActionResult> getAllCityByLocation([FromQuery] GetNearestCityRequestDto r) => Ok(await _cityService.getAllCityByLocation(r));
+
+        [HttpGet("getAiAccessCity")]
+        public async Task<IActionResult> GetAiAccessCity()
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null)
+                return Unauthorized("User ID not found.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _cityService.GetAiAccessCity(claimUserId.GetValueOrDefault(), userRole));
+        }
     }
 }

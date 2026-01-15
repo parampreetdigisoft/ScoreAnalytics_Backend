@@ -114,39 +114,48 @@ namespace AssessmentPlatform.Services
                 return new PaginationResponse<GetUserByRoleResponse>();
             }
         }
-
         public async Task<ResultResponseDto<List<PublicUserResponse>>> GetEvaluatorByAnalyst(GetAssignUserDto request)
         {
             try
             {
                 var query =
-                from u in _context.Users
-                where !u.IsDeleted
-                join uc in _context.UserCityMappings.Where(x => !x.IsDeleted && x.AssignedByUserId == request.UserID && (!request.SearchedUserID.HasValue || x.UserID == request.SearchedUserID))
-                    on u.UserID equals uc.UserID
-                select new PublicUserResponse
-                {
-                    UserID = u.UserID,
-                    FullName = u.FullName,
-                    Email = u.Email,
-                    Phone = u.Phone,
-                    Role = u.Role.ToString(),
-                    CreatedBy = uc.AssignedByUserId,
-                    IsDeleted = u.IsDeleted,
-                    IsEmailConfirmed = u.IsEmailConfirmed,
-                    CreatedAt = u.CreatedAt
-                };
+                    from uc in _context.UserCityMappings
+                    where !uc.IsDeleted
+                          && uc.AssignedByUserId == request.UserID
+                          && (!request.SearchedUserID.HasValue || uc.UserID == request.SearchedUserID.Value)
+                          && (!request.CityID.HasValue || uc.CityID == request.CityID.Value)
+                    join u in _context.Users
+                        .Where(x => !x.IsDeleted)
+                        on uc.UserID equals u.UserID
+                    select new PublicUserResponse
+                    {
+                        UserID = u.UserID,
+                        FullName = u.FullName,
+                        Email = u.Email,
+                        Phone = u.Phone,
+                        Role = u.Role.ToString(),
+                        CreatedBy = uc.AssignedByUserId,
+                        IsDeleted = u.IsDeleted,
+                        IsEmailConfirmed = u.IsEmailConfirmed,
+                        CreatedAt = u.CreatedAt
+                    };
 
-                var users = await query.Distinct().ToListAsync();
+                var users = await query
+                    .Distinct()
+                    .OrderBy(x => x.FullName)
+                    .ToListAsync();
 
-                return ResultResponseDto<List<PublicUserResponse>>.Success(users, new[] { "user get successfully" });
+                return ResultResponseDto<List<PublicUserResponse>>
+                    .Success(users, new[] { "User fetched successfully" });
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occure in GetEvaluatorByAnalyst", ex);
-                return ResultResponseDto<List<PublicUserResponse>>.Failure(new string[] { "There is an error please try later" });
+                await _appLogger.LogAsync("Error occurred in GetEvaluatorByAnalyst", ex);
+                return ResultResponseDto<List<PublicUserResponse>>
+                    .Failure(new[] { "There is an error, please try later" });
             }
         }
+
 
         public async Task<ResultResponseDto<UpdateUserResponseDto>> UpdateUser(UpdateUserDto requestDto)
         {

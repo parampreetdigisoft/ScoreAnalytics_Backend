@@ -43,7 +43,7 @@ namespace AssessmentPlatform.Controllers
             return Ok(await _aIComputationService.GetAITrustLevels());
         }
         [HttpGet("getAICities")]
-        public async Task<IActionResult> getAICities([FromQuery] AiCitySummeryRequestDto request)
+        public async Task<IActionResult> GetAICities([FromQuery] AiCitySummeryRequestDto request)
         {
             var userId = GetUserIdFromClaims();
             if (userId == null)
@@ -244,6 +244,26 @@ namespace AssessmentPlatform.Controllers
             }
 
             return Ok(await _aIComputationService.RegenerateAiSearch(aiCityIdsDto, userId.Value, userRole));
+        }
+
+        [HttpPost("addComment")]
+        [Authorize(Policy = "StaffOnly")]
+        public async Task<IActionResult> AddComment([FromBody] AddCommentDto aiCityIdsDto)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _aIComputationService.AddComment(aiCityIdsDto, userId.Value, userRole));
         }
     }
 }

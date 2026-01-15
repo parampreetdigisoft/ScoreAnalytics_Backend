@@ -22,5 +22,6 @@
         public string DataTransparencyNote { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public bool IsVerified { get; set; }
+        public string? Comment { get; set; }
     }
 }

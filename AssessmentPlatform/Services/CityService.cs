@@ -788,6 +788,63 @@ namespace AssessmentPlatform.Services
             var c = 2 * Math.Asin(Math.Sqrt(a));
             return R * c;
         }
+        
+        public async Task<ResultResponseDto<List<UserCityMappingResponseDto>>> GetAiAccessCity(int userId, UserRole userRole)
+        {
+            try
+            {
+                IQueryable<UserCityMappingResponseDto> cityQuery;
+
+                int year = DateTime.UtcNow.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
+
+                // Step 1️⃣: Fetch city score averages as a dictionary
+                var cityScoresQuery =
+                   from ar in _context.AICityScores
+                   where ar.UpdatedAt >= startDate && ar.UpdatedAt < endDate
+                   group ar by ar.CityID into g
+                   select new
+                   {
+                       CityID = g.Key,
+                       Score = g.Average(x => (decimal?)x.AIProgress) ?? 0
+                   };
+
+                cityQuery =
+                    from c in _context.Cities
+                    join cm in _context.AIUserCityMappings
+                        .Where(x => x.IsActive && x.UserID == userId)
+                        on c.CityID equals cm.CityID
+                    join u in _context.Users on cm.AssignBy equals u.UserID
+                    join cs in cityScoresQuery on cm.CityID equals cs.CityID into scoreGroup
+                    from cs in scoreGroup.DefaultIfEmpty()
+                    select new UserCityMappingResponseDto
+                    {
+                        CityID = c.CityID,
+                        State = c.State,
+                        CityName = c.CityName,
+                        PostalCode = c.PostalCode,
+                        Region = c.Region,
+                        IsActive = c.IsActive,
+                        CreatedDate = c.CreatedDate,
+                        UpdatedDate = c.UpdatedDate,
+                        IsDeleted = c.IsDeleted,
+                        AssignedBy = u.FullName,
+                        UserCityMappingID = cm.AIUserCityMappingID,
+                        Score = cs.Score,
+                    };
+                var result = await cityQuery
+                    .OrderByDescending(x => x.Score)
+                                .ToListAsync();
+
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Success(result, new string[] { "get successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in getAllCityByUserId", ex);
+                return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
         #endregion
     }
 }
