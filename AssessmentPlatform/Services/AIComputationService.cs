@@ -918,11 +918,15 @@ namespace AssessmentPlatform.Services
             try
             {
                 await _download.AiResearchByCityId(dto.CityID,dto.CityEnable,dto.PillarEnable,dto.QuestionEnable);
-
+                var aiResponse = await _context.AICityScores.FirstOrDefaultAsync(x => x.CityID == dto.CityID);
+                if(aiResponse != null)
+                {
+                    aiResponse.IsVerified = false;
+                }
                 // Assign viewers (optional)
 
                 var um = _context.UserCityMappings.All(x => !x.IsDeleted && dto.ViewerUserIDs.Contains(x.UserID) && x.CityID == dto.CityID);
-                string msg = "Viewer not have access of this city please try again";
+                string msg = "Evaluator not have access of this city please try again";
 
                 if (dto.ViewerUserIDs != null && dto.ViewerUserIDs.Any() && um)
                 {
@@ -954,15 +958,19 @@ namespace AssessmentPlatform.Services
                         });
 
                     await _context.AIUserCityMappings.AddRangeAsync(newMappings);
-                    await _context.SaveChangesAsync();
                     msg = "Evaluator have access to view the city";
                 }
-                
-                var msglist = new[] { " AI research import has been initiated successfully " };
+
+                var msglist = new List<string>
+                {
+                    "AI research import has been initiated successfully"
+                };
+
                 if (dto.ViewerUserIDs != null && dto.ViewerUserIDs.Any())
                 {
-                    msglist.Append(msg);
+                    msglist.Add(msg);
                 }
+                await _context.SaveChangesAsync();
                 return ResultResponseDto<bool>.Success(true, msglist);
             }
             catch (Exception ex)
