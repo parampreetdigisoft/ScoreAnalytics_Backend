@@ -78,13 +78,15 @@ namespace AssessmentPlatform.Services
         }
         public async Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID)
         {
-            var firstDate = new DateTime(DateTime.Now.Year, 1, 1); 
-            IQueryable<AICityScore> baseQuery = _context.AICityScores;
+            var currentYear = DateTime.Now.Year;
+            var firstDate = new DateTime(currentYear, 1, 1); 
+            IQueryable<AICityScore> baseQuery = _context.AICityScores.Where(x=> x.UpdatedAt >= firstDate && x.Year== currentYear);
 
+            List<int> allowedCityIds = new();
             if (userRole == UserRole.Analyst)
             {
                 // Allowed city IDs
-                var allowedCityIds = await _context.UserCityMappings
+                 allowedCityIds = await _context.UserCityMappings
                             .Where(x => !x.IsDeleted && x.UserID == userID && (!cityID.HasValue || x.CityID == cityID.Value))
                             .Select(x => x.CityID)
                             .Distinct()
@@ -95,7 +97,7 @@ namespace AssessmentPlatform.Services
             else if (userRole == UserRole.Evaluator)
             {
                 // Allowed city IDs
-                var allowedCityIds = await _context.AIUserCityMappings
+                 allowedCityIds = await _context.AIUserCityMappings
                             .Where(x => x.IsActive && x.UserID == userID && (!cityID.HasValue || x.CityID == cityID.Value))
                             .Select(x => x.CityID)
                             .Distinct()
@@ -105,7 +107,7 @@ namespace AssessmentPlatform.Services
             }
             else if (userRole == UserRole.CityUser)
             {
-                var allowedCityIds = await _context.PublicUserCityMappings
+                 allowedCityIds = await _context.PublicUserCityMappings
                             .Where(x => x.IsActive && x.UserID == userID && (!cityID.HasValue || x.CityID == cityID.Value))
                             .Select(x => x.CityID)
                             .Distinct()
@@ -139,38 +141,50 @@ namespace AssessmentPlatform.Services
                         .FirstOrDefault()
                 });
 
-
             var query =
-             from score in baseQuery
-                 .Include(x => x.City)
-             where score.UpdatedAt >= firstDate
-             join cmt in commentQuery
-                 on score.CityID equals cmt.CityID into cmtJoin
-             from cmt in cmtJoin.DefaultIfEmpty()   // LEFT JOIN
-             select new AiCitySummeryDto
-             {
-                 CityID = score.CityID,
-                 State = score.City.State ?? "",
-                 CityName = score.City.CityName ?? "",
-                 Country = score.City.Country ?? "",
-                 Image = score.City.Image ?? "",
-                 ScoringYear = score.Year,
-                 AIScore = score.AIScore,
-                 AIProgress = score.AIProgress,
-                 EvaluatorProgress = score.EvaluatorProgress,
-                 Discrepancy = score.Discrepancy,
-                 ConfidenceLevel = score.ConfidenceLevel,
-                 EvidenceSummary = score.EvidenceSummary,
-                 CrossPillarPatterns = score.CrossPillarPatterns,
-                 InstitutionalCapacity = score.InstitutionalCapacity,
-                 EquityAssessment = score.EquityAssessment,
-                 SustainabilityOutlook = score.SustainabilityOutlook,
-                 StrategicRecommendations = score.StrategicRecommendations,
-                 DataTransparencyNote = score.DataTransparencyNote,
-                 UpdatedAt = score.UpdatedAt,
-                 IsVerified = score.IsVerified,
-                 Comment = cmt.Comment
-             };
+                from c in _context.Cities
+                where allowedCityIds.Contains(c.CityID)
+
+                join score in baseQuery
+                    on c.CityID equals score.CityID
+                    into scoreJoin
+                from score in scoreJoin.DefaultIfEmpty()   // LEFT JOIN score
+
+                join cmt in commentQuery
+                    on c.CityID equals cmt.CityID
+                    into cmtJoin
+                from cmt in cmtJoin.DefaultIfEmpty()       // LEFT JOIN comment
+
+                select new AiCitySummeryDto
+                {
+                    CityID = c.CityID,
+                    State = c.State ?? string.Empty,
+                    CityName = c.CityName ?? string.Empty,
+                    Country = c.Country ?? string.Empty,
+                    Image = c.Image ?? string.Empty,
+
+                    ScoringYear = score != null ? score.Year : currentYear,
+                    AIScore = score != null ? score.AIScore : 0,
+                    AIProgress = score != null ? score.AIProgress : null,
+                    EvaluatorProgress = score != null ? score.EvaluatorProgress : null,
+                    Discrepancy = score != null ? score.Discrepancy : null,
+                    ConfidenceLevel = score != null ? score.ConfidenceLevel : string.Empty,
+
+                    EvidenceSummary = score != null ? score.EvidenceSummary : string.Empty,
+                    CrossPillarPatterns = score != null ? score.CrossPillarPatterns : string.Empty,
+                    InstitutionalCapacity = score != null ? score.InstitutionalCapacity : string.Empty,
+                    EquityAssessment = score != null ? score.EquityAssessment : string.Empty,
+                    SustainabilityOutlook = score != null ? score.SustainabilityOutlook : string.Empty,
+                    StrategicRecommendations = score != null ? score.StrategicRecommendations : string.Empty,
+                    DataTransparencyNote = score != null ? score.DataTransparencyNote : string.Empty,
+
+                    UpdatedAt = score != null ? score.UpdatedAt : null,
+                    IsVerified = score != null ? score.IsVerified : false,
+
+                    Comment = cmt != null ? cmt.Comment : null
+                };
+
+
 
             return query;
         }
@@ -928,7 +942,7 @@ namespace AssessmentPlatform.Services
                 if ((v && userRole == UserRole.Analyst) || userRole == UserRole.Admin)
                 {
 
-                    var aiResponse = await _context.AICityScores.Where(x => x.CityID == dto.CityID).FirstOrDefaultAsync();
+                    var aiResponse = await _context.AICityScores.Where(x => x.CityID == dto.CityID && x.Year == DateTime.UtcNow.Year).FirstOrDefaultAsync();
                     if (aiResponse != null)
                     {
                         aiResponse.IsVerified = dto.IsVerified;

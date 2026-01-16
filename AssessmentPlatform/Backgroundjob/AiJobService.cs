@@ -14,8 +14,8 @@ namespace AssessmentPlatform.Backgroundjob
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             // Run both schedules in parallel
-            _ = RunEvery2Hours(stoppingToken);
-            _ = RunEveryMonth(stoppingToken);
+            //_ = RunEvery2Hours(stoppingToken);
+            //_ = RunEveryMonth(stoppingToken);
 
             await Task.CompletedTask;
         }
@@ -31,7 +31,7 @@ namespace AssessmentPlatform.Backgroundjob
                     using var scope = _serviceProvider.CreateScope();
                     var aiService = scope.ServiceProvider.GetRequiredService<IAIAnalyzeService>();
 
-                    await aiService.RunEvery2HoursJob();
+                    //await aiService.RunEvery2HoursJob();
                 }
                 catch (Exception ex)
                 {
@@ -60,7 +60,7 @@ namespace AssessmentPlatform.Backgroundjob
                     using var scope = _serviceProvider.CreateScope();
                     var aiService = scope.ServiceProvider.GetRequiredService<IAIAnalyzeService>();
 
-                    await aiService.RunMonthlyJob();
+                   // await aiService.RunMonthlyJob();
                 }
                 catch (Exception ex)
                 {

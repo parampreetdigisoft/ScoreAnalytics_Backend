@@ -299,14 +299,14 @@ namespace AssessmentPlatform.Services
                 var startDate = new DateTime(year, 1, 1);
                 var endDate = new DateTime(year + 1, 1, 1);
 
-                var cityScores = from ac in _context.AnalyticalLayerResults
+                var cityScores = from ac in _context.AICityScores
                                  join pc in _context.PublicUserCityMappings on ac.CityID equals pc.CityID
-                                 where ac.LastUpdated >= startDate && ac.LastUpdated < endDate
+                                 where ac.UpdatedAt >= startDate && ac.UpdatedAt < endDate && ac.IsVerified
                                  group ac by ac.CityID into g
                                  select new
                                  {
                                      CityID = g.Key,
-                                     Score = g.Average(x => (decimal?)x.CalValue5) ?? 0
+                                     Score = g.Average(x => (decimal?)x.AIProgress) ?? 0
                                  };
 
 
@@ -751,14 +751,14 @@ namespace AssessmentPlatform.Services
                 var endDate = new DateTime(year + 1, 1, 1);
 
                 // Step 1️⃣: Fetch city score averages as a dictionary
-                var cityScoresDict = await _context.AnalyticalLayerResults
-                    .Where(ar => ar.LastUpdated >= startDate && ar.LastUpdated < endDate)
+                var cityScoresDict = await _context.AICityScores
+                    .Where(ar => ar.UpdatedAt >= startDate && ar.UpdatedAt < endDate && ar.IsVerified)
                     .GroupBy(ar => ar.CityID)
                     .Select(g => new
                     {
                         CityID = g.Key,
-                        Score = g.Average(x => (decimal?)x.CalValue5) ?? 0,
-                        AiScore = g.Average(x => (decimal?)x.AiCalValue5) ?? 0
+                        Score = g.Average(x => (decimal?)x.EvaluatorProgress) ?? 0,
+                        AiScore = g.Average(x => (decimal?)x.AIProgress) ?? 0
                     })
                     .ToDictionaryAsync(x => x.CityID, x => new { x.Score , x.AiScore});
 
@@ -783,7 +783,7 @@ namespace AssessmentPlatform.Services
                 {
                     if(cityScoresDict.TryGetValue(city.CityID, out var score))
                     {
-                        city.Score = score.Score;
+                        city.Score = score.AiScore;
                         city.AiScore = score.AiScore;
                     }
                 }
@@ -1087,10 +1087,11 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
+                var currentYear = DateTime.Now.Year;
+                var firstDate = new DateTime(currentYear, 1, 1);
 
                 var res = await _context.AIPillarScores
-                    .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate)
+                    .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate && x.Year == currentYear) 
                     .Include(x => x.DataSourceCitations)
                     .ToListAsync();
 

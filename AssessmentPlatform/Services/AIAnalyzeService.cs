@@ -2,7 +2,6 @@
 using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.IServices;
-using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -86,37 +85,67 @@ namespace AssessmentPlatform.Services
 
         public async Task AnalyzeAllCitiesFull()
         {
-             var url = aiUrl + "/api/cities-score-analysis/analyze/full";
-             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
+            var url = aiUrl + AiEndpoints.AnalyzeAllCitiesFull;
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
         public async Task AnalyzeSingleCityFull(int cityId)
         {
-            var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/full";
+            var url = aiUrl + AiEndpoints.AnalyzeSingleCityFull(cityId);
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
+
         public async Task AnalyzeSingleCity(int cityId)
         {
-            var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}";
+            var url = aiUrl + AiEndpoints.AnalyzeSingleCity(cityId);
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
+
         public async Task AnalyzeCityPillars(int cityId)
         {
-            var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/pillars";
+            var url = aiUrl + AiEndpoints.AnalyzeCityPillars(cityId);
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
-        // Analyze all Pillars Questions data for a city.
+
         public async Task AnalyzeQuestionsOfCity(int cityId)
         {
-            var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/questions";
+            var url = aiUrl + AiEndpoints.AnalyzeCityQuestions(cityId);
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
         public async Task AnalyzeQuestionsOfCityPillar(int cityId, int pillarId)
         {
-            var url = aiUrl + $"/api/cities-score-analysis/analyze/{cityId}/pillars/{pillarId}/questions";
+            var url = aiUrl + AiEndpoints.AnalyzeCityPillarQuestions(cityId, pillarId);
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
+
     }
+
+    #region AiEndpoints
+
+    public static class AiEndpoints
+    {
+        private const string BasePath = "/api/cities-score-analysis";
+
+        public static string AnalyzeAllCitiesFull =>
+            $"{BasePath}/analyze/full";
+
+        public static string AnalyzeSingleCityFull(int cityId) =>
+            $"{BasePath}/analyze/{cityId}/full";
+
+        public static string AnalyzeSingleCity(int cityId) =>
+            $"{BasePath}/analyze/{cityId}";
+
+        public static string AnalyzeCityPillars(int cityId) =>
+            $"{BasePath}/analyze/{cityId}/pillars";
+
+        public static string AnalyzeCityQuestions(int cityId) =>
+            $"{BasePath}/analyze/{cityId}/questions";
+
+        public static string AnalyzeCityPillarQuestions(int cityId, int pillarId) =>
+            $"{BasePath}/analyze/{cityId}/pillars/{pillarId}/questions";
+    }
+
+    #endregion
 }

@@ -157,7 +157,7 @@ namespace AssessmentPlatform.Backgroundjob
             {
                 channel.Level = "Background running";
                 channel.Exception = ex.ToString();
-                channel.Message = $"Error accour in executing sp_InsertAnalyticalLayerResults for city {channel.CityID}";
+                channel.Message = $"Error accour in AiResearchByCityId {channel.CityID}";
                 await LogException(channel);
             }
         }
