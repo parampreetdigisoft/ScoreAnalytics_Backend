@@ -16,7 +16,6 @@ namespace AssessmentPlatform.Dtos.AiDto
         public string Country { get; set; }
         public int PillarID { get; set; }
         public string PillarName { get; set; }
-        public string Description { get; set; }
         public int DisplayOrder { get; set; }
         public string ImagePath { get; set; }
         public bool IsAccess { get; set; } = false;

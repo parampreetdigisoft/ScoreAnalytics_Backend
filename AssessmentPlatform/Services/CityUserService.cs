@@ -2,6 +2,7 @@
 using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.AiDto;
 using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CityUserDto;
@@ -970,9 +971,10 @@ namespace AssessmentPlatform.Services
                 }
 
                 // Step 2: Get all selected cities (even if no analytical data)
-                var selectedCities = await _context.Cities
-                    .Where(x => c.Cities.Contains(x.CityID) && x.IsActive && !x.IsDeleted)
-                    .Select(x => new { x.CityID, x.CityName })
+                var selectedCities = await _context.PublicUserCityMappings
+                    .Include(x=>x.City)
+                    .Where(x => c.Cities.Contains(x.CityID) && x.UserID== userId && x.IsActive && x.City != null && x.City.IsActive)
+                    .Select(x => new { x.City.CityID, x.City.CityName })
                     .ToListAsync();
 
                 if (!selectedCities.Any())
@@ -1018,7 +1020,6 @@ namespace AssessmentPlatform.Services
                     response.Series.Add(new ChartSeriesDto
                     {
                         Name = city.CityName,
-                        Data = new List<decimal>(),
                         AiData = new List<decimal>()
                     });
                 }
@@ -1027,7 +1028,6 @@ namespace AssessmentPlatform.Services
                 var peerSeries = new ChartSeriesDto
                 {
                     Name = "Peer City Score",
-                    Data = new List<decimal>(),
                     AiData = new List<decimal>()
                 };
 
@@ -1048,16 +1048,12 @@ namespace AssessmentPlatform.Services
                         var aiValue = Math.Round(value?.AiCalValue5 ?? 0, 2);
                         values[city.CityID] = new List<decimal> { evaluatedValue, aiValue };
 
-                        // Add to series
+                        //// Add to series
                         var citySeries = response.Series.First(s => s.Name == city.CityName);
-                        citySeries.Data.Add(evaluatedValue);
 
                         citySeries.AiData.Add(aiValue);
                     }
 
-                    // ✅ Calculate Peer City Score (average of all cities for this layer)
-                    var peerCityScore = values.Values.Any() ? Math.Round(values.Values.Select(x=>x.First()).Average(), 2) : 0;
-                    peerSeries.Data.Add(peerCityScore);
                     var aiPeerCityScore = values.Values.Any() ? Math.Round(values.Values.Select(x=>x.Last()).Average(), 2) : 0;
                     peerSeries.AiData.Add(aiPeerCityScore);
 
@@ -1070,10 +1066,9 @@ namespace AssessmentPlatform.Services
                         {
                             CityID = c.CityID,
                             CityName = c.CityName,
-                            Value = values[c.CityID].First(),
                             AiValue =  values[c.CityID].Last()
                         }).ToList(),
-                        PeerCityScore = peerCityScore // You can rename property if needed
+                        PeerCityScore = aiPeerCityScore // You can rename property if needed
                     });
                 }
 
@@ -1086,6 +1081,84 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error occurred in CompareCities", ex);
                 return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "An error occurred while comparing cities." });
+            }
+        }
+        public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, string tierName)
+        {
+            try
+            {
+                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
+
+                var res = await _context.AIPillarScores
+                    .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate)
+                    .Include(x => x.DataSourceCitations)
+                    .ToListAsync();
+
+                List<int> pillarIds =  await _context.CityUserPillarMappings
+                                .Where(x => x.IsActive && x.UserID == userID)
+                                .Select(x => x.PillarID)
+                                .Distinct()
+                                .ToListAsync();
+                
+                var pillars = await _context.Pillars.ToListAsync();
+
+                var result = pillars
+                .GroupJoin(
+                    res,
+                    p => p.PillarID,
+                    s => s.PillarID,
+                    (pillar, scores) => new { pillar, score = scores.FirstOrDefault() }
+                )
+                .Select(x =>
+                {
+                    var isAccess = pillarIds.Count == 0 || pillarIds.Contains(x.pillar.PillarID);
+
+                    var r = new AiCityPillarReponse
+                    {
+                        PillarScoreID = x.score?.PillarScoreID ?? 0,
+                        CityID = x.score?.CityID ?? cityID,
+                        CityName = x.score?.City?.CityName ?? "",
+                        State = x.score?.City?.State ?? "",
+                        Country = x.score?.City?.Country ?? "",
+                        PillarID = x.pillar.PillarID,
+                        PillarName = x.pillar.PillarName,
+                        DisplayOrder = x.pillar.DisplayOrder,
+                        ImagePath = x.pillar.ImagePath,
+                        IsAccess = isAccess
+                    };
+
+                    if (isAccess && x.score != null)
+                    {
+                        r.AIDataYear = x.score.Year;
+                        r.AIScore = x.score.AIScore;
+                        r.AIProgress = x.score.AIProgress;
+                        r.EvidenceSummary = x.score.EvidenceSummary;
+                        r.RedFlags = x.score.RedFlags;
+                        r.GeographicEquityNote = x.score.GeographicEquityNote;
+                        r.InstitutionalAssessment = x.score.InstitutionalAssessment;
+                        r.DataGapAnalysis = x.score.DataGapAnalysis;
+                        r.DataSourceCitations = x.score.DataSourceCitations;
+                        r.UpdatedAt = x.score.UpdatedAt;
+                    }
+                    return r;
+                })
+                .OrderBy(x => !x.IsAccess)
+                .ThenBy(x => x.DisplayOrder)
+                .ToList();
+
+                var finalResutl = new AiCityPillarReponseDto
+                {
+                    Pillars = result
+                };
+
+                var resposne = ResultResponseDto<AiCityPillarReponseDto>.Success(finalResutl, new[] { "Pillar get successfully", });
+
+                return resposne;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in GetAICityPillars", ex);
+                return ResultResponseDto<AiCityPillarReponseDto>.Failure(new[] { "Error in getting pillar details", });
             }
         }
     }

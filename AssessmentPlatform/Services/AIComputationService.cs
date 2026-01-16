@@ -49,22 +49,24 @@ namespace AssessmentPlatform.Services
 
                 var result = await query.ApplyPaginationAsync(request); 
 
-                var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
-
-                var ids = result.Data.Select(x => x.CityID);
-                var cities = progress.Where(x=> ids.Contains(x.CityID));
-
-                foreach (var c in result.Data)
+                if(userRole != UserRole.CityUser)
                 {
-                    var cityScore = cities
-                        .Where(x => x.CityID == c.CityID)
-                        .Select(x => x.ScoreProgress)
-                        .DefaultIfEmpty(0)
-                        .Average();
+                    var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
 
-                    c.EvaluatorProgress = cityScore;
+                    var ids = result.Data.Select(x => x.CityID);
+                    var cities = progress.Where(x => ids.Contains(x.CityID));
+
+                    foreach (var c in result.Data)
+                    {
+                        var cityScore = cities
+                            .Where(x => x.CityID == c.CityID)
+                            .Select(x => x.ScoreProgress)
+                            .DefaultIfEmpty(0)
+                            .Average();
+
+                        c.EvaluatorProgress = cityScore;
+                    }
                 }
-                
 
                 return result;
             }
@@ -109,7 +111,7 @@ namespace AssessmentPlatform.Services
                             .Distinct()
                             .ToListAsync();
 
-                baseQuery = baseQuery.Where(x => allowedCityIds.Contains(x.CityID));
+                baseQuery = baseQuery.Where(x => allowedCityIds.Contains(x.CityID) && x.IsVerified);
             }
             else
             {
@@ -180,8 +182,6 @@ namespace AssessmentPlatform.Services
 
                 var res = await _context.AIPillarScores
                     .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate)
-                    .Include(x => x.Pillar)
-                    .Include(x => x.City)
                     .Include(x => x.DataSourceCitations)
                     .ToListAsync();
 
@@ -216,7 +216,6 @@ namespace AssessmentPlatform.Services
                         Country = x.score?.City?.Country ?? "",
                         PillarID = x.pillar.PillarID,
                         PillarName = x.pillar.PillarName,
-                        Description = x.pillar.Description ?? "",
                         DisplayOrder = x.pillar.DisplayOrder,
                         ImagePath = x.pillar.ImagePath,
                         IsAccess = isAccess
@@ -882,7 +881,7 @@ namespace AssessmentPlatform.Services
                     {
                         var isAccess = pillarIds.Count == 0 || pillarIds.Contains(x.Pillar.PillarID);
 
-                        return new PillarValueDto
+                        return new CrossCityPillarValueDto
                         {
                             PillarID = x.Pillar.PillarID,
                             PillarName = x.Pillar.PillarName,
@@ -894,7 +893,7 @@ namespace AssessmentPlatform.Services
                     .OrderBy(x => !x.IsAccess)
                     .ThenBy(x => x.DisplayOrder)
                     .ToList();
-                    var chartRow = new ChartTableRowDto
+                    var chartRow = new CrossCityChartTableRowDto
                     {
                         CityID = city.CityID,
                         CityName = city.CityName,
@@ -902,7 +901,7 @@ namespace AssessmentPlatform.Services
                     };
                     response.TableData.Add(chartRow);
 
-                    var series = new ChartSeriesDto
+                    var series = new CrossCityChartSeriesDto
                     {
                         Name = city.CityName,
                         Data = pillarResults

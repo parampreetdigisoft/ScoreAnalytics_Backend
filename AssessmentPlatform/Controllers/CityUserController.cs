@@ -178,5 +178,19 @@ namespace AssessmentPlatform.Controllers
             var result = await _cityUserService.CompareCities(r,userId.GetValueOrDefault(), tierName);
             return Ok(result);
         }
+
+        [HttpGet("getAICityPillars/{cityID}")]
+        public async Task<IActionResult> GetAICityPillars(int cityID)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
+            return Ok(await _cityUserService.GetAICityPillars(cityID, userId.Value, tierName));
+        }
     }
 }

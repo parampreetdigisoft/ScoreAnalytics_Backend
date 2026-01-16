@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Dtos.AiDto;
 using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CityUserDto;
@@ -21,5 +22,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<string>> AddCityUserKpisCityAndPillar(AddCityUserKpisCityAndPillar payload,int userID, string tierName);
         Task<ResultResponseDto<List<AnalyticalLayer>>> GetCityUserKpi(int userID, string tierName);
         Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, string tierName);
+        Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, string tierName);
     }
 }

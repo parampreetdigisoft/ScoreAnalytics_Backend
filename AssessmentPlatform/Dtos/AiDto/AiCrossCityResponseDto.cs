@@ -3,25 +3,25 @@
     public class AiCrossCityResponseDto
     {
         public List<string> Categories { get; set; } = new List<string>();
-        public List<ChartSeriesDto> Series { get; set; } = new List<ChartSeriesDto>();
-        public List<ChartTableRowDto> TableData { get; set; } = new List<ChartTableRowDto>();
+        public List<CrossCityChartSeriesDto> Series { get; set; } = new List<CrossCityChartSeriesDto>();
+        public List<CrossCityChartTableRowDto> TableData { get; set; } = new List<CrossCityChartTableRowDto>();
     }
 
-    public class ChartSeriesDto 
+    public class CrossCityChartSeriesDto
     {
         public string Name { get; set; }
         public List<decimal> Data { get; set; }
     }
 
-    public class ChartTableRowDto
+    public class CrossCityChartTableRowDto
     {
         public int CityID { get; set; }
         public string CityName { get; set; }
         public decimal Value { get; set; }
-        public List<PillarValueDto> PillarValues { get; set; } = new List<PillarValueDto>();
+        public List<CrossCityPillarValueDto> PillarValues { get; set; } = new List<CrossCityPillarValueDto>();
     }
 
-    public class PillarValueDto
+    public class CrossCityPillarValueDto
     {
         public int PillarID { get; set; }
         public string PillarName { get; set; }
