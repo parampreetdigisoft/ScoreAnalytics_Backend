@@ -106,6 +106,11 @@ namespace AssessmentPlatform.Services
             var url = aiUrl + AiEndpoints.AnalyzeCityPillars(cityId);
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
+        public async Task AnalyzeSinglePillar(int cityId, int pillarId)
+        {
+            var url = aiUrl + AiEndpoints.AnalyzeSinglePillar(cityId, pillarId);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
+        }
 
         public async Task AnalyzeQuestionsOfCity(int cityId)
         {
@@ -139,6 +144,8 @@ namespace AssessmentPlatform.Services
 
         public static string AnalyzeCityPillars(int cityId) =>
             $"{BasePath}/analyze/{cityId}/pillars";
+        public static string AnalyzeSinglePillar(int cityId, int pillarId) =>
+            $"{BasePath}/analyze/{cityId}/single-pillar/{pillarId}";
 
         public static string AnalyzeCityQuestions(int cityId) =>
             $"{BasePath}/analyze/{cityId}/questions";

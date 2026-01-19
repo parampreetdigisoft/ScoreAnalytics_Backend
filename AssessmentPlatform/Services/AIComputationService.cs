@@ -22,12 +22,14 @@ namespace AssessmentPlatform.Services
         private readonly IAppLogger _appLogger;
         private readonly ICommonService _commonService;
         private readonly Download _download;
-        public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService, Download download)
+        private readonly IAIAnalyzeService _iAIAnalayzeService;
+        public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService, Download download, IAIAnalyzeService iAIAnalayzeService)
         {
             _context = context;
             _appLogger = appLogger;
             _commonService = commonService;
             _download = download;
+            _iAIAnalayzeService = iAIAnalayzeService;
         }
         #endregion
 
@@ -143,7 +145,7 @@ namespace AssessmentPlatform.Services
 
             var query =
                 from c in _context.Cities
-                where allowedCityIds.Contains(c.CityID)
+                where allowedCityIds.Contains(c.CityID) || userRole == UserRole.Admin
 
                 join score in baseQuery
                     on c.CityID equals score.CityID
@@ -1085,6 +1087,32 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error in ChangedAiCityEvaluationStatus", ex);
                 return ResultResponseDto<bool>.Failure(new[] { "Error in Changed AiCity Evaluation Status" });
+            }
+        }
+        public async Task<ResultResponseDto<bool>> RegeneratePillarAiSearch(RegeneratePillarAiSearchDto channel, int userID, UserRole userRole)
+        {
+            try
+            {
+                if (channel.QuestionEnable)
+                    await _iAIAnalayzeService.AnalyzeQuestionsOfCityPillar(channel.CityID, channel.PillarID);
+
+                if (channel.PillarEnable)
+                    await _iAIAnalayzeService.AnalyzeSinglePillar(channel.CityID,channel.PillarID);
+
+
+                var msglist = new List<string>
+                {
+                    "AI research import has been initiated successfully"
+                };
+               
+                await _context.SaveChangesAsync();
+                return ResultResponseDto<bool>.Success(true, msglist);
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in RegenerateAiSearch", ex);
+
+                return ResultResponseDto<bool>.Failure(new[] { "Something went wrong while importing AI research. Please try again later." });
             }
         }
         #endregion

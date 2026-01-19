@@ -14,6 +14,10 @@
         public bool QuestionEnable { get; set; }
         public List<int> ViewerUserIDs { get; set; } = new();
     }
+    public class RegeneratePillarAiSearchDto : RegenerateAiSearchDto
+    {
+        public int PillarID { get; set; }
+    }
     public class AddCommentDto
     {
         public int CityID { get; set; }
