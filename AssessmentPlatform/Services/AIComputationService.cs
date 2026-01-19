@@ -192,10 +192,11 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
+                var currentYear = DateTime.Now.Year;
+                var firstDate = new DateTime(currentYear, 1, 1);
 
                 var res = await _context.AIPillarScores
-                    .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate)
+                    .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate && x.Year == currentYear)
                     .Include(x=>x.City)
                     .Include(x => x.DataSourceCitations)
                     .ToListAsync();
@@ -994,6 +995,8 @@ namespace AssessmentPlatform.Services
                 }
                 // Assign viewers (optional)
 
+                var aIUserCityMappingsList = await _context.AIUserCityMappings.Where(x => x.CityID == dto.CityID).ToListAsync();
+
                 var um = _context.UserCityMappings.Where(x => !x.IsDeleted && x.CityID == dto.CityID && dto.ViewerUserIDs.Contains(x.UserID));
                 var valid = um.All(x => dto.ViewerUserIDs.Contains(x.UserID));
 
@@ -1001,10 +1004,8 @@ namespace AssessmentPlatform.Services
 
                 if (dto.ViewerUserIDs != null && dto.ViewerUserIDs.Any() && valid)
                 {
-                    var existingMappings = await _context.AIUserCityMappings
-                        .Where(x => x.CityID == dto.CityID &&
-                                    dto.ViewerUserIDs.Contains(x.UserID))
-                        .ToListAsync();
+                    var existingMappings = aIUserCityMappingsList.Where(x => dto.ViewerUserIDs.Contains(x.UserID));
+
 
                     var existingUserIds = existingMappings.Select(x => x.UserID).ToHashSet();
 
@@ -1014,6 +1015,7 @@ namespace AssessmentPlatform.Services
                         mapping.IsActive = true;
                         mapping.UpdatedAt = DateTime.UtcNow;
                         mapping.AssignBy = userID;
+                        mapping.Comment = string.Empty;
                     }
 
                     // Insert new mappings
@@ -1030,6 +1032,16 @@ namespace AssessmentPlatform.Services
 
                     await _context.AIUserCityMappings.AddRangeAsync(newMappings);
                     msg = "Evaluator have access to view the city";
+                }
+                else if(aIUserCityMappingsList.Count > 0)
+                {
+                    foreach (var mapping in aIUserCityMappingsList)
+                    {
+                        mapping.IsActive = false;
+                        mapping.UpdatedAt = DateTime.UtcNow;
+                        mapping.AssignBy = userID;
+                        mapping.Comment = string.Empty;
+                    }
                 }
 
                 var msglist = new List<string>
@@ -1048,9 +1060,7 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error in RegenerateAiSearch", ex);
 
-                return ResultResponseDto<bool>.Failure(
-                    new[] { "Something went wrong while importing AI research. Please try again later." }
-                );
+                return ResultResponseDto<bool>.Failure(new[] { "Something went wrong while importing AI research. Please try again later." });
             }
         }
         public async Task<ResultResponseDto<bool>> AddComment(AddCommentDto dto, int userID, UserRole userRole)

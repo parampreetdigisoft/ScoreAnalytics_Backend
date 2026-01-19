@@ -1,13 +1,10 @@
-using AssessmentPlatform.Backgroundjob;
+using AssessmentPlatform.Common.DI;
 using AssessmentPlatform.Common.Implementation;
-using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Middlware;
 using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Enums;
-using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
-using AssessmentPlatform.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -52,26 +49,8 @@ namespace AssessmentPlatform
             {
                 client.Timeout = TimeSpan.FromHours(3); // supports very long API calls
             });
-            services.AddHostedService<ChannelWorker>();
-            services.AddHostedService<AiJobService>();
-            services.AddSingleton<ChannelService>();
-            services.AddScoped<Download>();
-            services.AddScoped<IAIAnalyzeService, AIAnalyzeService>();
 
-            services.AddScoped<IQuestionService, QuestionService>();
-            services.AddScoped<IUserService, UserService>();
-            services.AddScoped<IPillarService, PillarService>();
-            services.AddScoped<IAssessmentResponseService, AssessmentResponseService>();
-            services.AddScoped<ICityService, CityService>();
-            services.AddScoped<IEmailService, EmailService>();
-            services.AddScoped<IAuthService, AuthService>();
-            services.AddScoped<IAppLogger, AppLogger>();
-            services.AddScoped<ICityUserService, CityUserService>();
-            services.AddScoped<IPaymentService, PaymentService>();
-            services.AddScoped<IPublicService, PublicService>();
-            services.AddScoped<IKpiService, KpiService>();
-            services.AddScoped<IAIComputationService, AIComputationService>();
-            services.AddScoped<ICommonService, CommonService>();
+               ServiceRegistration.AddDependencyInjection(services);     
 
             services.AddCors(options =>
             {

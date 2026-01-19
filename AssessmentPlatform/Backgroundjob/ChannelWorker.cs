@@ -3,6 +3,7 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 
 namespace AssessmentPlatform.Backgroundjob
 {
@@ -13,19 +14,18 @@ namespace AssessmentPlatform.Backgroundjob
         private readonly ChannelService _channelService;
         private readonly IServiceProvider _serviceProvider;
         private readonly Dictionary<string, Func<Download, Task>> _actionHandlers;
-        private readonly Dictionary<int, CancellationTokenSource> _debounceTokens;
+        private readonly ConcurrentDictionary<int, CancellationTokenSource> _debounceTokens = new();
+        private static readonly ConcurrentDictionary<int, SemaphoreSlim> _cityLocks = new();
         private readonly TimeSpan _debounceInterval = TimeSpan.FromMinutes(2);
 
         public ChannelWorker(ChannelService channelService, IServiceProvider serviceProvider)
         {
             _channelService = channelService;
             _serviceProvider = serviceProvider;
-            _debounceTokens = new Dictionary<int, CancellationTokenSource>();
 
             _actionHandlers = new Dictionary<string, Func<Download, Task>>
             {
                 { "InsertAnalyticalLayerResults", InsertAnalyticalLayerResults },
-                { "LogException", LogException },
                 { "AiResearchByCityId", AiResearchByCityId },
             };
         }
@@ -43,8 +43,8 @@ namespace AssessmentPlatform.Backgroundjob
                     {
                         if (queueItem.Type == "InsertAnalyticalLayerResults")
                         {
-                            //Called sp on latest changes
-                            Debounce(queueItem.CityID ?? 0, async () => await action(queueItem));
+                            await DebounceAsync(queueItem.CityID ?? 0,
+                                () => action(queueItem));
                         }
                         else
                         {
@@ -54,81 +54,117 @@ namespace AssessmentPlatform.Backgroundjob
                 }
                 catch (Exception ex)
                 {
-                    // log exception
+                    using var scope = _serviceProvider.CreateScope();
+                    var _appLogger = scope.ServiceProvider.GetRequiredService<IAppLogger>();
+                    await _appLogger.LogAsync("ChannelWorker", ex);
                 }
             }
         }
+
         #region Debounce
- 
-        private void Debounce(int key, Func<Task> action)
+
+        private async Task DebounceAsync(int cityId, Func<Task> action)
         {
-            // Cancel previous timer if it exists
-            if (_debounceTokens.TryGetValue(key, out var existingCts))
+            var cts = _debounceTokens.AddOrUpdate(cityId, _ => new CancellationTokenSource(), (_, existing) =>
             {
-                existingCts.Cancel();
-                existingCts.Dispose();
-            }
+                existing.Cancel();
+                existing.Dispose();
+                return new CancellationTokenSource();
+            });
 
-            var cts = new CancellationTokenSource();
-            _debounceTokens[key] = cts;
-
-            _ = Task.Run(async () =>
+            try
             {
+                await Task.Delay(_debounceInterval, cts.Token);
+
+                var semaphore = _cityLocks.GetOrAdd(cityId, _ => new SemaphoreSlim(1, 1));
+                await semaphore.WaitAsync(cts.Token);
+
                 try
                 {
-                    // Wait for inactivity period
-                    await Task.Delay(_debounceInterval, cts.Token);
-
-                    // Execute if not cancelled
                     await action();
                 }
-                catch (TaskCanceledException)
+                finally
                 {
-                    // ignored — means another call came in before debounce finished
+                    semaphore.Release();
                 }
-            });
+            }
+            catch (TaskCanceledException)
+            {
+                // debounce cancelled – expected
+            }
+            finally
+            {
+                _debounceTokens.TryRemove(cityId, out _);
+            }
         }
+
         #endregion
 
         #region InsertAnalyticalLayerResults
 
         private async Task InsertAnalyticalLayerResults(Download channel)
         {
+            using var scope = _serviceProvider.CreateScope();
+            var _appLogger = scope.ServiceProvider.GetRequiredService<IAppLogger>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var cityIdParam = new SqlParameter("@CityID", channel.CityID ?? 0);
+
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                await ExecuteWithRetry(
+                    async () =>
+                    {
+                        await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_InsertAnalyticalLayerResults @CityID", cityIdParam);
+                    },
+                    onFinalFailure: ex =>
+                    {
+                       
+                        _appLogger.LogAsync("ChannelWorker", ex);
+                    });
 
-                var cityIdParam = new SqlParameter("@CityID", channel.CityID ?? 0);
-                await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_InsertAnalyticalLayerResults @CityID", cityIdParam);
-                await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_AiInsertAnalyticalLayerResults @CityID", cityIdParam);
+                await ExecuteWithRetry(
+                    async () =>
+                    {
+                        await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_AiInsertAnalyticalLayerResults @CityID",cityIdParam);
+                    },
+                    onFinalFailure: ex =>
+                    {
+                         _appLogger.LogAsync("sp_AiInsertAnalyticalLayerResults", ex);
+                    });
             }
             catch (Exception ex)
             {
-                channel.Level = "Background running";
-                channel.Exception = ex.ToString();
-                channel.Message = $"Error accour in executing sp_InsertAnalyticalLayerResults for city {channel.CityID}";
-                await LogException(channel);
+                await _appLogger.LogAsync("InsertAnalyticalLayerResults", ex);
             }
         }
-        #endregion
-       
-        #region LogException
-
-        private async Task LogException(Download channel)
+        public async Task ExecuteWithRetry(Func<Task> action,int maxRetry = 3, Action<Exception>? onFinalFailure = null)
         {
-            using var scope = _serviceProvider.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var log = new AppLogs
-            {
-                Level = channel.Level,
-                Message = channel.Message,
-                Exception = channel.Exception
-            };
+            int retry = 0;
 
-            dbContext.AppLogs.Add(log);
-            await dbContext.SaveChangesAsync();
+            while (true)
+            {
+                try
+                {
+                    await action();
+                    return;
+                }
+                catch (SqlException ex) when (ex.Number == 1205)
+                {
+                    retry++;
+
+                    if (retry > maxRetry)
+                    {
+                        onFinalFailure?.Invoke(ex);
+                        throw; // let caller catch it
+                    }
+
+                    await Task.Delay(500 * retry); // exponential backoff
+                }
+            }
         }
+
+
         #endregion
         
         #region AiResearchByCityId
@@ -155,10 +191,9 @@ namespace AssessmentPlatform.Backgroundjob
             }
             catch (Exception ex)
             {
-                channel.Level = "Background running";
-                channel.Exception = ex.ToString();
-                channel.Message = $"Error accour in AiResearchByCityId {channel.CityID}";
-                await LogException(channel);
+                using var scope = _serviceProvider.CreateScope();
+                var _appLogger = scope.ServiceProvider.GetRequiredService<IAppLogger>();
+                await _appLogger.LogAsync("AiResearchByCityId", ex);
             }
         }
         #endregion
