@@ -196,6 +196,7 @@ namespace AssessmentPlatform.Services
 
                 var res = await _context.AIPillarScores
                     .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate)
+                    .Include(x=>x.City)
                     .Include(x => x.DataSourceCitations)
                     .ToListAsync();
 
@@ -347,7 +348,7 @@ namespace AssessmentPlatform.Services
                 return new PaginationResponse<AIEstimatedQuestionScoreDto>();
             }
         }
-        public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails)
+        public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, UserRole userRole)
         {
             try
             {
@@ -360,8 +361,8 @@ namespace AssessmentPlatform.Services
                         page.PageColor(Colors.White);
                         page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
-                        page.Header().Element(x => CityComposeHeader(x, cityDetails));
-                        page.Content().Element(content => CitySummeryComposeContent(content, cityDetails));
+                        page.Header().Element(x => CityComposeHeader(x, cityDetails, userRole));
+                        page.Content().Element(content => CitySummeryComposeContent(content, cityDetails, userRole));
                         page.Footer().AlignCenter().Text(x =>
                         {
                             x.CurrentPageNumber();
@@ -378,7 +379,7 @@ namespace AssessmentPlatform.Services
                 return new byte[] { };
             }
         }
-        public async Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse pillarData)
+        public async Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse pillarData, UserRole userRole)
         {
             try
             {
@@ -392,7 +393,7 @@ namespace AssessmentPlatform.Services
                         page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Segoe UI"));
 
                         page.Header().Element(header => PillarComposeHeader(header, pillarData));
-                        page.Content().Element(content => PillarComposeContent(content, pillarData));
+                        page.Content().Element(content => PillarComposeContent(content, pillarData, userRole));
                         page.Footer().Element(PillarComposeFooter);
                     });
                 });
@@ -405,7 +406,7 @@ namespace AssessmentPlatform.Services
                 return new byte[] { };
             }
         }
-        void CityComposeHeader(IContainer container, AiCitySummeryDto data)
+        void CityComposeHeader(IContainer container, AiCitySummeryDto data, UserRole userRole)
         {
             container.Column(column =>
             {
@@ -414,7 +415,7 @@ namespace AssessmentPlatform.Services
                 {
                     row.RelativeItem().Column(col =>
                     {
-                        col.Item().Text($"AI City Analysis Report")
+                        col.Item().Text($"City Analysis Report")
                             .FontSize(16)
                             .FontColor(Colors.White);
                     });
@@ -445,31 +446,35 @@ namespace AssessmentPlatform.Services
                 });
             });
         }
-        void CitySummeryComposeContent(IContainer container, AiCitySummeryDto data)
+        void CitySummeryComposeContent(IContainer container, AiCitySummeryDto data, UserRole userRole)
         {
             container.PaddingTop(4).Column(column =>
             {
-                column.Item().Row(row =>
+                if(userRole != UserRole.CityUser)
                 {
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "AI Confidence",
-                        data.ConfidenceLevel, GetConfidenceBadgeColor(data.ConfidenceLevel), true));
-                    row.Spacing(10);
+                    column.Item().Row(row =>
+                    {
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Confidence",
+                            data.ConfidenceLevel, GetConfidenceBadgeColor(data.ConfidenceLevel), true));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "AI Score",
-                        data.AIProgress != null ? $"{data.AIProgress}%" : "N/A", "#FFC107", false));
-                    row.Spacing(10);
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Score",
+                            data.AIProgress != null ? $"{data.AIProgress}%" : "N/A", "#FFC107", false));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "Evaluator Score",
-                        data.EvaluatorProgress != null ? $"{data.EvaluatorProgress}%" : "N/A", "#4CAF50", false));
-                    row.Spacing(10);
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "Evaluator Score",
+                            data.EvaluatorProgress != null ? $"{data.EvaluatorProgress}%" : "N/A", "#4CAF50", false));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "Discrepancy",
-                        $"{data.Discrepancy:F1}%", GetDiscrepancyColor(data.Discrepancy ?? 0), false));
-                    row.Spacing(10);
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "Discrepancy",
+                            $"{data.Discrepancy:F1}%", GetDiscrepancyColor(data.Discrepancy ?? 0), false));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "Average Score",
-                        $"{((data.AIProgress + data.EvaluatorProgress) ?? 0) / 2:F0}%", "#2196F3", false));
-                });
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "Average Score",
+                            $"{((data.AIProgress + data.EvaluatorProgress) ?? 0) / 2:F0}%", "#2196F3", false));
+                    });
+                }
+
 
                 // Progress Bars
                 var random = new AiCityPillarReponse
@@ -479,11 +484,11 @@ namespace AssessmentPlatform.Services
                     AIDataYear = data.ScoringYear,
                     AIProgress = data.AIProgress
                 };
-                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, random));
+                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, random,userRole));
 
                 // Evidence Summary Section
                 column.Item().PaddingTop(10).Element(c =>
-                    PillarContentSection(c, "AI Evidence Summary", data.EvidenceSummary, "#1976D2"));
+                    PillarContentSection(c, "Evidence Summary", data.EvidenceSummary, "#1976D2"));
 
                 // Red Flags Section (with warning styling)
                 column.Item().PageBreak();
@@ -549,39 +554,42 @@ namespace AssessmentPlatform.Services
                 });
             });
         }
-        void PillarComposeContent(IContainer container, AiCityPillarReponse data)
+        void PillarComposeContent(IContainer container, AiCityPillarReponse data, UserRole userRole)
         {
             container.PaddingTop(8).Column(column =>
             {
                 // Score Cards Row
-                column.Item().Row(row =>
+                if(userRole != UserRole.CityUser)
                 {
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "AI Confidence",
-                        data.ConfidenceLevel, GetConfidenceBadgeColor(data.ConfidenceLevel), true));
-                    row.Spacing(10);
+                    column.Item().Row(row =>
+                    {
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Confidence",
+                            data.ConfidenceLevel, GetConfidenceBadgeColor(data.ConfidenceLevel), true));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "AI Score",
-                        data.AIProgress != null ? $"{data.AIProgress}%" : "N/A", "#FFC107", false));
-                    row.Spacing(10);
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Score",
+                            data.AIProgress != null ? $"{data.AIProgress}%" : "N/A", "#FFC107", false));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "Evaluator Score",
-                        data.EvaluatorProgress != null ? $"{data.EvaluatorProgress}%" : "N/A", "#4CAF50", false));
-                    row.Spacing(10);
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "Evaluator Score",
+                            data.EvaluatorProgress != null ? $"{data.EvaluatorProgress}%" : "N/A", "#4CAF50", false));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "Discrepancy",
-                        $"{data.Discrepancy:F1}%", GetDiscrepancyColor(data.Discrepancy ?? 0), false));
-                    row.Spacing(10);
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "Discrepancy",
+                            $"{data.Discrepancy:F1}%", GetDiscrepancyColor(data.Discrepancy ?? 0), false));
+                        row.Spacing(10);
 
-                    row.RelativeItem().Element(c => PillarScoreCard(c, "Average Score",
-                        $"{((data.AIProgress + data.EvaluatorProgress) ?? 0) / 2:F0}%", "#2196F3", false));
-                });
+                        row.RelativeItem().Element(c => PillarScoreCard(c, "Average Score",
+                            $"{((data.AIProgress + data.EvaluatorProgress) ?? 0) / 2:F0}%", "#2196F3", false));
+                    });
+                }
 
                 // Progress Bars
-                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, data));
+                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, data, userRole));
 
                 // Evidence Summary Section
                 column.Item().PaddingTop(10).Element(c =>
-                    PillarContentSection(c, "AI Evidence Summary", data.EvidenceSummary, "#1976D2"));
+                    PillarContentSection(c, "Evidence Summary", data.EvidenceSummary, "#1976D2"));
 
                 // Red Flags Section (with warning styling)
                 column.Item().PageBreak();
@@ -642,7 +650,7 @@ namespace AssessmentPlatform.Services
                     }
                 });
         }
-        void PillarProgressSection(IContainer container, AiCityPillarReponse data)
+        void PillarProgressSection(IContainer container, AiCityPillarReponse data, UserRole userRole)
         {
             container.Background(Colors.White)
                 .Border(1)
@@ -655,14 +663,26 @@ namespace AssessmentPlatform.Services
                         .Bold()
                         .FontColor("#1E3A5F");
 
-                    column.Item().PaddingTop(12).Column(col =>
+                    if(userRole == UserRole.CityUser)
                     {
-                        PillarProgressBar(col, "AI Progress", data.AIProgress, "#4CAF50");
-                        col.Item().PaddingTop(10);
-                        PillarProgressBar(col, "Evaluator Progress", data.EvaluatorProgress, "#2196F3");
-                        col.Item().PaddingTop(10);
-                        PillarProgressBar(col, "Discrepancy", data.Discrepancy, "#FF5722");
-                    });
+                        column.Item().PaddingTop(12).Column(col =>
+                        {
+                            PillarProgressBar(col, "Score", data.AIProgress, "#4CAF50");
+                            col.Item().PaddingTop(10);
+                        });
+                    }
+                    else
+                    {
+                        column.Item().PaddingTop(12).Column(col =>
+                        {
+                            PillarProgressBar(col, "AI Progress", data.AIProgress, "#4CAF50");
+                            col.Item().PaddingTop(10);
+                            PillarProgressBar(col, "Evaluator Progress", data.EvaluatorProgress, "#2196F3");
+                            col.Item().PaddingTop(10);
+                            PillarProgressBar(col, "Discrepancy", data.Discrepancy, "#FF5722");
+                        });
+                    }
+
                 });
         }
         void PillarProgressBar(ColumnDescriptor column, string label, decimal? percentage, string color)

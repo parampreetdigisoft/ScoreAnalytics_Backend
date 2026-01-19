@@ -300,8 +300,8 @@ namespace AssessmentPlatform.Services
                 var endDate = new DateTime(year + 1, 1, 1);
 
                 var cityScores = from ac in _context.AICityScores
+                                 .Where(x => x.UpdatedAt >= startDate && x.UpdatedAt < endDate && x.IsVerified && x.Year == year)
                                  join pc in _context.PublicUserCityMappings on ac.CityID equals pc.CityID
-                                 where ac.UpdatedAt >= startDate && ac.UpdatedAt < endDate && ac.IsVerified
                                  group ac by ac.CityID into g
                                  select new
                                  {
@@ -752,7 +752,7 @@ namespace AssessmentPlatform.Services
 
                 // Step 1️⃣: Fetch city score averages as a dictionary
                 var cityScoresDict = await _context.AICityScores
-                    .Where(ar => ar.UpdatedAt >= startDate && ar.UpdatedAt < endDate && ar.IsVerified)
+                    .Where(ar => ar.UpdatedAt >= startDate && ar.UpdatedAt < endDate && ar.IsVerified && ar.Year == year)
                     .GroupBy(ar => ar.CityID)
                     .Select(g => new
                     {
@@ -899,7 +899,7 @@ namespace AssessmentPlatform.Services
                 });
             }
         }
-        public async Task<ResultResponseDto<List<AnalyticalLayer>>> GetCityUserKpi(int userId, string tierName)
+        public async Task<ResultResponseDto<List<GetAllKpisResponseDto>>> GetCityUserKpi(int userId, string tierName)
         {
             try
             {
@@ -917,20 +917,26 @@ namespace AssessmentPlatform.Services
 
                 if (!validKpiIds.Any())
                 {
-                    return ResultResponseDto<List<AnalyticalLayer>>.Failure(new List<string> { "you don't have kpi access." });
+                    return ResultResponseDto<List<GetAllKpisResponseDto>>.Failure(new List<string> { "you don't have kpi access." });
                 }
 
                 // Fetch Analytical Layers that match the user's KPI access
                 var result = await _context.AnalyticalLayers
                     .Where(ar => !ar.IsDeleted && validKpiIds.Contains(ar.LayerID))
+                    .Select(x=>new GetAllKpisResponseDto
+                    {
+                        LayerID = x.LayerID,
+                        LayerCode = x.LayerCode,
+                        LayerName = x.LayerName
+                    })
                     .ToListAsync();
 
-                return ResultResponseDto<List<AnalyticalLayer>>.Success(result);
+                return ResultResponseDto<List<GetAllKpisResponseDto>>.Success(result);
             }
             catch (Exception ex)
             {
                 await _appLogger.LogAsync("Error occurred in GetCityUserKpi", ex);
-                return ResultResponseDto<List<AnalyticalLayer>>.Failure(new List<string> { "An error occurred while fetching user KPIs." });
+                return ResultResponseDto<List<GetAllKpisResponseDto>>.Failure(new List<string> { "An error occurred while fetching user KPIs." });
             }
         }
 
@@ -941,7 +947,6 @@ namespace AssessmentPlatform.Services
                 var year = c.UpdatedAt.Year;
                 var startDate = new DateTime(year, 1, 1);
                 var endDate = new DateTime(year + 1, 1, 1);
-
 
                 var validKpiIds = new List<int>();
                 if (c.Kpis.Count == 0)

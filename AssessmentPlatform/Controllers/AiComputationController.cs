@@ -122,7 +122,7 @@ namespace AssessmentPlatform.Controllers
                 var cityDetails = await query.FirstAsync();
 
                 // Generate PDF
-                var pdfBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails);
+                var pdfBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails, userRole);
 
                 // Return PDF with proper headers
                 var fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
@@ -164,7 +164,7 @@ namespace AssessmentPlatform.Controllers
                 {
 
                     // Generate PDF
-                    var pdfBytes = await _aIComputationService.GeneratePillarDetailsPdf(pillarDetails);
+                    var pdfBytes = await _aIComputationService.GeneratePillarDetailsPdf(pillarDetails, userRole);
 
                     // Return PDF with proper headers
                     var fileName = $"{pillarDetails.PillarName}_Details_{DateTime.Now:yyyyMMdd}.pdf";

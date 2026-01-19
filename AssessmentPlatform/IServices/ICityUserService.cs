@@ -20,7 +20,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<CityDetailsDto>> GetCityDetails(UserCityRequstDto userCityRequstDto);
         Task<ResultResponseDto<List<CityPillarQuestionDetailsDto>>> GetCityPillarDetails(UserCityGetPillarInfoRequstDto userCityRequstDto);
         Task<ResultResponseDto<string>> AddCityUserKpisCityAndPillar(AddCityUserKpisCityAndPillar payload,int userID, string tierName);
-        Task<ResultResponseDto<List<AnalyticalLayer>>> GetCityUserKpi(int userID, string tierName);
+        Task<ResultResponseDto<List<GetAllKpisResponseDto>>> GetCityUserKpi(int userID, string tierName);
         Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, string tierName);
         Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, string tierName);
     }
