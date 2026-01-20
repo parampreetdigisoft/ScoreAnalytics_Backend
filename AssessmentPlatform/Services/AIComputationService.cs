@@ -311,35 +311,42 @@ namespace AssessmentPlatform.Services
                         return new PaginationResponse<AIEstimatedQuestionScoreDto>();
                     }
                 }
-                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
-                var res = _context.AIEstimatedQuestionScores
-                    .Include(x => x.Question)
-                    .Where(x => x.CityID == request.CityID && x.PillarID == request.PillarID && x.UpdatedAt >= firstDate)
-                    .Select(x => new AIEstimatedQuestionScoreDto
-                    {
-                        CityID = x.CityID,
-                        PillarID = x.PillarID,
-                        QuestionID = x.QuestionID,
-                        DataYear = x.Year,
-                        AIScore = x.AIScore,
-                        AIProgress = x.AIProgress,
-                        EvaluatorProgress = x.EvaluatorProgress,
-                        Discrepancy = x.Discrepancy,
-                        ConfidenceLevel = x.ConfidenceLevel,
-                        DataSourcesUsed = x.DataSourcesUsed,
-                        EvidenceSummary = x.EvidenceSummary,
-                        RedFlags = x.RedFlags,
-                        GeographicEquityNote = x.GeographicEquityNote,
-                        SourceType = x.SourceType,
-                        SourceName = x.SourceName,
-                        SourceURL = x.SourceURL,
-                        SourceDataYear = x.SourceDataYear,
-                        SourceDataExtract = x.SourceDataExtract,
-                        SourceTrustLevel = x.SourceTrustLevel,
-                        UpdatedAt = x.UpdatedAt,
-                        QuestionText = x.Question.QuestionText,
+                var currentYear = DateTime.Now.Year;
+                var firstDate = new DateTime(currentYear, 1, 1);
 
-                    });
+                var res =
+                    from q in _context.Questions.Where(x=>x.PillarID== request.PillarID)
+                    join s in _context.AIEstimatedQuestionScores
+                        .Where(x =>
+                            x.CityID == request.CityID &&
+                            x.PillarID == request.PillarID &&
+                            x.UpdatedAt >= firstDate && x.Year == currentYear)
+                    on q.QuestionID equals s.QuestionID into qs
+                    from x in qs.DefaultIfEmpty() // LEFT JOIN
+                    select new AIEstimatedQuestionScoreDto
+                    {
+                        CityID = x == null ? request.CityID ??0  : x.CityID,
+                        PillarID = x == null ? request.PillarID ?? 0 : x.PillarID,
+                        QuestionID = q.QuestionID,
+                        DataYear = x == null ? currentYear : x.Year,
+                        AIScore = x == null ? null : x.AIScore,
+                        AIProgress = x == null ? null : x.AIProgress,
+                        EvaluatorProgress = x == null ? null : x.EvaluatorProgress,
+                        Discrepancy = x == null ? null : x.Discrepancy,
+                        ConfidenceLevel = x == null ? string.Empty : x.ConfidenceLevel,
+                        DataSourcesUsed = x == null ? null : x.DataSourcesUsed,
+                        EvidenceSummary = x == null ? string.Empty : x.EvidenceSummary,
+                        RedFlags = x == null ? string.Empty : x.RedFlags,
+                        GeographicEquityNote = x == null ? string.Empty : x.GeographicEquityNote,
+                        SourceType = x == null ? string.Empty : x.SourceType,
+                        SourceName = x == null ? string.Empty : x.SourceName,
+                        SourceURL = x == null ? string.Empty : x.SourceURL,
+                        SourceDataExtract = x == null ? string.Empty : x.SourceDataExtract,
+                        SourceDataYear = x == null ? null : x.SourceDataYear,
+                        SourceTrustLevel = x == null ? null : x.SourceTrustLevel,
+                        UpdatedAt = x == null ? null : x.UpdatedAt,
+                        QuestionText = q.QuestionText == null ? string.Empty : q.QuestionText
+                    };
 
                 var r = await res.ApplyPaginationAsync(request);
 
