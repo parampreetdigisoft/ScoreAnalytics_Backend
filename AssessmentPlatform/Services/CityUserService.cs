@@ -991,7 +991,7 @@ namespace AssessmentPlatform.Services
                 var analyticalResults = await _context.AnalyticalLayerResults
                     .Include(ar => ar.AnalyticalLayer)
                     .Where(x => c.Cities.Contains(x.CityID) &&
-                                (x.LastUpdated >= startDate && x.LastUpdated < endDate) || (x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate)
+                                ((x.LastUpdated >= startDate && x.LastUpdated < endDate) || (x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate))
                                 && validKpiIds.Contains(x.LayerID))
                     .Select(ar => new
                     {

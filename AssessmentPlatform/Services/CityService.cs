@@ -242,7 +242,7 @@ namespace AssessmentPlatform.Services
                     // Pre-calculate averages per city — this is key for EF translation
                     var cityScoresQuery =
                     from ar in _context.AnalyticalLayerResults
-                    where (ar.LastUpdated >= startDate && ar.LastUpdated < endDate) || (ar.AiLastUpdated >= startDate && ar.AiLastUpdated < endDate)
+                    where ((ar.LastUpdated >= startDate && ar.LastUpdated < endDate) || (ar.AiLastUpdated >= startDate && ar.AiLastUpdated < endDate))
                     group ar by ar.CityID into g
                     select new
                     {
@@ -329,7 +329,7 @@ namespace AssessmentPlatform.Services
                 // Step 1️⃣: Fetch city score averages as a dictionary
                 var cityScoresQuery =
                    from ar in _context.AnalyticalLayerResults
-                   where (ar.LastUpdated >= startDate && ar.LastUpdated < endDate) || (ar.AiLastUpdated >= startDate && ar.AiLastUpdated < endDate)
+                   where ((ar.LastUpdated >= startDate && ar.LastUpdated < endDate) || (ar.AiLastUpdated >= startDate && ar.AiLastUpdated < endDate))
                    group ar by ar.CityID into g
                    select new
                    {

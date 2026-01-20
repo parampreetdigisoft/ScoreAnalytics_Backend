@@ -48,7 +48,7 @@ namespace AssessmentPlatform.Services
 
                     // Step 1: Get valid KPI IDs for this user
                     var validKpis = _context.AnalyticalLayerPillarMappings
-                        .Where(x => validPillarIds.Contains(x.PillarID))
+                        .Where(x => validPillarIds.Contains(x.PillarID) && (!request.LayerID.HasValue || x.LayerID == request.LayerID))
                         .Select(x => x.LayerID)
                         .Distinct();
 
@@ -61,7 +61,7 @@ namespace AssessmentPlatform.Services
                             .Include(ar => ar.City)
                         join vc in validCities on ar.CityID equals vc
                         join vk in validKpis on ar.LayerID equals vk
-                        where (ar.LastUpdated >= startDate && ar.LastUpdated < endDate) || (ar.AiLastUpdated >= startDate && ar.AiLastUpdated < endDate)
+                        where ((ar.LastUpdated >= startDate && ar.LastUpdated < endDate) || (ar.AiLastUpdated >= startDate && ar.AiLastUpdated < endDate))
                         select new GetAnalyticalLayerResultDto
                         {
                             LayerResultID = ar.LayerResultID,
@@ -102,7 +102,7 @@ namespace AssessmentPlatform.Services
                     Expression<Func<AnalyticalLayerResult, bool>> expression = x =>
                        (!request.CityID.HasValue || x.CityID == request.CityID)
                        && (!request.LayerID.HasValue || x.LayerID == request.LayerID)
-                       && (x.LastUpdated >= startDate && x.LastUpdated < endDate) || (x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate);
+                       && ((x.LastUpdated >= startDate && x.LastUpdated < endDate) || (x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate));
 
                     query = _context.AnalyticalLayerResults
                         .Include(ar => ar.AnalyticalLayer)
@@ -231,7 +231,7 @@ namespace AssessmentPlatform.Services
                 var analyticalResults = await _context.AnalyticalLayerResults
                     .Include(ar => ar.AnalyticalLayer)
                     .Where(x => selectedCityIds.Contains(x.CityID) 
-                    && (x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate || x.LastUpdated >= startDate && x.LastUpdated < endDate) 
+                    && ((x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate || x.LastUpdated >= startDate && x.LastUpdated < endDate))
                     && validKpiIds.Contains(x.LayerID))
                     .Select(ar => new
                     {
