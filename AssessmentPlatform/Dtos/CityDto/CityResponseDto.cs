@@ -6,6 +6,7 @@ namespace AssessmentPlatform.Dtos.CityDto
     {
         public string? AssignedBy { get; set; }
         public decimal? Score { get; set; }// highest score have top rank
+        public decimal? AiScore { get; set; }
     }
     public class UserCityMappingResponseDto : CityResponseDto
     {

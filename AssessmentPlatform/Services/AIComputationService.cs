@@ -876,9 +876,10 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var currentYear = DateTime.Now.Year;
                 var response = new AiCrossCityResponseDto();
 
-                var firstDate = new DateTime(DateTime.Now.Year, 1, 1);
+                var firstDate = new DateTime(currentYear, 1, 1);
 
                 var aiPillarScores = await _context.AIPillarScores
                     .Where(x => cityIds.CityIDs.Contains(x.CityID) && x.UpdatedAt >= firstDate)
@@ -909,6 +910,19 @@ namespace AssessmentPlatform.Services
                         .Select(x => x.PillarName)
                 );
                 // Per city processing
+
+                var aiCities = await _context.AICityScores
+                    .Where(x => cityIds.CityIDs.Contains(x.CityID) &&
+                                x.Year == currentYear && ((userRole == UserRole.CityUser && x.IsVerified) || userRole != UserRole.CityUser))
+                    .GroupBy(x => x.CityID)
+                    .Select(g => new
+                    {
+                        CityID = g.Key,
+                        AIProgress = g.Max(x => x.AIProgress)
+                    })
+                    .ToDictionaryAsync(x => x.CityID, x => x.AIProgress);
+
+
                 foreach (var city in cities)
                 {
                     var pillarResults = pillars
@@ -943,6 +957,10 @@ namespace AssessmentPlatform.Services
                         CityName = city.CityName,
                         PillarValues = pillarResults.ToList()
                     };
+                    if (aiCities?.TryGetValue(city.CityID,out var aiCityValue) ?? false)
+                    {
+                        chartRow.Value = aiCityValue ?? 0;
+                    }
                     response.TableData.Add(chartRow);
 
                     var series = new CrossCityChartSeriesDto

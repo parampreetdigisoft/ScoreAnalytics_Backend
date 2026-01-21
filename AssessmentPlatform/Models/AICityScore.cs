@@ -6,8 +6,8 @@
         public int CityID { get; set; }
         public int Year { get; set; }
 
-        public decimal? AIScore { get; set; }
-        public decimal? AIProgress { get; set; }
+        public decimal? AIScore { get; set; }// out of 4
+        public decimal? AIProgress { get; set; }// out of 100
         public decimal? EvaluatorProgress { get; set; }
         public decimal? Discrepancy { get; set; }
 
