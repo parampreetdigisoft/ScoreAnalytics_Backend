@@ -329,7 +329,7 @@ namespace AssessmentPlatform.Services
                     AssignedBy = u.FullName,
                     UserCityMappingID = cm.UserCityMappingID,
                     Score = 0,
-                    AiScore = ai.AIScore
+                    AiScore = ai.AIProgress
                 };
         }
         private async Task ApplyManualScoresAsync(PaginationResponse<CityResponseDto> response,PaginationRequest request,UserRole role, int year)
@@ -367,17 +367,6 @@ namespace AssessmentPlatform.Services
                 int year = DateTime.UtcNow.Year;
                 var startDate = new DateTime(year, 1, 1);
                 var endDate = new DateTime(year + 1, 1, 1);
-
-                // Step 1️⃣: Fetch city score averages as a dictionary
-                var cityScoresQuery =
-                   from ar in _context.AICityScores
-                   where ((ar.UpdatedAt >= startDate && ar.UpdatedAt < endDate))
-                   group ar by ar.CityID into g
-                   select new
-                   {
-                       CityID = g.Key,
-                       Score = g.Average(x => (decimal?)x.AIProgress) ?? 0
-                   };
 
                 if (userRole == UserRole.Admin)
                 {
