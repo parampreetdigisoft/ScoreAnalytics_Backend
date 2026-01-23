@@ -1,5 +1,6 @@
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.PillarDto;
 using AssessmentPlatform.Models;
 using System.Collections.Generic;
@@ -16,5 +17,7 @@ namespace AssessmentPlatform.IServices
         Task<bool> DeleteAsync(int id);
         Task<ResultResponseDto<List<PillarsHistroyResponseDto>>> GetPillarsHistoryByUserId(GetCityPillarHistoryRequestDto id);
         Task<Tuple<string, byte[]>> ExportPillarsHistoryByUserId(GetCityPillarHistoryRequestDto requestDto);
+        Task<PaginationResponse<PillarsHistroyResponseDto>> GetResponsesByUserId(GetPillarResponseHistoryRequestNewDto request, UserRole userRole);
+
     }
 } 

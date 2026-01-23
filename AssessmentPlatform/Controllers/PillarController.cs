@@ -2,9 +2,9 @@ using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.PillarDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
-using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -25,6 +25,14 @@ namespace AssessmentPlatform.Controllers
                 return userId;
 
             return null;
+        }
+        private string? GetTierFromClaims()
+        {
+            return User.FindFirst("Tier")?.Value;
+        }
+        private string? GetRoleFromClaims()
+        {
+            return User.FindFirst(ClaimTypes.Role)?.Value;
         }
 
         [HttpGet]
@@ -91,6 +99,26 @@ namespace AssessmentPlatform.Controllers
             return File(content.Item2 ?? new byte[1],
                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                content.Item1);
+        }
+        [HttpPost("GetResponsesByUserId")]
+        public async Task<IActionResult> GetResponsesByUserId([FromBody] GetPillarResponseHistoryRequestNewDto requestDto)
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null)
+                return Unauthorized("User ID not found.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            requestDto.UserId = claimUserId;
+            var response = await _pillarService.GetResponsesByUserId(requestDto, userRole);
+            return Ok(response);
         }
     }
 } 

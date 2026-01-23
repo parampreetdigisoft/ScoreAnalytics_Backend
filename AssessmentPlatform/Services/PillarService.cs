@@ -2,6 +2,7 @@ using AssessmentPlatform.Backgroundjob;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.PillarDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
@@ -140,7 +141,7 @@ namespace AssessmentPlatform.Services
 
                 // 4. Get all relevant pillar assessments
                 var pillarAssessmentsQuery = _context.Assessments
-                    .Where(a => userCityMappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year)
+                    .Where(a => userCityMappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year && a.AssessmentPhase == AssessmentPhase.Completed)
                     .SelectMany(a => a.PillarAssessments)
                     .Where(pa => !request.PillarID.HasValue || pa.PillarID == request.PillarID);
 
@@ -265,7 +266,7 @@ namespace AssessmentPlatform.Services
                     .Include(a => a.UserCityMapping)
                     .Include(a => a.PillarAssessments)
                         .ThenInclude(pa => pa.Responses)
-                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year)
+                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year && a.AssessmentPhase == AssessmentPhase.Completed)
                     .AsNoTracking()
                     .ToListAsync();
 
@@ -492,6 +493,128 @@ namespace AssessmentPlatform.Services
                     workbook.SaveAs(stream);
                     return stream.ToArray();
                 }
+            }
+        }
+
+        public async Task<PaginationResponse<PillarsHistroyResponseDto>> GetResponsesByUserId(GetPillarResponseHistoryRequestNewDto request, UserRole userRole)
+        {
+            try
+            {
+                var year = request.UpdatedAt.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
+                // Role based filter
+                IQueryable<UserCityMapping> userCityMappings = _context.UserCityMappings
+                    .AsNoTracking()
+                    .Where(x => !x.IsDeleted && x.CityID == request.CityID);
+
+                userCityMappings = userRole switch
+                {
+                    UserRole.Analyst => userCityMappings.Where(x => x.AssignedByUserId == request.UserId),
+                    UserRole.Evaluator => userCityMappings.Where(x => x.UserID == request.UserId),
+                    _ => userCityMappings
+                };
+
+                // Main query (single DB round-trip)
+                var rawData = await (
+                    from ucm in userCityMappings
+                    join a in _context.Assessments on ucm.UserCityMappingID equals a.UserCityMappingID
+                    where a.IsActive && (a.UpdatedAt >= startDate && a.UpdatedAt <= endDate && a.AssessmentPhase == AssessmentPhase.Completed)
+                    from pa in a.PillarAssessments
+                    where !request.PillarID.HasValue || pa.PillarID == request.PillarID
+                    join p in _context.Pillars on pa.PillarID equals p.PillarID
+                    select new
+                    {
+                        p.PillarID,
+                        p.PillarName,
+                        p.DisplayOrder,
+                        UserID = ucm.UserID,
+                        TotalQuestion = p.Questions.Count(),
+                        Responses = pa.Responses
+                    }
+                ).ToListAsync();
+
+                if (!rawData.Any())
+                    return new PaginationResponse<PillarsHistroyResponseDto>();
+
+                // Preload users
+                var userIds = rawData.Select(x => x.UserID).Distinct().ToList();
+                var usersDict = await _context.Users
+                    .Where(u => userIds.Contains(u.UserID))
+                    .ToDictionaryAsync(u => u.UserID, u => u.FullName);
+
+                var result = rawData
+                .GroupBy(x => new { x.PillarID, x.PillarName, x.DisplayOrder })
+                .Select(pillarGroup =>
+                {
+                    return new PillarsHistroyResponseDto
+                    {
+                        PillarID = pillarGroup.Key.PillarID,
+                        PillarName = pillarGroup.Key.PillarName,
+                        DisplayOrder = pillarGroup.Key.DisplayOrder,
+                        Users = pillarGroup
+                        .GroupBy(x => x.UserID)
+                        .Select(userGroup =>
+                        {
+                            var responses = userGroup
+                                .SelectMany(x => x.Responses)
+                                .Where(r => r.Score.HasValue &&
+                                            (int)r.Score.Value <= (int)ScoreValue.Four)
+                                .ToList();
+
+                            var score = responses.Sum(r => (int?)r.Score ?? 0);
+                            var scoreCount = responses.Count;
+                            var totalQuestions = userGroup.Max(x => x.TotalQuestion);
+
+                            decimal progress = scoreCount > 0
+                                ? score * 100m / (scoreCount * 4m)
+                                : 0m;
+
+                            return new PillarsUserHistroyResponseDto
+                            {
+                                UserID = userGroup.Key,
+                                FullName = usersDict.GetValueOrDefault(userGroup.Key, ""),
+                                Score = score,
+                                ScoreProgress = progress,
+                                TotalQuestion = totalQuestions,
+                                AnsQuestion = responses.Count,
+                                AnsPillar = responses.Any() ? 1 : 0
+                            };
+
+                        }).ToList()
+                    };
+                }).OrderBy(x => x.DisplayOrder);
+
+                var count = 0;
+                var valid = 0;
+                var totalRecords = 0;
+
+                foreach (var r in result)
+                {
+                    totalRecords += r.Users.Count;
+                    if (count+ r.Users.Count <= request.PageSize)
+                    {
+                        count += r.Users.Count;
+                        valid++;
+                    }
+                }
+                var filterResult = result.Skip((request.PageNumber - 1) * valid);
+
+                return new PaginationResponse<PillarsHistroyResponseDto>
+                {
+                    Data = filterResult.Take(valid),
+                    TotalRecords = totalRecords,
+                    PageNumber = request.PageNumber,
+                    PageSize = request.PageSize
+                };
+
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync(
+                    "Error occurred in GetPillarsHistoryByUserId", ex);
+
+                return new PaginationResponse<PillarsHistroyResponseDto>();
             }
         }
     }

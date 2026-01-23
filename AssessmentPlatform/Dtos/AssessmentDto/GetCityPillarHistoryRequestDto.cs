@@ -1,8 +1,16 @@
-﻿using AssessmentPlatform.Enums;
+﻿using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Enums;
 using AssessmentPlatform.Models;
 
 namespace AssessmentPlatform.Dtos.AssessmentDto
 {
+
+    public class GetPillarResponseHistoryRequestNewDto : PaginationRequest
+    {
+        public int CityID { get; set; }
+        public int? PillarID { get; set; }
+        public DateTime UpdatedAt { get; set; } = new DateTime(DateTime.Now.Year, 1, 1);
+    }
     public class GetCityPillarHistoryRequestDto
     {
         public int UserID { get; set; }
