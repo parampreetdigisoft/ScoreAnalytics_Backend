@@ -108,15 +108,6 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpPost]
-        [Route("getCityPillarHistory")]
-        [Authorize]
-        public async Task<IActionResult> GetCityPillarHistory([FromBody] GetCityPillarHistoryRequestDto requestDto)
-        {
-            var result = await _responseService.GetCityPillarHistory(requestDto);
-            return Ok(result);
-        }
-
-        [HttpPost]
         [Route("changeAssessmentStatus")]
         [Authorize]
         public async Task<IActionResult> ChangeAssessmentStatus([FromBody] ChangeAssessmentStatusRequestDto requestDto)

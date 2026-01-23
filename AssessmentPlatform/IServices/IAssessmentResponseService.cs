@@ -18,7 +18,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<string>> ImportAssessmentAsync(IFormFile file,int userID);
         Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto);
         Task<ResultResponseDto<GetAssessmentHistoryDto>> GetAssessmentProgressHistory(int assessmentID);
-        Task<List<CityPillarUserHistoryReponseDto>> GetCityPillarHistory(GetCityPillarHistoryRequestDto r);
         Task<ResultResponseDto<string>> ChangeAssessmentStatus(ChangeAssessmentStatusRequestDto r);
         Task<ResultResponseDto<string>> TransferAssessment(TransferAssessmentRequestDto r);
     }

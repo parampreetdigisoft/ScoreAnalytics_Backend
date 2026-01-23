@@ -75,17 +75,6 @@ namespace AssessmentPlatform.Controllers
             return Ok();
         }
 
-        [HttpPost("GetPillarsHistoryByUserId")]
-        public async Task<IActionResult> GetPillarsHistoryByUserId([FromBody] GetCityPillarHistoryRequestDto requestDto)
-        {
-            var claimUserId = GetUserIdFromClaims();
-            if (claimUserId == null || claimUserId != requestDto.UserID)
-                return Unauthorized("User ID not found.");
-
-            var response = await _pillarService.GetPillarsHistoryByUserId(requestDto);
-            return Ok(response);
-        }
-
         [HttpGet("ExportPillarsHistoryByUserId")]
         [Authorize]
         public async Task<IActionResult> ExportPillarsHistoryByUserId([FromQuery] GetCityPillarHistoryRequestDto requestDto)
