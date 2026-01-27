@@ -314,7 +314,7 @@ namespace AssessmentPlatform.Services
                         return new PaginationResponse<AIEstimatedQuestionScoreDto>();
                     }
                 }
-                var currentYear = DateTime.Now.Year;
+                var currentYear = request.Year;
                 var firstDate = new DateTime(currentYear, 1, 1);
 
                 var res =
