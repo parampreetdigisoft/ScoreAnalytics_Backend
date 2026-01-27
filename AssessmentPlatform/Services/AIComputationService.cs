@@ -67,6 +67,7 @@ namespace AssessmentPlatform.Services
                             .Average();
 
                         c.EvaluatorProgress = cityScore;
+                        c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
                     }
                 }
 
@@ -276,6 +277,7 @@ namespace AssessmentPlatform.Services
 
 
                     c.EvaluatorProgress = cityScore;
+                    c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
                 }
 
                 var finalResutl = new AiCityPillarReponseDto
@@ -349,6 +351,26 @@ namespace AssessmentPlatform.Services
                     };
 
                 var r = await res.ApplyPaginationAsync(request);
+
+                if (userRole != UserRole.CityUser)
+                {
+                    var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+
+                    var ids = r.Data.Select(x => x.CityID);
+                    var cities = progress.Where(x => ids.Contains(x.CityID));
+
+                    foreach (var c in r.Data)
+                    {
+                        var cityScore = cities
+                            .Where(x => x.CityID == c.CityID)
+                            .Select(x => x.ScoreProgress)
+                            .DefaultIfEmpty(0)
+                            .Average();
+
+                        c.EvaluatorProgress = cityScore;
+                        c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
+                    }
+                }
 
                 return r;
             }
