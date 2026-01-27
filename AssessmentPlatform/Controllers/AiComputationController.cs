@@ -117,9 +117,7 @@ namespace AssessmentPlatform.Controllers
                     return Unauthorized("You Don't have access.");
                 }
 
-                IQueryable<AiCitySummeryDto> query = await _aIComputationService.GetCityAiSummeryDetails(userId ?? 0, userRole, cityId);
-
-                var cityDetails = await query.FirstAsync();
+                var cityDetails = await _aIComputationService.GetCityAiSummeryDetail(userId ?? 0, userRole, cityId);
 
                 // Generate PDF
                 var pdfBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails, userRole);

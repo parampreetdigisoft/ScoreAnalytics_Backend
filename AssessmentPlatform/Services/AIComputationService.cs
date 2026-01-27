@@ -1162,6 +1162,32 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<bool>.Failure(new[] { "Something went wrong while importing AI research. Please try again later." });
             }
         }
+
+        public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID)
+        {
+            var query = await GetCityAiSummeryDetails(userID, userRole, cityID);
+            var cityDetails = await query.FirstAsync();
+
+            if (userRole != UserRole.CityUser)
+            {
+                var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+
+                var cities = progress.Where(x => x.CityID == cityID);
+
+               if(cities != null)
+                {
+                    var cityScore = cities
+                        .Select(x => x.ScoreProgress)
+                        .DefaultIfEmpty(0)
+                        .Average();
+
+                    cityDetails.EvaluatorProgress = Math.Round(cityScore,2);
+                    cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));
+               }
+            }
+            return cityDetails;
+        }
+
         #endregion
     }
 }
