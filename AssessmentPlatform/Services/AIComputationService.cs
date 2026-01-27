@@ -47,7 +47,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                IQueryable<AiCitySummeryDto> query = await GetCityAiSummeryDetails(userID, userRole, request.CityID);
+                IQueryable<AiCitySummeryDto> query = await GetCityAiSummeryDetails(userID, userRole, request.CityID, request.Year);
 
                 var result = await query.ApplyPaginationAsync(request); 
 
@@ -79,9 +79,9 @@ namespace AssessmentPlatform.Services
                 return new PaginationResponse<AiCitySummeryDto>();
             }
         }
-        public async Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID)
+        public async Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID, int currentYear=0)
         {
-            var currentYear = DateTime.Now.Year;
+            currentYear = currentYear ==0 ? DateTime.Now.Year : currentYear;
             var firstDate = new DateTime(currentYear, 1, 1); 
             IQueryable<AICityScore> baseQuery = _context.AICityScores.Where(x=> x.UpdatedAt >= firstDate && x.Year== currentYear);
 
@@ -124,6 +124,7 @@ namespace AssessmentPlatform.Services
                 if (cityID.HasValue)
                 {
                     baseQuery = baseQuery.Where(x => x.CityID == cityID.Value);
+                    allowedCityIds = new() { cityID.Value };
                 }
             }
             var commentQuery = _context.AIUserCityMappings
@@ -146,7 +147,7 @@ namespace AssessmentPlatform.Services
 
             var query =
                 from c in _context.Cities
-                where allowedCityIds.Contains(c.CityID) || userRole == UserRole.Admin
+                where allowedCityIds.Contains(c.CityID) || (userRole == UserRole.Admin && !cityID.HasValue)
 
                 join score in baseQuery
                     on c.CityID equals score.CityID
@@ -191,11 +192,11 @@ namespace AssessmentPlatform.Services
 
             return query;
         }
-        public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole)
+        public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole, int currentYear = 0)
         {
             try
             {
-                var currentYear = DateTime.Now.Year;
+                currentYear = currentYear == 0 ?DateTime.Now.Year : currentYear;
                 var firstDate = new DateTime(currentYear, 1, 1);
 
                 var res = await _context.AIPillarScores
@@ -722,8 +723,8 @@ namespace AssessmentPlatform.Services
             var per = (float)(percentage ?? 0);
             column.Item().Row(row =>
             {
-                row.ConstantItem(140).Text(label)
-                    .FontSize(11)
+                row.ConstantItem(140).Text(label)                                                                                                   
+                    .FontSize(11)                                                                                                               
                     .FontColor("#424242");
                 if (per > 0)
                     row.RelativeItem().PaddingLeft(10).Column(col =>
@@ -731,7 +732,7 @@ namespace AssessmentPlatform.Services
                         col.Item().Height(20).Background("#F5F5F5").Row(barRow =>
                         {
                             barRow.RelativeItem(per).Background(color);
-                            barRow.RelativeItem(100 - per);
+                            barRow.RelativeItem(100 - (per==100? 99.9f: per));
                         });
                     });
 
@@ -1163,9 +1164,9 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID)
+        public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year)
         {
-            var query = await GetCityAiSummeryDetails(userID, userRole, cityID);
+            var query = await GetCityAiSummeryDetails(userID, userRole, cityID, year);
             var cityDetails = await query.FirstAsync();
 
             if (userRole != UserRole.CityUser)

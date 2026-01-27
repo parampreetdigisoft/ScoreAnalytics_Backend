@@ -1088,15 +1088,28 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "An error occurred while comparing cities." });
             }
         }
-        public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, string tierName)
+        public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(AiCityPillarRequestDto request, int userID, string tierName)
         {
             try
             {
-                var currentYear = DateTime.Now.Year;
+                var currentYear = request.Year;
                 var firstDate = new DateTime(currentYear, 1, 1);
 
+                // 1. Check if city is finalized for this user (EXISTS instead of JOIN)
+                var isCityFinalized = await _context.PublicUserCityMappings
+                    .AnyAsync(pum =>
+                        pum.UserID == userID &&
+                        pum.CityID == request.CityID &&
+                        _context.AICityScores.Any(ac =>
+                            ac.CityID == request.CityID && ac.IsVerified && ac.Year == currentYear));
+
+                if (!isCityFinalized)
+                {
+                    return ResultResponseDto<AiCityPillarReponseDto>.Failure(new[] { "City is under review process try after some time", });
+                }
+
                 var res = await _context.AIPillarScores
-                    .Where(x => x.CityID == cityID && x.UpdatedAt >= firstDate && x.Year == currentYear) 
+                    .Where(x => x.CityID == request.CityID && x.UpdatedAt >= firstDate && x.Year == currentYear) 
                     .Include(x => x.DataSourceCitations)
                     .ToListAsync();
 
@@ -1122,7 +1135,7 @@ namespace AssessmentPlatform.Services
                     var r = new AiCityPillarReponse
                     {
                         PillarScoreID = x.score?.PillarScoreID ?? 0,
-                        CityID = x.score?.CityID ?? cityID,
+                        CityID = x.score?.CityID ?? request.CityID,
                         CityName = x.score?.City?.CityName ?? "",
                         State = x.score?.City?.State ?? "",
                         Country = x.score?.City?.Country ?? "",

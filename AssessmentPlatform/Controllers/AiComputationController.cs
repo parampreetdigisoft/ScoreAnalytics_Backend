@@ -61,8 +61,8 @@ namespace AssessmentPlatform.Controllers
             return Ok(await _aIComputationService.GetAICities(request, userId.Value, userRole));
         }
 
-        [HttpGet("getAICityPillars/{cityID}")]
-        public async Task<IActionResult> GetAICityPillars(int cityID)
+        [HttpGet("getAICityPillars")]
+        public async Task<IActionResult> GetAICityPillars([FromQuery] AiCityPillarRequestDto request)
         {
             var userId = GetUserIdFromClaims();
             if (userId == null)
@@ -77,7 +77,7 @@ namespace AssessmentPlatform.Controllers
                 return Unauthorized("You Don't have access.");
             }
 
-            return Ok(await _aIComputationService.GetAICityPillars(cityID, userId.Value, userRole));
+            return Ok(await _aIComputationService.GetAICityPillars(request.CityID, userId.Value, userRole, request.Year));
         }
 
         [HttpGet("getAIPillarQuestions")]
@@ -99,8 +99,8 @@ namespace AssessmentPlatform.Controllers
             return Ok(await _aIComputationService.GetAIPillarsQuestion(r, userId.Value, userRole));
         }
 
-        [HttpGet("{cityId}/aiCityDetailsReport")]
-        public async Task<IActionResult> DownloadCityPdf(int cityId)
+        [HttpGet("aiCityDetailsReport")]
+        public async Task<IActionResult> DownloadCityPdf([FromQuery] AiCitySummeryRequestPdfDto request)
         {
             try
             {
@@ -117,7 +117,7 @@ namespace AssessmentPlatform.Controllers
                     return Unauthorized("You Don't have access.");
                 }
 
-                var cityDetails = await _aIComputationService.GetCityAiSummeryDetail(userId ?? 0, userRole, cityId);
+                var cityDetails = await _aIComputationService.GetCityAiSummeryDetail(userId ?? 0, userRole, request.CityID,request.Year);
 
                 // Generate PDF
                 var pdfBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails, userRole);
@@ -137,8 +137,8 @@ namespace AssessmentPlatform.Controllers
                 });
             }
         }
-        [HttpGet("{cityId}/aiPillarDetailsReport/{pillarId}")]
-        public async Task<IActionResult> DownloadPillarPdf(int cityId, int pillarId)
+        [HttpGet("aiPillarDetailsReport")]
+        public async Task<IActionResult> DownloadPillarPdf([FromQuery] AiCitySummeryRequestPdfDto request)
         {
             try
             {
@@ -155,9 +155,9 @@ namespace AssessmentPlatform.Controllers
                     return Unauthorized("You Don't have access.");
                 }
 
-                var pillars = await _aIComputationService.GetAICityPillars(cityId, userId.Value, userRole);
+                var pillars = await _aIComputationService.GetAICityPillars(request.CityID, userId.Value, userRole, request.Year);
 
-                var pillarDetails =  pillars.Result.Pillars.FirstOrDefault(x=>x.PillarID == pillarId);
+                var pillarDetails =  pillars.Result.Pillars.FirstOrDefault(x=>x.PillarID == request.PillarID);
                 if (pillarDetails != null)
                 {
 

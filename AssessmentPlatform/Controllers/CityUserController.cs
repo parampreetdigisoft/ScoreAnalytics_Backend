@@ -1,4 +1,5 @@
-﻿using AssessmentPlatform.Dtos.AssessmentDto;
+﻿using AssessmentPlatform.Dtos.AiDto;
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Enums;
@@ -179,8 +180,8 @@ namespace AssessmentPlatform.Controllers
             return Ok(result);
         }
 
-        [HttpGet("getAICityPillars/{cityID}")]
-        public async Task<IActionResult> GetAICityPillars(int cityID)
+        [HttpGet("getAICityPillars")]
+        public async Task<IActionResult> GetAICityPillars([FromQuery] AiCityPillarRequestDto request)
         {
             var userId = GetUserIdFromClaims();
             if (userId == null)
@@ -190,7 +191,7 @@ namespace AssessmentPlatform.Controllers
             if (tierName == null)
                 return Unauthorized("You Don't have access.");
 
-            return Ok(await _cityUserService.GetAICityPillars(cityID, userId.Value, tierName));
+            return Ok(await _cityUserService.GetAICityPillars(request, userId.Value, tierName));
         }
     }
 }
