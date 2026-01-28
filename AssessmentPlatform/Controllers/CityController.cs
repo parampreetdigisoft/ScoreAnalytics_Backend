@@ -199,8 +199,8 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("getAllCityByLocation")]
-        public async Task<IActionResult> getAllCityByLocation([FromQuery] GetNearestCityRequestDto r) => Ok(await _cityService.getAllCityByLocation(r));
-
+        public async Task<IActionResult> GetAllCityByLocation([FromQuery] GetNearestCityRequestDto r) => Ok(await _cityService.getAllCityByLocation(r));
+         
         [HttpGet("getAiAccessCity")]
         public async Task<IActionResult> GetAiAccessCity()
         {

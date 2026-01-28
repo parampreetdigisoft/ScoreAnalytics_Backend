@@ -597,8 +597,7 @@ namespace AssessmentPlatform.Services
                     from c in _context.Cities
                     where !c.IsDeleted && c.IsActive
                     join uc in _context.UserCityMappings.Where(predicate)
-                        on c.CityID equals uc.CityID into cityMappings
-                    from uc in cityMappings.DefaultIfEmpty()
+                        on c.CityID equals uc.CityID 
                     join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt >= startDate && x.UpdatedAt <= endDate)
                         on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments 
                     from a in cityAssessments.DefaultIfEmpty()
@@ -615,7 +614,7 @@ namespace AssessmentPlatform.Services
 
                 // Then, get all AICityScores for those cities
                 var aICity = await _context.AICityScores
-                    .Where(x => cityIds.Contains(x.CityID))
+                    .Where(x => cityIds.Contains(x.CityID) && x.Year == year)
                     .ToListAsync();
 
                 cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
