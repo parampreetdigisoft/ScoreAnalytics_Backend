@@ -165,10 +165,10 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet]
         [Authorize]
-        [Route("getCityHistory/{userID}/{updatedAt}")]
-        public async Task<IActionResult> GetCityHistory(int userID, DateTime updatedAt)
+        [Route("getCityHistory/{updatedAt}")]
+        public async Task<IActionResult> GetCityHistory(DateTime updatedAt)
         {
-            var claimUserId = GetUserIdFromClaims();
+            var claimUserId = GetUserIdFromClaims();                                    
             if (claimUserId == null)
                 return Unauthorized("User ID not found.");
 

@@ -1,10 +1,12 @@
 ﻿using AssessmentPlatform.Backgroundjob;
 using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Dtos.dashboard;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using ClosedXML.Excel;
@@ -18,11 +20,13 @@ namespace AssessmentPlatform.Services
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
         private readonly Download _download;
-        public AssessmentResponseService(ApplicationDbContext context, IAppLogger appLogger, Download download)
+        private readonly ICommonService _commonService;
+        public AssessmentResponseService(ApplicationDbContext context, IAppLogger appLogger, Download download, ICommonService commonService)
         {
             _context = context;
             _appLogger = appLogger;
             _download = download;
+            _commonService = commonService;
         }
 
         public async Task<List<AssessmentResponse>> GetAllAsync()
@@ -468,7 +472,6 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "Failed to save assessment" });
             }
         }
-        
         public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto)
         {
             try
@@ -802,5 +805,83 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "Failed to transfer assessment, please try again later." });
             }
         }
+        public async Task<ResultResponseDto<AiCityPillarDashboardResponseDto>> GetCityPillarHistory(UserCityDashBoardRequstDto request, int userId, UserRole userRole)
+        {
+            try
+            {
+                var year = request.UpdatedAt.Year;
+
+                // 1. Validate city access
+                var hasAccess = await _context.UserCityMappings
+                    .AnyAsync(x =>
+                        !x.IsDeleted &&
+                        (userRole == UserRole.Admin ||
+                         (x.UserID == userId && x.CityID == request.CityID)));
+
+                if (!hasAccess)
+                {
+                    return ResultResponseDto<AiCityPillarDashboardResponseDto>
+                        .Failure(new[] { "Unauthorized or invalid city access" });
+                }
+
+                // 2. Fetch required data in parallel
+                var pillarEvaluationsList = await _commonService
+                    .GetCitiesProgressAsync(userId, (int)userRole, year);
+
+                var pillars = await _context.Pillars
+                    .AsNoTracking()
+                    .OrderBy(x => x.DisplayOrder)
+                    .ToListAsync();
+
+                var aiCityProgress = await _context.AICityScores
+                    .Where(x => x.CityID == request.CityID && x.Year == year)
+                    .MaxAsync(x => x.AIProgress);
+
+                var city = await _context.Cities
+                    .AsNoTracking()
+                    .Where(x => x.CityID == request.CityID)
+                    .Select(x => new { x.CityID, x.CityName })
+                    .FirstOrDefaultAsync();
+
+                 var pillarEvaluations = pillarEvaluationsList.Where(x=>x.CityID == request.CityID);
+
+                // 3. Map pillar results
+                var pillarResults = pillars
+                    .GroupJoin(
+                        pillarEvaluations,
+                        p => p.PillarID,
+                        e => e.PillarID,
+                        (pillar, evals) => new CityPillarDashboardPillarValueDto
+                        {
+                            PillarID = pillar.PillarID,
+                            PillarName = pillar.PillarName,
+                            DisplayOrder = pillar.DisplayOrder,
+                            AiValue = evals.FirstOrDefault()?.AIProgress ?? 0,
+                            EvaluationValue = evals.FirstOrDefault()?.ScoreProgress ?? 0
+                        })
+                    .ToList();
+
+                // 4. Prepare response
+                var response = new AiCityPillarDashboardResponseDto
+                {
+                    CityID = request.CityID,
+                    CityName = city?.CityName ?? string.Empty,
+                    AiValue = aiCityProgress ?? 0,
+                    EvaluationValue = Math.Round(pillarEvaluations.Average(x => x.ScoreProgress),2),
+                    Pillars = pillarResults
+                };
+
+                return ResultResponseDto<AiCityPillarDashboardResponseDto>
+                    .Success(response, new[] { "Pillars fetched successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync(nameof(GetCityPillarHistory), ex);
+
+                return ResultResponseDto<AiCityPillarDashboardResponseDto>
+                    .Failure(new[] { "Error in getting pillar details" });
+            }
+        }
+
     }
 }

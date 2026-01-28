@@ -18,13 +18,17 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
         public int? PillarID { get; set; }
         public DateTime UpdatedAt { get; set; } = new DateTime(DateTime.Now.Year, 1, 1);
     }
-    public class UserCityRequstDto
+    public class UserCityRequstDto : UserCityDashBoardRequstDto
     {
         public int UserID { get; set; }
-        public int CityID { get; set; }
-        public DateTime UpdatedAt { get; set; } = new DateTime(DateTime.Now.Year, 1, 1);
         public TieredAccessPlan Tiered { get; set; } = TieredAccessPlan.Pending;
     }
+    public class UserCityDashBoardRequstDto
+    {
+        public int CityID { get; set; }
+        public DateTime UpdatedAt { get; set; } = new DateTime(DateTime.Now.Year, 1, 1);
+    }
+
     public class PillarWithQuestionsDto
     {
         public int PillarID { get; set; }

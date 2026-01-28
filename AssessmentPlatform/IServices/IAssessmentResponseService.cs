@@ -1,6 +1,7 @@
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CommonDto;
+using AssessmentPlatform.Dtos.dashboard;
 using AssessmentPlatform.Models;
 
 namespace AssessmentPlatform.IServices
@@ -20,5 +21,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<GetAssessmentHistoryDto>> GetAssessmentProgressHistory(int assessmentID);
         Task<ResultResponseDto<string>> ChangeAssessmentStatus(ChangeAssessmentStatusRequestDto r);
         Task<ResultResponseDto<string>> TransferAssessment(TransferAssessmentRequestDto r);
+        Task<ResultResponseDto<AiCityPillarDashboardResponseDto>> GetCityPillarHistory(UserCityDashBoardRequstDto userCityRequstDto,int userID, UserRole userRole);
     }
 } 

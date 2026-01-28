@@ -577,6 +577,10 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var year = updatedAt.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
+
                 var cityHistory = new CityHistoryDto();
 
                 Expression<Func<UserCityMapping, bool>> predicate;
@@ -595,7 +599,7 @@ namespace AssessmentPlatform.Services
                     join uc in _context.UserCityMappings.Where(predicate)
                         on c.CityID equals uc.CityID into cityMappings
                     from uc in cityMappings.DefaultIfEmpty()
-                    join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt.Year == updatedAt.Year)
+                    join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt >= startDate && x.UpdatedAt <= endDate)
                         on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments 
                     from a in cityAssessments.DefaultIfEmpty()
                     select new
@@ -627,14 +631,13 @@ namespace AssessmentPlatform.Services
                     .GroupBy(u => u.Role)
                     .Select(g => new { Role = g.Key, Count = g.Count() })
                     .ToListAsync();
+                if(userRole == UserRole.Admin)
+                {
+                    cityHistory.TotalEvaluator = userCounts.FirstOrDefault(x => x.Role == UserRole.Evaluator)?.Count ?? 0;
+                    cityHistory.TotalAnalyst = userCounts.FirstOrDefault(x => x.Role == UserRole.Analyst)?.Count ?? 0;
+                }
 
-                cityHistory.TotalEvaluator = userCounts.FirstOrDefault(x => x.Role == UserRole.Evaluator)?.Count ?? 0;
-                cityHistory.TotalAnalyst = userCounts.FirstOrDefault(x => x.Role == UserRole.Analyst)?.Count ?? 0;
-
-                return ResultResponseDto<CityHistoryDto>.Success(
-                    cityHistory,
-                    new List<string> { "Get history successfully" }
-                );
+                return ResultResponseDto<CityHistoryDto>.Success(cityHistory, new List<string> { "Get history successfully" });
             }
             catch (Exception ex)
             {

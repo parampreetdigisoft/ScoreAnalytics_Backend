@@ -3,6 +3,7 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -15,6 +16,22 @@ namespace AssessmentPlatform.Controllers
         public AssessmentResponseController(IAssessmentResponseService responseService)
         {
             _responseService = responseService;
+        }
+        private int? GetUserIdFromClaims()
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
+
+            return null;
+        }
+        private string? GetTierFromClaims()
+        {
+            return User.FindFirst("Tier")?.Value;
+        }
+        private string? GetRoleFromClaims()
+        {
+            return User.FindFirst(ClaimTypes.Role)?.Value;
         }
 
         [HttpGet]
@@ -95,6 +112,18 @@ namespace AssessmentPlatform.Controllers
         [Authorize]
         public async Task<IActionResult> GetCityQuestionHistory([FromQuery] UserCityRequstDto userCityRequstDto)
         {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
             var result = await _responseService.GetCityQuestionHistory(userCityRequstDto);
             return Ok(result);
         }
@@ -124,5 +153,32 @@ namespace AssessmentPlatform.Controllers
             var result = await _responseService.TransferAssessment(requestDto);
             return Ok(result);
         }
+
+        /// <summary>
+        /// This API is used to get the city pillar history  gloabal history for admin
+        /// </summary>
+        /// <param name="cityID"></param>
+        /// <returns></returns>
+        [HttpGet]
+        [Route("getCityPillarHistory")]
+        [Authorize]
+        public async Task<IActionResult> GetCityPillarHistory([FromQuery] UserCityDashBoardRequstDto userCityRequstDto)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+            var result = await _responseService.GetCityPillarHistory(userCityRequstDto, userId.GetValueOrDefault(), userRole);
+            return Ok(result);
+        }
+
     }
 }
