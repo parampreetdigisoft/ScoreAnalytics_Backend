@@ -12,6 +12,9 @@ using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+
+using DocumentFormat.OpenXml.Drawing.Charts;
+
 using Microsoft.EntityFrameworkCore;
 
 namespace AssessmentPlatform.Services
@@ -80,7 +83,7 @@ namespace AssessmentPlatform.Services
                 cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
                 cityHistory.TotalAccessCity = accessCity.Count();
                 cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
-                
+
                 var cityScores = cityQuery
                     .GroupBy(x => x.CityID)
                     .Select(g =>
@@ -126,56 +129,35 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CityHistoryDto>.Failure(new[] { "There is an error, please try later" });
             }
         }
-        public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto)
+
+        public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto request)
         {
             try
             {
-                var userID = userCityRequstDto.UserID;
-                var cityID = userCityRequstDto.CityID;
-                var currentYear = DateTime.Now.Year;
+                int userId = request.UserID;
+                int cityId = request.CityID;
+                int year = request.UpdatedAt.Year;
 
                 // Validate user first
                 var user = await _context.Users
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.UserID == userID && x.Role == UserRole.CityUser);
+                    .FirstOrDefaultAsync(x => x.UserID == userId && x.Role == UserRole.CityUser);
 
                 if (user == null)
-                {
-                    return new GetCityQuestionHistoryReponseDto
-                    {
-                        CityID = cityID,
-                        Score = 0,
-                        TotalPillar = 0,
-                        TotalAnsPillar = 0,
-                        TotalQuestion = 0,
-                        AnsQuestion = 0,
-                        TotalAssessment = 0,
-                        Pillars = new List<CityPillarQuestionHistoryReponseDto>()
-                    };
-                }
+                    return new GetCityQuestionHistoryReponseDto { CityID = cityId };
 
-                // ✅ Fetch all relevant UserCityMapping IDs in one call
+                // 2️⃣ User-city mappings
                 var ucmIds = await _context.UserCityMappings
                     .AsNoTracking()
-                    .Where(x => !x.IsDeleted && x.CityID == cityID)
+                    .Where(x => !x.IsDeleted && x.CityID == cityId)
                     .Select(x => x.UserCityMappingID)
                     .ToListAsync();
 
                 if (!ucmIds.Any())
-                {
-                    return new GetCityQuestionHistoryReponseDto
-                    {
-                        CityID = cityID,
-                        Score = 0,
-                        TotalPillar = 0,
-                        TotalAnsPillar = 0,
-                        TotalQuestion = 0,
-                        AnsQuestion = 0,
-                        TotalAssessment = 0,
-                        Pillars = new List<CityPillarQuestionHistoryReponseDto>()
-                    };
-                }
-                var pillarPredicate = user.Tier switch
+                    return new GetCityQuestionHistoryReponseDto { CityID = cityId };
+
+                // 3️⃣ Tier-based pillar access
+                int allowedPillars = user.Tier switch
                 {
                     Enums.TieredAccessPlan.Basic => 4,
                     Enums.TieredAccessPlan.Standard => 8,
@@ -183,113 +165,87 @@ namespace AssessmentPlatform.Services
                     _ => 15
                 };
 
-                var choicePillarIds = _context.CityUserPillarMappings.Where(x => x.UserID == userID).Select(x=>x.PillarID);
-                // ✅ Pre-fetch total pillars and questions
-                var pillarStats = await _context.Pillars
-                    .Select(p => new
-                    {
-                        p.PillarID,
-                        p.PillarName,
-                        p.ImagePath,
-                        IsAccess = choicePillarIds.Contains(p.PillarID),
-                        p.DisplayOrder,
-                        QuestionCount = p.Questions.Count()
-                    })
-                    .OrderByDescending(x => x.IsAccess) 
-                    .ThenBy(x => x.DisplayOrder)        
+                var accessiblePillarIds = await _context.CityUserPillarMappings
+                    .Where(x => x.UserID == userId)
+                    .Select(x => x.PillarID)
+                    .Take(allowedPillars)
                     .ToListAsync();
 
-
-                int totalPillars = pillarStats.Count;
-                int totalQuestions = pillarStats.Sum(p => p.QuestionCount);
-
-                // ✅ Fetch all active pillar assessments for those mappings this year
-                var activePillarAssessments = await _context.PillarAssessments
+                // 4️⃣ City AI score
+                var cityScore = await _context.AICityScores
                     .AsNoTracking()
-                    .Where(pa => pa.Assessment.IsActive
-                                 && pa.Assessment.UpdatedAt.Year == currentYear
-                                 && ucmIds.Contains(pa.Assessment.UserCityMappingID))
-                    .Select(pa => new
-                    {
-                        pa.PillarID,
-                        pa.PillarAssessmentID,
-                        pa.Assessment.UserCityMapping.UserID,
-                        Responses = pa.Responses
-                            .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-                            .Select(r => (int?)r.Score ?? 0)
-                            .ToList()
-                    })
+                    .FirstOrDefaultAsync(x => x.CityID == cityId && x.Year == year);
+
+                // 5️⃣ Question count per pillar
+                var questionCountMap = await _context.Questions
+                    .GroupBy(q => q.PillarID)
+                    .Select(g => new { PillarID = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.PillarID, x => x.Count);
+
+                // 6️⃣ Pillars
+                var pillars = await _context.Pillars
+                    .AsNoTracking()
+                    .OrderBy(x => x.DisplayOrder)
                     .ToListAsync();
 
-                // ✅ Group results efficiently
-                var cityPillars = pillarStats
-                    .GroupJoin(activePillarAssessments,
-                        p => p.PillarID,
-                        pa => pa.PillarID,
-                        (p, paGroup) =>
-                        {
-                            var userCount = paGroup.Select(x => x.UserID).Distinct().Count();
-                            var scores = paGroup.SelectMany(x => x.Responses).ToList();
+                // 7️⃣ AI pillar scores
+                var pillarScores = await _context.AIPillarScores
+                    .AsNoTracking()
+                    .Where(x => x.CityID == cityId && x.Year == year)
+                    .ToListAsync();
 
-                            var totalAnsScore = scores.Sum();
-                            var scoreCount = scores.Count;
+                // 8️⃣ AI question scores
+                var questionScores = await _context.AIEstimatedQuestionScores
+                    .AsNoTracking()
+                    .Where(x => x.CityID == cityId && x.Year == year)
+                    .ToListAsync();
 
-                            var progress = scoreCount > 0 
-                                ? totalAnsScore * 100m / (scoreCount * 4m )
-                                : 0m;
+                var cityScores = await _context.AICityScores.AsNoTracking().Where(x => x.CityID == cityId && x.Year == year).ToListAsync();
 
-                            var detail = new CityPillarQuestionHistoryReponseDto
-                            {
-                                PillarID = p.PillarID,
-                                PillarName = p.PillarName,
-                                ImagePath = p.ImagePath,
-                                IsAccess = p.IsAccess
-                            };
-                            if (p.IsAccess)
-                            {
-                                detail.Score = totalAnsScore;
-                                detail.ScoreProgress = progress;
-                                detail.AnsPillar = paGroup.Any() ? 1 : 0;
-                                detail.TotalQuestion = p.QuestionCount * userCount;
-                                detail.AnsQuestion = paGroup.Sum(pg => pg.Responses.Count);
-                            }
-                            return detail;
-                        })
-                    .ToList();
-
-                // ✅ Aggregate city-level totals
-                var payload = new GetCityQuestionHistoryReponseDto
+                // 9️⃣ Build pillar DTOs (FULLY MATCHING OLD RESPONSE)
+                var pillarDtos = pillars.Select(p =>
                 {
-                    CityID = cityID,
-                    TotalAssessment = await _context.Assessments
-                        .CountAsync(a => a.IsActive && a.UpdatedAt.Year == currentYear && ucmIds.Contains(a.UserCityMappingID)),
-                    Score = cityPillars.Sum(p => p.Score),
-                    ScoreProgress = cityPillars.Any() ? cityPillars.Average(p => p.ScoreProgress) : 0,
-                    TotalPillar = totalPillars * ucmIds.Count,
-                    TotalAnsPillar = cityPillars.Sum(p => p.AnsPillar),
-                    TotalQuestion = totalQuestions * ucmIds.Count,
-                    AnsQuestion = cityPillars.Sum(p => p.AnsQuestion),
-                    Pillars = cityPillars
-                };
+                    bool isAccess = accessiblePillarIds.Contains(p.PillarID);
+                    var aiScore = pillarScores.FirstOrDefault(x => x.PillarID == p.PillarID);
 
-                return payload;
+                    int totalQuestions = questionCountMap.TryGetValue(p.PillarID, out var q) ? q : 0;
+                    int ansQuestions = questionScores.Count(x => x.PillarID == p.PillarID);
+
+                    return new CityPillarQuestionHistoryReponseDto
+                    {
+                        PillarID = p.PillarID,
+                        PillarName = p.PillarName,
+                        ImagePath = p.ImagePath,
+                        IsAccess = isAccess,
+                        Score = isAccess ? cityScore?.AIProgress ?? 0 : 0,
+                        ScoreProgress = isAccess ? aiScore?.AIProgress ?? 0 : 0,
+                        AnsPillar = isAccess && aiScore != null ? 1 : 0,
+                        TotalQuestion = isAccess ? totalQuestions * ucmIds.Count : 0,
+                        AnsQuestion = isAccess ? ansQuestions : 0
+                    };
+                }).OrderByDescending(x => x.IsAccess).ThenBy(x => pillars.First(p => p.PillarID == x.PillarID).DisplayOrder).ToList();
+
+                // 🔟 Final response (ALL FIELDS PRESENT)
+                return new GetCityQuestionHistoryReponseDto
+                {
+                    CityID = cityId,
+                    TotalAssessment = pillarScores.Count,
+                    Score = (int)cityScores.Sum(x => x.AIProgress ?? 0),
+                    ScoreProgress = pillarDtos.Any() ? pillarDtos.Average(x => x.ScoreProgress) : 0,
+                    TotalPillar = pillars.Count * ucmIds.Count,
+                    TotalAnsPillar = pillarDtos.Sum(x => x.AnsPillar),
+                    TotalQuestion = pillarDtos.Sum(x => x.TotalQuestion),
+                    AnsQuestion = pillarDtos.Sum(x => x.AnsQuestion),
+                    Pillars = pillarDtos
+                };
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occure in GetCityQuestionHistory", ex);
-                return new GetCityQuestionHistoryReponseDto
-                {
-                    CityID = 0,
-                    Score = 0,
-                    TotalPillar = 0,
-                    TotalAnsPillar = 0,
-                    TotalQuestion = 0,
-                    AnsQuestion = 0,
-                    TotalAssessment = 0,
-                    Pillars = new List<CityPillarQuestionHistoryReponseDto>()
-                };
+                await _appLogger.LogAsync("Error in GetCityQuestionHistory (Final)", ex);
+                return new GetCityQuestionHistoryReponseDto();
             }
         }
+
         public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request)
         {
             try
@@ -331,20 +287,20 @@ namespace AssessmentPlatform.Services
                         CreatedDate = c.CreatedDate,
                         UpdatedDate = c.UpdatedDate,
                         IsActive = c.IsActive,
-                        Score = s.Score 
+                        Score = s.Score
                     };
 
                 // ✅ Apply search filter
                 if (!string.IsNullOrWhiteSpace(request.SearchText))
                 {
                     string search = request.SearchText.ToLower();
-                    query = query.Where(x =>x.CityName.ToLower().Contains(search) || x.State.ToLower().Contains(search));
+                    query = query.Where(x => x.CityName.ToLower().Contains(search) || x.State.ToLower().Contains(search));
                 }
 
                 // ✅ Apply ordering and pagination
                 var pagedResult = await query.ApplyPaginationAsync(request);
 
-            
+
                 return pagedResult;
             }
             catch (Exception ex)
@@ -564,14 +520,14 @@ namespace AssessmentPlatform.Services
                     {
                         var isAccess = accessPillarIds.Contains(p.PillarID);
 
-                        var payload  = new CityPillarDetailsDto
+                        var payload = new CityPillarDetailsDto
                         {
                             PillarID = p.PillarID,
                             PillarName = p.PillarName,
                             DisplayOrder = p.DisplayOrder,
                             IsAccess = isAccess
                         };
-      
+
                         if (isAccess)
                         {
                             groupedResponses.TryGetValue(p.PillarID, out var responses);
@@ -691,7 +647,7 @@ namespace AssessmentPlatform.Services
 
                 // 5. Generate question-level metrics
                 var result = pillar.Questions
-                    .OrderBy(x=>x.DisplayOrder)
+                    .OrderBy(x => x.DisplayOrder)
                     .Select(q =>
                     {
                         var qResponses = validResponses.Where(r => r.QuestionID == q.QuestionID).ToList();
@@ -760,7 +716,7 @@ namespace AssessmentPlatform.Services
                         Score = g.Average(x => (decimal?)x.EvaluatorProgress) ?? 0,
                         AiScore = g.Average(x => (decimal?)x.AIProgress) ?? 0
                     })
-                    .ToDictionaryAsync(x => x.CityID, x => new { x.Score , x.AiScore});
+                    .ToDictionaryAsync(x => x.CityID, x => new { x.Score, x.AiScore });
 
                 // Step 2️⃣: Fetch cities assigned to the user
                 var cities = await _context.PublicUserCityMappings
@@ -781,7 +737,7 @@ namespace AssessmentPlatform.Services
                 // Step 3️⃣: Map score from dictionary (safe fallback to 0)
                 foreach (var city in cities)
                 {
-                    if(cityScoresDict.TryGetValue(city.CityID, out var score))
+                    if (cityScoresDict.TryGetValue(city.CityID, out var score))
                     {
                         city.Score = score.AiScore;
                         city.AiScore = score.AiScore;

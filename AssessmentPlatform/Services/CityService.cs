@@ -596,7 +596,7 @@ namespace AssessmentPlatform.Services
                         on c.CityID equals uc.CityID into cityMappings
                     from uc in cityMappings.DefaultIfEmpty()
                     join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt.Year == updatedAt.Year)
-                        on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
+                        on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments 
                     from a in cityAssessments.DefaultIfEmpty()
                     select new
                     {
@@ -606,10 +606,20 @@ namespace AssessmentPlatform.Services
                     }
                 ).ToListAsync();
 
+                // First, extract the list of CityIDs from your cityQuery
+                var cityIds = cityQuery.Select(c => c.CityID).Distinct().ToList();
+
+                // Then, get all AICityScores for those cities
+                var aICity = await _context.AICityScores
+                    .Where(x => cityIds.Contains(x.CityID))
+                    .ToListAsync();
+
                 cityHistory.TotalCity = cityQuery.Select(x => x.CityID).Distinct().Count();
                 cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
                 cityHistory.CompeleteCity = cityQuery.Where(x => x.IsCompleted).Select(x => x.CityID).Distinct().Count();
                 cityHistory.InprocessCity = cityHistory.ActiveCity - cityHistory.CompeleteCity;
+                cityHistory.FinalizeCity = aICity.Where(x=>x.IsVerified).Count();
+                cityHistory.UnFinalize = aICity.Where(x => !x.IsVerified).Count();
 
                 // 2️⃣ Get evaluators & analysts in a single query
                 var userCounts = await _context.Users

@@ -12,5 +12,7 @@
         public decimal AvgHighScore { get; set; }
         public decimal AvgLowerScore { get; set; }
         public decimal OverallVitalityScore { get; set; }
+        public int FinalizeCity { get; set; }
+        public int UnFinalize { get; set; }
     }
 }

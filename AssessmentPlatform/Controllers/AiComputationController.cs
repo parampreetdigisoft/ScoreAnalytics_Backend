@@ -1,9 +1,11 @@
 ﻿using AssessmentPlatform.Dtos.AiDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+
 using System.Security.Claims;
 
 namespace AssessmentPlatform.Controllers
@@ -78,6 +80,25 @@ namespace AssessmentPlatform.Controllers
             }
 
             return Ok(await _aIComputationService.GetAICityPillars(request.CityID, userId.Value, userRole, request.Year));
+        }
+
+        [HttpGet("getCityScoreAnalysis/{cityID}/{selectYear}")]
+        public async Task<IActionResult> GetCityScoreAnalysis(int cityID, int selectYear)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _aIComputationService.GetCityScoreAnalysis(cityID, userId.Value, userRole, selectYear));
         }
 
         [HttpGet("getAIPillarQuestions")]

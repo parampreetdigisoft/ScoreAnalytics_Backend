@@ -4,6 +4,7 @@ using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AiDto;
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
@@ -192,6 +193,15 @@ namespace AssessmentPlatform.Services
 
             return query;
         }
+
+        public async Task<List<EvaluationCityProgressResultDto>> GetCityScoreAnalysis(int cityID, int userID, UserRole userRole, int selectYear)
+        {
+            var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, selectYear);
+
+            return progress.ToList();
+
+        }
+    
         public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole, int currentYear = 0)
         {
             try
