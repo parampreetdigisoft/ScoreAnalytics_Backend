@@ -10,6 +10,7 @@
         public int TotalAssessment { get; set; } = 0;
         public decimal Score { get; set; } = 0;
         public decimal ScoreProgress { get; set; } = 0;
+        public decimal AIScore { get; set; } = 0;
         public int TotalPillar { get; set; } = 0;
         public int TotalAnsPillar { get; set; } = 0;
         public int TotalQuestion { get; set; } = 0;

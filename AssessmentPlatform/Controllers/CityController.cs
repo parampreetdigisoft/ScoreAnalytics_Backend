@@ -187,14 +187,22 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet]
         [Authorize]
-        [Route("getCitiesProgressByUserId/{userID}/{updatedAt}")]
-        public async Task<IActionResult> getCitiesProgressByUserId(int userID,DateTime updatedAt)
+        [Route("getCitiesProgressByUserId/{updatedAt}")]
+        public async Task<IActionResult> getCitiesProgressByUserId(DateTime updatedAt)
         {
             var userId = GetUserIdFromClaims();
             if (userId == null)
                 return Unauthorized("User ID not found.");
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
 
-            var result = await _cityService.GetCitiesProgressByUserId(userID, updatedAt);
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _cityService.GetCitiesProgressByUserId(userId.GetValueOrDefault(), updatedAt, userRole);
             return Ok(result);
         }
 

@@ -644,15 +644,13 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CityHistoryDto>.Failure(new string[] { "There is an error please try later" });
             }
         }
-        public async Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID, DateTime updatedAt)
+        public async Task<ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>> GetCitiesProgressByUserId(int userID, DateTime updatedAt, UserRole userRole)
         {
             try
             {
-                var user = await _context.Users.FirstOrDefaultAsync(x => x.UserID == userID && x.Role != UserRole.CityUser);
-                if(user == null)
-                {
-                    return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Failure(new string[] { "Invalid request" });
-                }
+                int year = updatedAt.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = new DateTime(year + 1, 1, 1);
 
                 // Get total pillars and questions (independent query)
                 var pillarStats = await _context.Pillars
@@ -664,7 +662,7 @@ namespace AssessmentPlatform.Services
 
                 Expression<Func<UserCityMapping, bool>> predicate;
 
-                if (user.Role == UserRole.Analyst)
+                if (userRole == UserRole.Analyst)
                     predicate = x => !x.IsDeleted && (x.AssignedByUserId == userID || x.UserID == userID);
                 else
                     predicate = x => !x.IsDeleted && x.UserID == userID;
@@ -674,47 +672,38 @@ namespace AssessmentPlatform.Services
                     from uc in _context.UserCityMappings.Where(predicate)
                     join c in _context.Cities.Where(c => !c.IsDeleted && c.IsActive)
                         on uc.CityID equals c.CityID
-                    join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt.Year == updatedAt.Year)
-                        on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments
-                    from a in cityAssessments.DefaultIfEmpty()
+                    join a in _context.AICityScores.Where(x =>  x.Year == year)
+                        on c.CityID equals a.CityID into aICityScores
+                    from a in aICityScores.DefaultIfEmpty()
                     select new
                     {
                         c.CityID,
                         c.CityName,
-                        UserCityMapping = uc,
-                        AssessmentID = (int?)a.AssessmentID,
-                        a.PillarAssessments,
-                        Responses = a.PillarAssessments.SelectMany(pa => pa.Responses)
+                        a.AIProgress
                     }
-                ).AsNoTracking().ToListAsync();  // 🚀 force materialization first
+                ).AsNoTracking().Distinct().ToListAsync();  // 🚀 force materialization first
+
+
+                var manualAssessmentList = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, year);
 
                 // Now do grouping/aggregation in memory (LINQ to Objects)
                 var citySubmission = cityRaw
-                    .GroupBy(g => new { g.CityID, g.CityName })
                     .Select(g =>
                     {
-                        var allPillars = g.Where(x => x.PillarAssessments != null).SelectMany(p => p.PillarAssessments);
-                        var allResponses = g.Where(x=> x.Responses != null).SelectMany(p => p.Responses);
-                        var userCityMappingCount = g.Select(x => x.UserCityMapping).Count();
+                        var allPillars = manualAssessmentList.Where(x => x.CityID == g.CityID);
 
-                        var scoreList = allResponses.Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-                                .Select(r => (int?)r.Score ?? 0);
+                        var manualScore = allPillars.Any()? allPillars.Average(x => x?.ScoreProgress ?? 0): 0;
 
                         return new GetCitiesSubmitionHistoryReponseDto
                         {
-                            CityID = g.Key.CityID,
-                            CityName = g.Key.CityName,
-                            TotalAssessment = g.Select(x => x.AssessmentID).Where(id => id.HasValue).Distinct().Count(),
-                            Score = allResponses.Sum(r => (int?)r.Score ?? 0),
-                            TotalPillar = totalPillars * userCityMappingCount,
-                            TotalAnsPillar = allPillars.Count(),
-                            TotalQuestion = totalQuestions * userCityMappingCount,
-                            AnsQuestion = allResponses.Count(),
-                            ScoreProgress = scoreList.Count() == 0 ? 0m : (scoreList.Sum() * 100) / (scoreList.Count() * 4)
+                            CityID = g.CityID,
+                            CityName = g.CityName,
+                            Score = Math.Round(manualScore,2),
+                            AnsQuestion = allPillars.Any() ? allPillars.Sum(x=>x?.TotalAns ?? 0) : 0,
+                            ScoreProgress = Math.Round(manualScore, 2),
+                            AIScore = g.AIProgress ?? 0
                         };
-                    })
-                    .ToList();
-
+                    }).ToList();
 
                 return ResultResponseDto<List<GetCitiesSubmitionHistoryReponseDto>>.Success(citySubmission ?? new(), new List<string> { "Get Cities history successfully" });
 
