@@ -11,7 +11,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<List<AITrustLevel>>> GetAITrustLevels();
         Task<PaginationResponse<AiCitySummeryDto>> GetAICities(AiCitySummeryRequestDto request, int userID, UserRole userRole);
         Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole,int year=0);
-        Task<List<EvaluationCityProgressResultDto>> GetCityScoreAnalysis(int cityID, int userID, UserRole userRole , int SelectYear);
         Task<PaginationResponse<AIEstimatedQuestionScoreDto>> GetAIPillarsQuestion(AiCityPillarSummeryRequestDto r, int userID, UserRole userRole);
         Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID, int year=0);
         Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, UserRole userRole);

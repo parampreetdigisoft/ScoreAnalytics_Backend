@@ -193,14 +193,6 @@ namespace AssessmentPlatform.Services
 
             return query;
         }
-
-        public async Task<List<EvaluationCityProgressResultDto>> GetCityScoreAnalysis(int cityID, int userID, UserRole userRole, int selectYear)
-        {
-            var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, selectYear);
-
-            return progress.ToList();
-
-        }
     
         public async Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole, int currentYear = 0)
         {

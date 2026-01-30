@@ -32,6 +32,7 @@
         public int AnsPillar { get; set; } = 0;
         public int TotalQuestion { get; set; } = 0;
         public int AnsQuestion { get; set; } = 0;
+        public int DisplayOrder { get; set; } = 0;
     }
     public class GetAssessmentHistoryDto
     {

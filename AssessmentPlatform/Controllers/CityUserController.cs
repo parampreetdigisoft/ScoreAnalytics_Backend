@@ -39,8 +39,13 @@ namespace AssessmentPlatform.Controllers
             var userId = GetUserIdFromClaims();
             if (userId == null)
                 return Unauthorized("User ID not found in token.");
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
 
-            var result = await _cityUserService.GetCityHistory(userId.Value);
+            var tier = Enum.Parse<TieredAccessPlan>(tierName);
+
+            var result = await _cityUserService.GetCityHistory(userId.Value, tier);
             return Ok(result);
         }
 
@@ -62,7 +67,12 @@ namespace AssessmentPlatform.Controllers
             if (userId == null)
                 return Unauthorized("User ID not found in token.");
 
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
             userCityRequstDto.UserID = userId.Value;
+            userCityRequstDto.Tiered = Enum.Parse<TieredAccessPlan>(tierName);
 
             var result = await _cityUserService.GetCityQuestionHistory(userCityRequstDto);
             return Ok(result);
