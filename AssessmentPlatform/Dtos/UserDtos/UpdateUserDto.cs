@@ -1,4 +1,5 @@
-﻿using AssessmentPlatform.Models;
+﻿using AssessmentPlatform.Enums;
+using AssessmentPlatform.Models;
 
 namespace AssessmentPlatform.Dtos.UserDtos
 {
@@ -19,5 +20,6 @@ namespace AssessmentPlatform.Dtos.UserDtos
         public string Email { get; set; }
         public string? ProfileImagePath { get; set; }
         public bool Is2FAEnabled { get; set; } = false;
+        public TieredAccessPlan Tier { get; set; } = TieredAccessPlan.Pending;
     }
 }

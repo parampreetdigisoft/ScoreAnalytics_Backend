@@ -208,6 +208,7 @@ namespace AssessmentPlatform.Services
                     Phone = user.Phone,
                     Is2FAEnabled = user.Is2FAEnabled,
                     ProfileImagePath = user.ProfileImagePath,
+                    Tier = user.Tier ?? Enums.TieredAccessPlan.Pending
                 };
 
                 return ResultResponseDto<UpdateUserResponseDto>.Success(response, new List<string> { "Updated successfully" });
@@ -290,7 +291,8 @@ namespace AssessmentPlatform.Services
                     Phone = user.Phone,
                     Email = user.Email,
                     ProfileImagePath = user?.ProfileImagePath,
-                    Is2FAEnabled = user?.Is2FAEnabled ?? false
+                    Is2FAEnabled = user?.Is2FAEnabled ?? false,
+                    Tier = user?.Tier ?? Enums.TieredAccessPlan.Pending
                 };
 
                 return ResultResponseDto<UpdateUserResponseDto>.Success(response, new List<string> { "Updated successfully" });
