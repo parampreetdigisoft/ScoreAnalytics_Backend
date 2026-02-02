@@ -28,7 +28,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var year = request.UpdatedAt.Year;
+                var year = request.Year;
                 var startDate = new DateTime(year, 1, 1);
                 var endDate = new DateTime(year + 1, 1, 1);
 

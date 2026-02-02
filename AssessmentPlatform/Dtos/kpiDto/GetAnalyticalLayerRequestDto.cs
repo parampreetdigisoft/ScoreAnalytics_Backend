@@ -7,6 +7,6 @@ namespace AssessmentPlatform.Dtos.kpiDto
     {
         public int? CityID { get; set; }
         public int? LayerID { get; set; }
-        public DateTime UpdatedAt { get; set; } = new DateTime(DateTime.Now.Year, 1, 1);
+        public int Year { get; set; } = DateTime.Now.Year;
     }
 }
