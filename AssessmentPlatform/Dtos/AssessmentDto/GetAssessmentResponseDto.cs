@@ -19,4 +19,10 @@ namespace AssessmentPlatform.Dtos.AssessmentDto
         public int AssessmentYear { get; set; } 
         public AssessmentPhase? AssessmentPhase { get; set; }
     }
+
+    public class GetCityAssessmentResponseDto : GetAssessmentResponseDto
+    {
+        public int TotalUnknown { get; set; }
+        public int TotalNA { get; set; }
+    }
 }

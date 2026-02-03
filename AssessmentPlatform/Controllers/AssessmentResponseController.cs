@@ -81,7 +81,22 @@ namespace AssessmentPlatform.Controllers
         [Authorize]
         public async Task<IActionResult> GetAssessmentResult([FromQuery] GetAssessmentRequestDto response)
         {
-            var result = await _responseService.GetAssessmentResult(response);
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            response.UserId = userId.GetValueOrDefault();
+
+            var result = await _responseService.GetAssessmentResult(response, userRole);
             return Ok(result);
         }
         [HttpGet]

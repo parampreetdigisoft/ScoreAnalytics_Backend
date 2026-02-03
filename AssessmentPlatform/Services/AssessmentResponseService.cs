@@ -223,93 +223,113 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<PaginationResponse<GetAssessmentResponseDto>> GetAssessmentResult(GetAssessmentRequestDto request)
+        public async Task<PaginationResponse<GetCityAssessmentResponseDto>> GetAssessmentResult(GetAssessmentRequestDto request, UserRole role)
         {
             try
             {
-                var user = _context.Users.FirstOrDefault(x => x.UserID == request.UserId);
-                if (user == null) return null;
+                var year = request.UpdatedAt.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = startDate.AddYears(1);
 
-                var userCityMappingIDs = new List<int>();
+                // Fetch allowed UserCityMapping IDs for non-admin users
+                List<int> allowedMappingIds = new();
 
-                //analyst can search by city and evaluator, admin can search by role and city
-                if (user.Role != UserRole.Admin)
+                if (role != UserRole.Admin)
                 {
-                    Expression<Func<UserCityMapping, bool>> predicate = user.Role switch
+                    IQueryable<UserCityMapping> mappingQuery =
+                        _context.UserCityMappings.Where(x => !x.IsDeleted);
+
+                    mappingQuery = role switch
                     {
-                        UserRole.Analyst => x=> !x.IsDeleted &&  request.SubUserID.HasValue ? x.UserID == request.SubUserID : x.AssignedByUserId == user.UserID,
-                        UserRole.Evaluator=>x=> !x.IsDeleted && x.UserID == request.UserId,
-                        _ => x => !x.IsDeleted 
+                        UserRole.Analyst =>
+                            request.SubUserID.HasValue
+                                ? mappingQuery.Where(x => x.UserID == request.SubUserID.Value)
+                                : mappingQuery.Where(x => x.AssignedByUserId == request.UserId),
+
+                        UserRole.Evaluator =>
+                            mappingQuery.Where(x => x.UserID == request.UserId),
+
+                        _ => mappingQuery
                     };
 
-                    userCityMappingIDs = _context.UserCityMappings
-                        .Where(predicate)
-                        .Select(x => x.UserCityMappingID).ToList();
+                    allowedMappingIds = await mappingQuery
+                        .Select(x => x.UserCityMappingID)
+                        .ToListAsync();
                 }
 
                 var query =
                     from a in _context.Assessments
-                        .Include(q => q.PillarAssessments)
-                        .ThenInclude(q => q.Responses)
-                    where a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year
+                    where a.IsActive
+                          && a.UpdatedAt >= startDate
+                          && a.UpdatedAt < endDate
                           && (!request.CityID.HasValue || a.UserCityMapping.CityID == request.CityID.Value)
-                           && (user.Role == UserRole.Admin || userCityMappingIDs.Contains(a.UserCityMappingID))
-                    join c in _context.Cities
-                        .Where(x => !x.IsDeleted
-                                 && (!request.CityID.HasValue || x.CityID == request.CityID.Value))
-                        on a.UserCityMapping.CityID equals c.CityID
-                    join u in _context.Users
-                        .Where(x => !x.IsDeleted
-                                 && (!request.Role.HasValue || x.Role == request.Role.Value))
-                        on a.UserCityMapping.UserID equals u.UserID
-                    join createdBy in _context.Users.Where(x => !x.IsDeleted)
-                      on a.UserCityMapping.AssignedByUserId equals createdBy.UserID
+                          && (role == UserRole.Admin || allowedMappingIds.Contains(a.UserCityMappingID))
 
-                    select new GetAssessmentResponseDto
+                    join c in _context.Cities.Where(x => !x.IsDeleted)
+                        on a.UserCityMapping.CityID equals c.CityID
+
+                    join u in _context.Users.Where(x =>
+                            !x.IsDeleted &&
+                            (!request.Role.HasValue || x.Role == request.Role.Value))
+                        on a.UserCityMapping.UserID equals u.UserID
+
+                    join createdBy in _context.Users.Where(x => !x.IsDeleted)
+                        on a.UserCityMapping.AssignedByUserId equals createdBy.UserID
+
+                    let responses = a.PillarAssessments.SelectMany(p => p.Responses)
+
+                    select new GetCityAssessmentResponseDto
                     {
                         AssessmentID = a.AssessmentID,
                         UserCityMappingID = a.UserCityMappingID,
                         CreatedAt = a.CreatedAt,
+
                         CityID = c.CityID,
                         CityName = c.CityName,
                         State = c.State,
+
                         UserID = u.UserID,
                         UserName = u.FullName,
-                        Score = a.PillarAssessments.SelectMany(x => x.Responses)
-                                 .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-                                 .Sum(r => (int?)r.Score ?? 0),
+
+                        Score = responses
+                            .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
+                            .Sum(r => (int?)r.Score ?? 0),
+
+                        TotalNA = responses.Count(r =>
+                            !r.Score.HasValue &&
+                            r.Question.QuestionOptions.Any(o =>
+                                o.OptionID == r.QuestionOptionID &&
+                                o.OptionText == "N/A" || o.OptionText == "NA")),
+
+                        TotalUnknown = responses.Count(r =>
+                            !r.Score.HasValue &&
+                            r.Question.QuestionOptions.Any(o =>
+                                o.OptionID == r.QuestionOptionID &&
+                                o.OptionText == "Unknown")),
+
                         AssignedByUser = createdBy.FullName,
                         AssignedByUserId = createdBy.UserID,
-                        AssessmentYear = a.UpdatedAt.Year,
+
+                        AssessmentYear = year,
                         AssessmentPhase = a.AssessmentPhase
                     };
 
-                var response = await query.ApplyPaginationAsync(request);
-
-                //var totalScore = _context.Pillars
-                //    .Include(p => p.Questions)
-                //    .SelectMany(p => p.Questions).Count();
-
-                //foreach (var item in response.Data)
-                //{
-                //    item.Score = Math.Round((item.Score / (totalScore * 4)) * 100);
-                //}
-
-                return response;
+                return await query.ApplyPaginationAsync(request);
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occure in GetAssessmentResult", ex);
-                return new PaginationResponse<GetAssessmentResponseDto>
+                await _appLogger.LogAsync("Error occurred in GetAssessmentResult", ex);
+
+                return new PaginationResponse<GetCityAssessmentResponseDto>
                 {
-                    Data = new List<GetAssessmentResponseDto>(),
+                    Data = new List<GetCityAssessmentResponseDto>(),
                     PageNumber = 1,
                     PageSize = 10,
                     TotalRecords = 0
                 };
             }
-
         }
+
         public async Task<PaginationResponse<GetAssessmentQuestionResponseDto>> GetAssessmentQuestion(GetAssessmentQuestoinRequestDto request)
         {
             try
