@@ -12,5 +12,6 @@ namespace AssessmentPlatform.Common.Interface
         /// <param name="year"></param>
         /// <returns></returns>
         public Task<List<EvaluationCityProgressResultDto>> GetCitiesProgressAsync(int userId,int role, int year);
+        public Task<List<GetCitiesProgressAdminDto>> GetCitiesProgressForAdmin(int userId, int role, int year);
     }
 }

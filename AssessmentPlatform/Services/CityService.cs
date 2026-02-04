@@ -7,6 +7,7 @@ using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using System.Linq.Expressions;
@@ -855,6 +856,192 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error Occure in getAllCityByUserId", ex);
                 return ResultResponseDto<List<UserCityMappingResponseDto>>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+
+        public async Task<ResultResponseDto<byte[]>> ExportCities(int userId, UserRole userRole)
+        {
+            try
+            {
+                int year = DateTime.UtcNow.Year;
+                var cities = await _commonService.GetCitiesProgressForAdmin(userId, (int)userRole, year);
+                
+                if(cities == null) return ResultResponseDto<byte[]>.Failure(new string[] { "There is an error please try later" });
+                IEnumerable<IGrouping<(int CityID, string CityName, string State, string Country), GetCitiesProgressAdminDto>>
+                result =
+                    cities.GroupBy(x => (
+                        x.CityID,
+                        x.CityName,
+                        x.State,
+                        x.Country
+                    ));
+                var byteRes =MakeCityPillarSheet(result);
+
+                return ResultResponseDto<byte[]>.Success(byteRes, new string[] { "get successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in getAllCityByUserId", ex);
+                return ResultResponseDto<byte[]>.Failure(new string[] { "There is an error please try later" });
+            }
+        }
+
+        private byte[] MakeCityPillarSheet(IEnumerable<IGrouping<(int CityID, string CityName, string State, string Country), GetCitiesProgressAdminDto>> cityGroups)
+        {
+            using (var workbook = new XLWorkbook())
+            {
+                var ws = workbook.Worksheets.Add("Cities Progress Report");
+
+                // ----------------------------
+                // Header Section
+                // ----------------------------
+                ws.Range("A1:J1").Merge().Value = "Cities Progress Report";
+                ws.Range("A2:J2").Merge().Value = $"Report Year: {DateTime.UtcNow.Year}";
+                ws.Range("A3:J3").Merge().Value = $"Generated On: {DateTime.UtcNow:dd-MMM-yyyy HH:mm}";
+
+                var headerRange = ws.Range("A1:J3");
+                headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
+                headerRange.Style.Font.FontColor = XLColor.White;
+                headerRange.Style.Font.Bold = true;
+                headerRange.Style.Font.FontSize = 14;
+                headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+                int row = 5;
+
+                // ----------------------------
+                // Column Headers
+                // ----------------------------
+                ws.Cell(row, 1).Value = "S.No.";
+                ws.Cell(row, 2).Value = "City Name";
+                ws.Cell(row, 3).Value = "State";
+                ws.Cell(row, 4).Value = "Country";
+                ws.Cell(row, 5).Value = "Pillar Name";
+                ws.Cell(row, 6).Value = "Total Score";
+                ws.Cell(row, 7).Value = "Total Answers";
+                ws.Cell(row, 8).Value = "Evaluator Pillar Progress (%)";
+                ws.Cell(row, 9).Value = "AI Pillar Progress (%)";
+                ws.Cell(row, 10).Value = "Evaluator - AI City Progress (%)";
+
+                var columnHeader = ws.Range(row, 1, row, 10);
+                columnHeader.Style.Font.Bold = true;
+                columnHeader.Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
+                columnHeader.Style.Font.FontColor = XLColor.White;
+                columnHeader.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                columnHeader.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                columnHeader.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+                columnHeader.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                ws.Row(row).Height = 25;
+
+                row++;
+                int sno = 1;
+
+                // ----------------------------
+                // Data Rows
+                // ----------------------------
+                foreach (var cityGroup in cityGroups)
+                {
+                    var cityData = cityGroup.First();
+                    var pillars = cityGroup.OrderBy(x => x.DisplayOrder).ToList();
+
+                    int startRow = row;
+                    bool isFirstPillar = true;
+
+                    var cityProgress = pillars.Average(x=>x.PillarProgress);
+                    foreach (var pillar in pillars)
+                    {
+                        ws.Cell(row, 1).Value = sno++;
+                        ws.Cell(row, 2).Value = cityData.CityName;
+                        ws.Cell(row, 3).Value = cityData.State;
+                        ws.Cell(row, 4).Value = cityData.Country;
+                        ws.Cell(row, 5).Value = pillar.PillarName;
+                        ws.Cell(row, 6).Value = pillar.TotalScore;
+                        ws.Cell(row, 7).Value = pillar.TotalAns;
+                        ws.Cell(row, 8).Value = $"{pillar.PillarProgress:F2}%";
+                        ws.Cell(row, 9).Value = $"{pillar.AIPillarProgress:F2}%";
+
+                        // City progress only in first row for each city
+                        if (isFirstPillar)
+                        {
+                            ws.Cell(row, 10).Value = $"{cityProgress:F2}% - {cityData.AICityProgress:F2}%";
+                            ws.Cell(row, 10).Style.Font.Bold = true;
+                            ws.Cell(row, 10).Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
+                            isFirstPillar = false;
+                        }
+
+                        // Style data rows
+                        var dataRow = ws.Range(row, 1, row, 10);
+                        dataRow.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                        dataRow.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                        dataRow.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                        dataRow.Style.Border.DiagonalBorderColor = XLColor.LightGray;
+
+                        // Center align S.No and numeric columns
+                        ws.Cell(row, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        ws.Cell(row, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        ws.Cell(row, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        ws.Cell(row, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        ws.Cell(row, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                        ws.Cell(row, 10).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                        // Bold pillar names
+                        ws.Cell(row, 5).Style.Font.FontColor = XLColor.FromArgb(23, 55, 94);
+
+                        row++;
+                    }
+
+                    // Merge city information cells for better visual grouping
+                    int endRow = row - 1;
+                    if (endRow > startRow)
+                    {
+                        ws.Range(startRow, 2, endRow, 2).Merge(); // City Name
+                        ws.Range(startRow, 3, endRow, 3).Merge(); // State
+                        ws.Range(startRow, 4, endRow, 4).Merge(); // Country
+                        ws.Range(startRow, 10, endRow, 10).Merge(); // City Progress
+                    }
+
+                    // Add visual separator between cities
+                    var cityRange = ws.Range(startRow, 1, endRow, 10);
+                    cityRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+                    cityRange.Style.Border.OutsideBorderColor = XLColor.FromArgb(57, 123, 103);
+
+                    // Highlight city name cells
+                    ws.Range(startRow, 2, endRow, 2).Style.Font.Bold = true;
+                    ws.Range(startRow, 2, endRow, 2).Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
+
+                    // Alternate city group background
+                    if ((cityGroups.ToList().IndexOf(cityGroup) + 1) % 2 == 0)
+                    {
+                        cityRange.Style.Fill.BackgroundColor = XLColor.FromArgb(250, 250, 250);
+                    }
+                }
+
+                ws.Column(1).Width = 8;    
+                ws.Column(2).Width = 20;   
+                ws.Column(3).Width = 15;   
+                ws.Column(4).Width = 15;   
+                ws.Column(5).Width = 35;   
+                ws.Column(6).Width = 14;   
+                ws.Column(7).Width = 14;   
+                ws.Column(8).Width = 25;   
+                ws.Column(9).Width = 20;   
+                ws.Column(10).Width = 28;  
+
+
+                ws.SheetView.FreezeRows(5);
+                ws.SheetView.FreezeColumns(1);
+
+                var usedRange = ws.RangeUsed();
+                if (usedRange != null)
+                {
+                    ws.Range(5, 1, 5, 10).SetAutoFilter();
+                }
+
+                using (var stream = new MemoryStream())
+                {
+                    workbook.SaveAs(stream);
+                    return stream.ToArray();
+                }
             }
         }
         #endregion

@@ -2,6 +2,7 @@
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -227,5 +228,37 @@ namespace AssessmentPlatform.Controllers
 
             return Ok(await _cityService.GetAiAccessCity(claimUserId.GetValueOrDefault(), userRole));
         }
+
+        [HttpGet("exportCities")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ExportCities()
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null)
+                return Unauthorized("User ID not found.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _cityService.ExportCities(claimUserId.GetValueOrDefault(), userRole);
+
+            if (!result.Succeeded)
+                return BadRequest(result.Messages);
+
+            string fileName = $"Cities_Progress_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
+
+            return File(
+                result.Result ?? new byte[1],
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName
+            );
+        }
+
     }
 }

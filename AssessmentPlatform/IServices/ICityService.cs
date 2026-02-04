@@ -23,5 +23,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<string>> AddUpdateCity(AddUpdateCityDto q);
         Task<ResultResponseDto<List<UserCityMappingResponseDto>>> getAllCityByLocation(GetNearestCityRequestDto r);
         Task<ResultResponseDto<List<UserCityMappingResponseDto>>> GetAiAccessCity(int userId, UserRole userRole);
+        Task<ResultResponseDto<byte[]>> ExportCities(int userId, UserRole userRole);
     }
 }
