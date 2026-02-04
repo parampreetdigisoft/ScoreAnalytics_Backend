@@ -275,6 +275,7 @@ namespace AssessmentPlatform.Services
                     // Add table data
                     response.TableData.Add(new ChartTableRowDto
                     {
+                        LayerID = layer.LayerID,
                         LayerCode = layer.LayerCode,
                         LayerName = layer.LayerName,
                         CityValues = selectedCities.Select(c => new CityValueDto
@@ -299,5 +300,103 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<CompareCityResponseDto>.Failure(new List<string> { "An error occurred while comparing cities." });
             }
         }
+
+        public async Task<ResultResponseDto<GetMutiplekpiLayerResultsDto>> GetMutiplekpiLayerResults(
+            GetMutiplekpiLayerRequestDto request,
+            int userId,
+            UserRole role,
+            TieredAccessPlan userPlan = TieredAccessPlan.Pending)
+        {
+            try
+            {
+                var year = request.Year;
+                var startDate = new DateTime(year, 1, 1);
+                var endDate = startDate.AddYears(1);
+
+                if (role == UserRole.CityUser)
+                {
+                    var validCityIds = await _context.PublicUserCityMappings
+                        .Where(x =>
+                            x.IsActive &&
+                            x.UserID == userId)
+                        .Select(x => x.CityID)
+                        .ToListAsync();
+
+                    bool hasInvalidCity = request.CityIDs
+                        .Any(cityId => !validCityIds.Contains(cityId));
+
+                    if (hasInvalidCity)
+                    {
+                        return ResultResponseDto<GetMutiplekpiLayerResultsDto>
+                            .Failure(new List<string> { "You are not authorized to access one or more selected cities." });
+                    }
+                }
+
+
+                var query = _context.AnalyticalLayerResults
+                    .AsNoTracking()
+                    .Where(x =>
+                        request.CityIDs.Contains(x.CityID) &&
+                        x.LayerID == request.LayerID &&
+                        (
+                            (x.LastUpdated >= startDate && x.LastUpdated < endDate) ||
+                            (x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate)
+                        ));
+
+                var response = await query
+                    .GroupBy(x => x.LayerID)
+                    .Select(g => new GetMutiplekpiLayerResultsDto
+                    {
+                        LayerID = g.Key,
+
+                        LayerCode = g.Select(x => x.AnalyticalLayer.LayerCode).FirstOrDefault()?? string.Empty,
+                        LayerName = g.Select(x => x.AnalyticalLayer.LayerName).FirstOrDefault() ?? string.Empty,
+                        Purpose = g.Select(x => x.AnalyticalLayer.Purpose).FirstOrDefault() ?? string.Empty,
+                        CalText1 = g.Select(x => x.AnalyticalLayer.CalText1).FirstOrDefault(),
+                        CalText2 = g.Select(x => x.AnalyticalLayer.CalText2).FirstOrDefault(),
+                        CalText3 = g.Select(x => x.AnalyticalLayer.CalText3).FirstOrDefault(),
+                        CalText4 = g.Select(x => x.AnalyticalLayer.CalText4).FirstOrDefault(),
+                        CalText5 = g.Select(x => x.AnalyticalLayer.CalText5).FirstOrDefault(),
+
+                        FiveLevelInterpretations = g.First().AnalyticalLayer.FiveLevelInterpretations,
+
+                        cities = g.Select(x => new MutipleCitieskpiLayerResults
+                        {
+                            CityID = x.CityID,
+                            InterpretationID = x.InterpretationID,
+                            NormalizeValue = x.NormalizeValue,
+                            CalValue1 = x.CalValue1,
+                            CalValue2 = x.CalValue2,
+                            CalValue3 = x.CalValue3,
+                            CalValue4 = x.CalValue4,
+                            CalValue5 = x.CalValue5,
+                            LastUpdated = x.LastUpdated,
+
+                            AiInterpretationID = x.AiInterpretationID,
+                            AiNormalizeValue = x.AiNormalizeValue,
+                            AiCalValue1 = x.AiCalValue1,
+                            AiCalValue2 = x.AiCalValue2,
+                            AiCalValue3 = x.AiCalValue3,
+                            AiCalValue4 = x.AiCalValue4,
+                            AiCalValue5 = x.AiCalValue5,
+
+                            AiLastUpdated = x.AiLastUpdated,
+                            City = x.City
+                        }).ToList()
+                    })
+                    .FirstOrDefaultAsync();
+
+                return ResultResponseDto<GetMutiplekpiLayerResultsDto>
+                    .Success(response ?? new GetMutiplekpiLayerResultsDto());
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error occurred in GetMutiplekpiLayerResults", ex);
+
+                return ResultResponseDto<GetMutiplekpiLayerResultsDto>
+                    .Failure(new List<string> { "An error occurred." });
+            }
+        }
+
     }
 }

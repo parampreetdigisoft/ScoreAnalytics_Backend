@@ -951,6 +951,7 @@ namespace AssessmentPlatform.Services
                     // Add table data
                     response.TableData.Add(new ChartTableRowDto
                     {
+                        LayerID=layer.LayerID,
                         LayerCode = layer.LayerCode,
                         LayerName = layer.LayerName,
                         CityValues = selectedCities.Select(c => new CityValueDto

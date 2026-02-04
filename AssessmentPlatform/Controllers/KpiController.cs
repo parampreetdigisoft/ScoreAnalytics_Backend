@@ -100,5 +100,41 @@ namespace AssessmentPlatform.Controllers
            var result = await _kpiService.CompareCities(r, userId.GetValueOrDefault(), userRole);
             return Ok(result);
         }
+
+
+        [HttpPost]
+        [Route("getMutiplekpiLayerResults")]
+        public async Task<IActionResult> GetMutiplekpiLayerResults([FromBody] GetMutiplekpiLayerRequestDto request)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null && userRole == UserRole.CityUser)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<TieredAccessPlan>(tierName, true, out var userPlan) && userRole == UserRole.CityUser)
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _kpiService.GetMutiplekpiLayerResults(request, userId.GetValueOrDefault(), userRole, userPlan);
+            if (result == null)
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(result);
+        }
     }
 }

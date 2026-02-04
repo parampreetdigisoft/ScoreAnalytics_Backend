@@ -16,6 +16,7 @@
 
     public class ChartTableRowDto
     {
+        public int LayerID { get; set; }
         public string LayerCode { get; set; }
         public string LayerName { get; set; }
         public List<CityValueDto> CityValues { get; set; }
