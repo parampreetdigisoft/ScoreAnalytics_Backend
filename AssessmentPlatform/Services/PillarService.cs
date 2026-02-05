@@ -144,7 +144,7 @@ namespace AssessmentPlatform.Services
                     .Include(a => a.UserCityMapping)
                     .Include(a => a.PillarAssessments)
                         .ThenInclude(pa => pa.Responses)
-                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year && a.AssessmentPhase == AssessmentPhase.Completed)
+                    .Where(a => mappingIds.Contains(a.UserCityMappingID) && a.IsActive && a.UpdatedAt.Year == request.UpdatedAt.Year && (a.AssessmentPhase == AssessmentPhase.Completed || a.AssessmentPhase == AssessmentPhase.EditRejected || a.AssessmentPhase == AssessmentPhase.EditRequested))
                     .AsNoTracking()
                     .ToListAsync();
 
@@ -397,7 +397,7 @@ namespace AssessmentPlatform.Services
                 var rawData = await (
                     from ucm in userCityMappings
                     join a in _context.Assessments on ucm.UserCityMappingID equals a.UserCityMappingID
-                    where a.IsActive && (a.UpdatedAt >= startDate && a.UpdatedAt <= endDate && a.AssessmentPhase == AssessmentPhase.Completed)
+                    where a.IsActive && (a.UpdatedAt >= startDate && a.UpdatedAt <= endDate && (a.AssessmentPhase == AssessmentPhase.Completed || a.AssessmentPhase == AssessmentPhase.EditRejected || a.AssessmentPhase == AssessmentPhase.EditRequested))
                     from pa in a.PillarAssessments
                     where !request.PillarID.HasValue || pa.PillarID == request.PillarID
                     join p in _context.Pillars on pa.PillarID equals p.PillarID

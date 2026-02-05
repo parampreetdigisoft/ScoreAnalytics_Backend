@@ -1020,7 +1020,7 @@ namespace AssessmentPlatform.Services
                 ws.Column(2).Width = 20;   
                 ws.Column(3).Width = 15;   
                 ws.Column(4).Width = 15;   
-                ws.Column(5).Width = 35;   
+                ws.Column(5).Width = 45;   
                 ws.Column(6).Width = 14;   
                 ws.Column(7).Width = 14;   
                 ws.Column(8).Width = 25;   
