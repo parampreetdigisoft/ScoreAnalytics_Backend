@@ -116,8 +116,12 @@ namespace AssessmentPlatform.Services
                 // 🔹 Fetch city score once
                 var cityScore = await _context.AICityScores
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(x => x.CityID == cityId && x.Year == year);
+                    .FirstOrDefaultAsync(x => x.CityID == cityId && x.Year == year && x.IsVerified);
 
+                if (cityScore == null)
+                {
+                    return new GetCityQuestionHistoryReponseDto();
+                }
                 // 🔹 Fetch pillars
                 var pillars = await _context.Pillars
                     .AsNoTracking()
@@ -713,8 +717,7 @@ namespace AssessmentPlatform.Services
                 {
                     bool isValid =
                         payload.Cities.Count >= tierLimits.Min && payload.Cities.Count <= tierLimits.Max &&
-                        payload.Pillars.Count >= tierLimits.Min && payload.Pillars.Count <= tierLimits.Max &&
-                        payload.Kpis.Count >= tierLimits.Min && payload.Kpis.Count <= tierLimits.Max;
+                        payload.Pillars.Count >= tierLimits.Min && payload.Pillars.Count <= tierLimits.Max;
 
                     if (!isValid)
                     {
@@ -734,13 +737,8 @@ namespace AssessmentPlatform.Services
                     .Where(m => m.UserID == userId)
                     .ToListAsync();
 
-                var existingKpis = await _context.CityUserKpiMappings
-                    .Where(m => m.UserID == userId)
-                    .ToListAsync();
-
                 _context.PublicUserCityMappings.RemoveRange(existingCities);
                 _context.CityUserPillarMappings.RemoveRange(existingPillars);
-                _context.CityUserKpiMappings.RemoveRange(existingKpis);
 
                 var utcNow = DateTime.UtcNow;
 
@@ -760,17 +758,8 @@ namespace AssessmentPlatform.Services
                     UpdatedAt = utcNow
                 });
 
-                var newKpiMappings = payload.Kpis.Select(kpiId => new CityUserKpiMapping
-                {
-                    LayerID = kpiId,
-                    UserID = userId,
-                    IsActive = true,
-                    UpdatedAt = utcNow
-                });
-
                 await _context.PublicUserCityMappings.AddRangeAsync(newCityMappings);
                 await _context.CityUserPillarMappings.AddRangeAsync(newPillarMappings);
-                await _context.CityUserKpiMappings.AddRangeAsync(newKpiMappings);
 
                 await _context.SaveChangesAsync();
 
