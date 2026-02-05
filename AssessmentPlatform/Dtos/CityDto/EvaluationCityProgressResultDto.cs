@@ -11,6 +11,7 @@
         public decimal ScoreProgress { get; set; }
         public decimal AIProgress { get; set; }
         public decimal NormalizedValue { get; set; }
+        public int TotalAssessments { get; set; }
         public int UserID { get; set; }
     }
 }

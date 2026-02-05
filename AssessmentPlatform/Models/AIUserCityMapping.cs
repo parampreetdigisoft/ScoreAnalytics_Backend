@@ -1,6 +1,6 @@
 ﻿namespace AssessmentPlatform.Models
 {
-    public class AIUserCityMapping
+    public class AIUserCityMapping // Ai city for evaluator
     {
         public int AIUserCityMappingID { get; set; }
 

@@ -23,5 +23,6 @@
         public DateTime? UpdatedAt { get; set; }
         public bool IsVerified { get; set; }
         public string? Comment { get; set; }
+        public decimal? AICompletionRate { get; set; }
     }
 }

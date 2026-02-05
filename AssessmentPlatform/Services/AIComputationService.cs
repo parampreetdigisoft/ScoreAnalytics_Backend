@@ -59,16 +59,36 @@ namespace AssessmentPlatform.Services
                     var ids = result.Data.Select(x => x.CityID);
                     var cities = progress.Where(x => ids.Contains(x.CityID));
 
+
+                    var counts = await _context.Pillars
+                        .Select(p => p.Questions.Count()).ToListAsync();
+
+                    var totalQuestions = counts.Sum();
+
+                    var answeredQuestions = await _context.AIEstimatedQuestionScores
+                        .Where(x => x.Year == request.Year && ids.Contains(x.CityID))
+                        .GroupBy(x => x.CityID)
+                        .Select(g => new
+                        {
+                            CityID = g.Key,
+                            CompletionRate = totalQuestions == 0
+                                ? 0
+                                : g.Count() * 100.0M / totalQuestions
+                        })
+                        .ToListAsync();
+
+
                     foreach (var c in result.Data)
                     {
-                        var cityScore = cities
-                            .Where(x => x.CityID == c.CityID)
-                            .Select(x => x.ScoreProgress)
+                        var pillars = cities.Where(x => x.CityID == c.CityID);
+
+                        var cityScore = pillars.Select(x => x.ScoreProgress)
                             .DefaultIfEmpty(0)
                             .Average();
 
                         c.EvaluatorProgress = cityScore;
                         c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
+                        c.AICompletionRate = answeredQuestions.FirstOrDefault(x=>x.CityID== c.CityID)?.CompletionRate;
                     }
                 }
 
@@ -84,7 +104,8 @@ namespace AssessmentPlatform.Services
         {
             currentYear = currentYear ==0 ? DateTime.Now.Year : currentYear;
             var firstDate = new DateTime(currentYear, 1, 1); 
-            IQueryable<AICityScore> baseQuery = _context.AICityScores.Where(x=> x.UpdatedAt >= firstDate && x.Year== currentYear);
+            var endDate = new DateTime(currentYear+1, 1, 1); 
+            IQueryable<AICityScore> baseQuery = _context.AICityScores.Where(x=> x.UpdatedAt >= firstDate && x.UpdatedAt < endDate && x.Year== currentYear);
 
             List<int> allowedCityIds = new();
             if (userRole == UserRole.Analyst)
@@ -141,7 +162,7 @@ namespace AssessmentPlatform.Services
                 {
                     CityID = g.Key,
                     Comment = g
-                        .OrderByDescending(x => x.UpdatedAt)
+                        .OrderByDescending(x => x.UpdatedAt >= firstDate && x.UpdatedAt < endDate)
                         .Select(x => x.Comment)
                         .FirstOrDefault()
                 });
@@ -198,7 +219,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                currentYear = currentYear == 0 ?DateTime.Now.Year : currentYear;
+                currentYear = currentYear == 0 ? DateTime.Now.Year : currentYear;
                 var firstDate = new DateTime(currentYear, 1, 1);
 
                 var res = await _context.AIPillarScores
@@ -216,7 +237,14 @@ namespace AssessmentPlatform.Services
                                 .Distinct()
                                 .ToListAsync();
                 }
-                var pillars = await _context.Pillars.ToListAsync();
+                var pillars = await _context.Pillars.Select(x=>new
+                {
+                    PillarID = x.PillarID,
+                    PillarName = x.PillarName,
+                    DisplayOrder = x.DisplayOrder,
+                    ImagePath = x.ImagePath,
+                    TotalQuestions = x.Questions.Count()
+                }).ToListAsync();
 
                 var result = pillars
                 .GroupJoin(
@@ -266,12 +294,25 @@ namespace AssessmentPlatform.Services
                 .ToList();
 
 
-                var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+                var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, currentYear);
 
                 var cities = progress.Where(x => x.CityID== cityID);
 
+                var answeredQuestions = await _context.AIEstimatedQuestionScores
+               .Where(x => x.Year == currentYear && x.CityID == cityID)
+               .GroupBy(x => x.PillarID)
+               .Select(g => new
+               {
+                   PillarID = g.Key,
+                   AnsweredQuestions = g.Count() 
+               })
+               .ToListAsync();
+
                 foreach (var c in result)
                 {
+                    var totalQuestions = pillars.FirstOrDefault(x => x.PillarID == c.PillarID)?.TotalQuestions ?? 0;
+                    var answeredQuestion = answeredQuestions.FirstOrDefault(x => x.PillarID == c.PillarID)?.AnsweredQuestions ?? 0;
+
                     var cityScore = cities
                         .Where(x => x.PillarID == c.PillarID)
                         .Select(x => x.ScoreProgress)
@@ -281,6 +322,7 @@ namespace AssessmentPlatform.Services
 
                     c.EvaluatorProgress = cityScore;
                     c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
+                    c.AICompletionRate = answeredQuestion * 100.0M / totalQuestions;
                 }
 
                 var finalResutl = new AiCityPillarReponseDto
@@ -354,26 +396,6 @@ namespace AssessmentPlatform.Services
                     };
 
                 var r = await res.ApplyPaginationAsync(request);
-
-                if (userRole != UserRole.CityUser)
-                {
-                    var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
-
-                    var ids = r.Data.Select(x => x.CityID);
-                    var cities = progress.Where(x => ids.Contains(x.CityID));
-
-                    foreach (var c in r.Data)
-                    {
-                        var cityScore = cities
-                            .Where(x => x.CityID == c.CityID)
-                            .Select(x => x.ScoreProgress)
-                            .DefaultIfEmpty(0)
-                            .Average();
-
-                        c.EvaluatorProgress = cityScore;
-                        c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
-                    }
-                }
 
                 return r;
             }

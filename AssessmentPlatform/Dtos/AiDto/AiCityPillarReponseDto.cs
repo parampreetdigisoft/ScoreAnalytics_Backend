@@ -30,6 +30,7 @@ namespace AssessmentPlatform.Dtos.AiDto
         public string GeographicEquityNote { get; set; }
         public string InstitutionalAssessment { get; set; }
         public string DataGapAnalysis { get; set; }
+        public decimal? AICompletionRate { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public ICollection<AIDataSourceCitation>? DataSourceCitations { get; set; }
     }
