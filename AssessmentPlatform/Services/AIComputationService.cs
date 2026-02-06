@@ -1061,6 +1061,22 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                if (dto.QuestionEnable)
+                {
+                    var currentYear = DateTime.Now.Year;
+
+                    var aiQuestionList = await _context.AIEstimatedQuestionScores
+                        .Where(x => x.CityID == dto.CityID && x.Year == currentYear)
+                        .ToListAsync();
+
+                    if (aiQuestionList.Count > 0)
+                    {
+                        _context.AIEstimatedQuestionScores.RemoveRange(aiQuestionList);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
+
                 await _download.AiResearchByCityId(dto.CityID, dto.CityEnable, dto.PillarEnable, dto.QuestionEnable);
                 var aiResponse = await _context.AICityScores.FirstOrDefaultAsync(x => x.CityID == dto.CityID);
                 if(aiResponse != null)
@@ -1166,7 +1182,17 @@ namespace AssessmentPlatform.Services
             try
             {
                 if (channel.QuestionEnable)
+                {
+                    var currentYear = DateTime.Now.Year;
+                    var aiQuestionList = await _context.AIEstimatedQuestionScores.Where(x => x.CityID == channel.CityID && x.PillarID== channel.PillarID && x.Year == currentYear).ToListAsync();
+                    if (aiQuestionList.Count > 0)
+                    {
+                        _context.AIEstimatedQuestionScores.RemoveRange(aiQuestionList);
+                        await _context.SaveChangesAsync();
+                    }
+
                     await _iAIAnalayzeService.AnalyzeQuestionsOfCityPillar(channel.CityID, channel.PillarID);
+                }
 
                 if (channel.PillarEnable)
                     await _iAIAnalayzeService.AnalyzeSinglePillar(channel.CityID,channel.PillarID);
