@@ -11,5 +11,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<List<PillarResponseDto>>> GetAllPillarAsync();
         Task<PaginationResponse<PartnerCityResponseDto>> GetPartnerCities(PartnerCityRequestDto r);
         Task<CountryCityResponse> GetCountriesAndCities_WithStaleSupport();
+        Task<ResultResponseDto<List<PromotedPillarsResponseDto>>> GetPromotedCities();
     }
 }

@@ -83,5 +83,12 @@ namespace AssessmentPlatform.Controllers
             return Ok(data);
         }
 
+        [HttpGet("promoted-cities")]
+        public async Task<IActionResult> GetPromotedCities()
+        {
+            var data = await _publicService.GetPromotedCities();
+            return Ok(data);
+        }
+
     }
 }

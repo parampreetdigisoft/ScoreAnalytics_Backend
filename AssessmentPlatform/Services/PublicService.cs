@@ -207,6 +207,62 @@ namespace AssessmentPlatform.Services
             }
         }
 
+        public async Task<ResultResponseDto<List<PromotedPillarsResponseDto>>> GetPromotedCities()
+        {
+            try
+            {
+                int currentYear = DateTime.Now.Year;
+
+                var result = await _context.AIPillarScores
+                    .Include(x => x.City)
+                    .Include(x => x.Pillar)
+                    .Where(x =>
+                        x.Year == currentYear &&
+                        x.City.IsActive &&
+                        !x.City.IsDeleted)
+                    .GroupBy(x => new
+                    {
+                        x.PillarID,
+                        x.Pillar.PillarName,
+                        x.Pillar.DisplayOrder,
+                        x.Pillar.ImagePath
+                    })
+                    .Select(g => new PromotedPillarsResponseDto
+                    {
+                        PillarID = g.Key.PillarID,
+                        PillarName = g.Key.PillarName,
+                        DisplayOrder = g.Key.DisplayOrder,
+                        ImagePath = g.Key.ImagePath,
+                        Cities = g
+                            .OrderByDescending(x => x.AIProgress)
+                            .Take(3).OrderBy(x=>x.AIProgress)
+                            .Select(c => new PromotedCityResponseDto
+                            {
+                                CityID = c.CityID,
+                                CityName = c.City.CityName,
+                                Country = c.City.Country,
+                                State = c.City.State,
+                                PostalCode = c.City.PostalCode,
+                                Region = c.City.Region,
+                                Image = c.City.Image,
+                                ScoreProgress = c.AIProgress,
+                                Description = c.EvidenceSummary,
+                            }).ToList()
+                    }).OrderBy(p => p.DisplayOrder).ToListAsync();
+
+                return ResultResponseDto<List<PromotedPillarsResponseDto>>.Success(
+                    result,
+                    new List<string> { "Promoted cities fetched successfully" }
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occurred in GetPromotedCities", ex);
+                return ResultResponseDto<List<PromotedPillarsResponseDto>>.Failure(
+                    new[] { "Failed to get promoted cities" }
+                );
+            }
+        }
     }
 }
 
