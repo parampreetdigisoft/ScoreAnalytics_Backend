@@ -723,7 +723,7 @@ namespace AssessmentPlatform.Services
                     {
                         return ResultResponseDto<string>.Failure(new[]
                         {
-                            $"Your {tierLimits.Name} plan allows between {tierLimits.Min} and {tierLimits.Max} selections per category (City, Pillar, and KPI). Please adjust your selections accordingly."
+                            $"Your {tierLimits.Name} plan allows between {tierLimits.Min} and {tierLimits.Max} selections per category (City and Pillar). Please adjust your selections accordingly."
                         });
                     }
                 }

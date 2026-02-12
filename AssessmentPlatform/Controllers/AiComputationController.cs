@@ -12,7 +12,7 @@ namespace AssessmentPlatform.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-
+    [Authorize]
     public class AiComputationController : ControllerBase
     {
 

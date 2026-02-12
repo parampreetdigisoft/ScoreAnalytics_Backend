@@ -162,7 +162,7 @@ namespace AssessmentPlatform
                 options.AddPolicy("StaffOnly", policy =>
                     policy.RequireRole(UserRole.Admin.ToString(),UserRole.Analyst.ToString(), UserRole.Evaluator.ToString()));
             });
-
+            services.AddMemoryCache();
         }
 
 
