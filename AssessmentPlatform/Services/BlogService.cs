@@ -198,11 +198,11 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<List<BlogResponseDto>>> GetPublicUsersBlogs()
+        public async Task<PaginationResponse<BlogResponseDto>> GetPublicUsersBlogs(PaginationRequest request)
         {
             try
             {
-                var cacheKey = $"public_blogs_{DateTime.UtcNow:yyyyMMdd}";
+                var cacheKey = $"public_blogs_{DateTime.UtcNow:yyyyMMdd}"+request.PageNumber;
 
                 var cachedResult = await _cache.GetOrCreateAsync(cacheKey, async entry =>
                 {
@@ -212,37 +212,39 @@ namespace AssessmentPlatform.Services
 
 
                     var blogs = await _context.Blogs
-                        .AsNoTracking() // VERY IMPORTANT for read-only
+                        .AsNoTracking() 
                         .Where(x => !x.IsDeleted && x.IsActive && x.PublishDate < date)
-                        .OrderByDescending(x => x.PublishDate)
-                        .ThenByDescending(x=>x.UpdatedAt )
-                        .ToListAsync();
+                        .Select(x => new BlogResponseDto
+                        {
+                            BlogID = x.BlogID,
+                            Title = x.Title,
+                            Category = x.Category,
+                            Author = x.Author,
+                            Description = x.Description,
+                            ImageUrl = x.ImageUrl,
+                            PublishDate = x.PublishDate,
+                            IsActive = x.IsActive,
+                            UpdatedAt = x.UpdatedAt
+                        })
+                        .ApplyPaginationAsync(request);
 
-                    var result = blogs.Select((x, index) => new BlogResponseDto
+                    int index = 0;
+                    foreach (var blog in blogs.Data)
                     {
-                        BlogID = x.BlogID,
-                        Title = x.Title,
-                        Category = x.Category,
-                        Author = x.Author,
-                        Description = GetShortDescription(x.Description, index == 0 ? 500 : 300),
-                        ImageUrl = x.ImageUrl,
-                        PublishDate = x.PublishDate,
-                        IsActive = x.IsActive,
-                        UpdatedAt = x.UpdatedAt
-                    }).ToList();
+                        blog.Description = GetShortDescription(blog.Description, index++ == 0 ? 500 : 300);
+                    }
 
-                    return result;
+                    
+
+                    return blogs;
                 });
 
-                return ResultResponseDto<List<BlogResponseDto>>
-                    .Success(cachedResult, new[] { "Blogs fetched successfully" });
+                return cachedResult;
             }
             catch (Exception ex)
             {
                 await _appLogger.LogAsync("Error in GetPublicUsersBlogs", ex);
-
-                return ResultResponseDto<List<BlogResponseDto>>
-                    .Failure(new[] { "There is an error, please try later" });
+                return new PaginationResponse<BlogResponseDto>();
             }
         }
         private string GetShortDescription(string html, int maxLength = 500)

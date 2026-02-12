@@ -10,7 +10,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<BlogResponseDto>> GetBlogByIdAsync(int id);
         Task<ResultResponseDto<bool>> AddUpdateBlog(AddUpdateBlogDto blog);
         Task<ResultResponseDto<bool>> DeleteBlog(int blogID);
-        Task<ResultResponseDto<List<BlogResponseDto>>> GetPublicUsersBlogs();
+        Task<PaginationResponse<BlogResponseDto>> GetPublicUsersBlogs(PaginationRequest request);
     }
     
 }

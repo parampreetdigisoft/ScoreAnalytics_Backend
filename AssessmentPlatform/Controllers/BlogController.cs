@@ -71,7 +71,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet]
         [Route("getPublicUsersBlogs")]
-        public async Task<IActionResult> getPublicUsersBlogs() => Ok(await _blogService.GetPublicUsersBlogs());
+        public async Task<IActionResult> getPublicUsersBlogs([FromQuery] PaginationRequest request) => Ok(await _blogService.GetPublicUsersBlogs(request));
 
     }
 }
