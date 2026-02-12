@@ -208,13 +208,14 @@ namespace AssessmentPlatform.Services
                 {
                     entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-                    var date = DateTime.UtcNow.Date;
+                    var date = DateTime.UtcNow.Date.AddDays(1).AddSeconds(-1);
+
 
                     var blogs = await _context.Blogs
                         .AsNoTracking() // VERY IMPORTANT for read-only
-                        .Where(x => !x.IsDeleted && x.IsActive)
-                        .Where(x => !x.PublishDate.HasValue || x.PublishDate.Value.Date == date)
+                        .Where(x => !x.IsDeleted && x.IsActive && x.PublishDate < date)
                         .OrderByDescending(x => x.PublishDate)
+                        .ThenByDescending(x=>x.UpdatedAt )
                         .ToListAsync();
 
                     var result = blogs.Select((x, index) => new BlogResponseDto
