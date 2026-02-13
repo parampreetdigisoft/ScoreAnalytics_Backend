@@ -855,7 +855,8 @@ namespace AssessmentPlatform.Services
 
                 var aiCityProgress = await _context.AICityScores
                     .Where(x => x.CityID == request.CityID && x.Year == year)
-                    .MaxAsync(x => x.AIProgress);
+                    .Select(x => (decimal?)x.AIProgress)
+                    .MaxAsync() ?? 0;
 
                 var city = await _context.Cities
                     .AsNoTracking()
@@ -863,7 +864,7 @@ namespace AssessmentPlatform.Services
                     .Select(x => new { x.CityID, x.CityName })
                     .FirstOrDefaultAsync();
 
-                 var pillarEvaluations = pillarEvaluationsList.Where(x=>x.CityID == request.CityID);
+                 var pillarEvaluations = pillarEvaluationsList.Where(x=>x.CityID == request.CityID).ToList();
 
                 // 3. Map pillar results
                 var pillarResults = pillars
@@ -886,8 +887,8 @@ namespace AssessmentPlatform.Services
                 {
                     CityID = request.CityID,
                     CityName = city?.CityName ?? string.Empty,
-                    AiValue = aiCityProgress ?? 0,
-                    EvaluationValue = Math.Round(pillarEvaluations.Average(x => x.ScoreProgress),2),
+                    AiValue = aiCityProgress,
+                    EvaluationValue = Math.Round(pillarEvaluations.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Average(),2),
                     Pillars = pillarResults
                 };
 
