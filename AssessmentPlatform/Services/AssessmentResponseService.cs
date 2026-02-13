@@ -865,6 +865,13 @@ namespace AssessmentPlatform.Services
                     .FirstOrDefaultAsync();
 
                  var pillarEvaluations = pillarEvaluationsList.Where(x=>x.CityID == request.CityID).ToList();
+                
+                var aiPillar = _context.AIPillarScores.Where(x => x.CityID == request.CityID && x.Year == year).Select(x => new EvaluationCityProgressResultDto
+                {
+                    CityID = x.CityID,
+                    PillarID = x.PillarID,
+                    AIProgress = x.AIProgress ?? 0
+                }).ToList();
 
                 // 3. Map pillar results
                 var pillarResults = pillars
@@ -877,7 +884,7 @@ namespace AssessmentPlatform.Services
                             PillarID = pillar.PillarID,
                             PillarName = pillar.PillarName,
                             DisplayOrder = pillar.DisplayOrder,
-                            AiValue = evals.FirstOrDefault()?.AIProgress ?? 0,
+                            AiValue = aiPillar.FirstOrDefault(x=>x.PillarID == pillar.PillarID)?.AIProgress ?? 0,
                             EvaluationValue = evals.FirstOrDefault()?.ScoreProgress ?? 0
                         })
                     .ToList();
