@@ -728,6 +728,8 @@ namespace AssessmentPlatform.Services
                     }
                 }
 
+
+
                 //  Remove existing mappings
                 var existingCities = await _context.PublicUserCityMappings
                     .Where(m => m.UserID == userId)
@@ -736,6 +738,12 @@ namespace AssessmentPlatform.Services
                 var existingPillars = await _context.CityUserPillarMappings
                     .Where(m => m.UserID == userId)
                     .ToListAsync();
+
+
+                if(existingCities.Any() && existingPillars.Any())
+                {
+                    return ResultResponseDto<string>.Failure(new[] { "Invalid tier access. Please contact support team." });
+                }
 
                 _context.PublicUserCityMappings.RemoveRange(existingCities);
                 _context.CityUserPillarMappings.RemoveRange(existingPillars);
