@@ -16,6 +16,15 @@ namespace AssessmentPlatform.Controllers
         {
             _authService = authService;
         }
+        private int? GetUserIdFromClaims()
+        {
+            var userIdClaim = User.FindFirst("UserId")?.Value;
+            if (int.TryParse(userIdClaim, out int userId))
+                return userId;
+
+            return null;
+        }
+
 
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
@@ -189,6 +198,18 @@ namespace AssessmentPlatform.Controllers
             if (user == null)
                 return Unauthorized();
             return Ok(user);
+        }
+
+        [HttpPost]
+        [Route("updateUser")]
+        [Authorize]
+        public async Task<IActionResult> UpdateUser([FromForm] UpdateUserDto dto)
+        {
+            var claimUserId = GetUserIdFromClaims();
+            if (claimUserId == null || claimUserId != dto.UserID)
+                return Unauthorized("You are not authorized.");
+
+            return Ok(await _authService.UpdateUser(dto));
         }
     }
 

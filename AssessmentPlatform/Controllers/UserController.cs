@@ -53,17 +53,6 @@ namespace AssessmentPlatform.Controllers
             return Ok(await _userService.GetEvaluatorByAnalyst(request));
         }
 
-        [HttpPost]
-        [Route("updateUser")]
-        public async Task<IActionResult> UpdateUser([FromForm] UpdateUserDto dto)
-        {
-            var claimUserId = GetUserIdFromClaims();
-            if (claimUserId == null || claimUserId != dto.UserID)
-                return Unauthorized("User ID not found.");
-
-            return Ok(await _userService.UpdateUser(dto));
-        }
-
         [HttpGet]
         [Route("getUserInfo")]
         public async Task<IActionResult> getUserInfo()

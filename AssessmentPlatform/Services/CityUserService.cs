@@ -13,8 +13,6 @@ using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 
-using DocumentFormat.OpenXml.Drawing.Charts;
-
 using Microsoft.EntityFrameworkCore;
 
 namespace AssessmentPlatform.Services

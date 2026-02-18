@@ -25,13 +25,16 @@ namespace AssessmentPlatform.Services
         private readonly JwtSetting _jwtSetting;
         private readonly IEmailService _emailService;
         private readonly IAppLogger _appLogger;
-        public AuthService(ApplicationDbContext context, IOptions<AppSettings> appSettings, IEmailService emailService, IOptions<JwtSetting> jwtSetting, IAppLogger appLogger)
+        private readonly IWebHostEnvironment _env;
+        public AuthService(ApplicationDbContext context, IOptions<AppSettings> appSettings, IEmailService emailService, 
+            IOptions<JwtSetting> jwtSetting, IAppLogger appLogger, IWebHostEnvironment env)
         {
             _context = context;
             _appSettings = appSettings.Value;
             _emailService = emailService;
             _jwtSetting = jwtSetting.Value;
             _appLogger = appLogger;
+            _env = env;
         }
         #endregion
 
@@ -954,6 +957,109 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error in SendTwoFactorOTPAsync", ex);
                 return ResultResponseDto<string>.Failure(new[] { "There was an error while sending OTP. Please try again later." });
+            }
+        }
+
+        public async Task<ResultResponseDto<UpdateUserResponseDto>> UpdateUser(UpdateUserDto requestDto)
+        {
+            try
+            {
+                var user = await _context.Users.FindAsync(requestDto.UserID);
+                if (user == null)
+                    return ResultResponseDto<UpdateUserResponseDto>.Failure(new List<string>() { "Invalid request " });
+
+                // Handle profile image upload
+                if (requestDto.ProfileImage != null)
+                {
+                    string uploadsFolder = Path.Combine(_env.WebRootPath, "uploads");
+                    if (!Directory.Exists(uploadsFolder))
+                        Directory.CreateDirectory(uploadsFolder);
+
+                    // ?? Remove old image if exists
+                    if (!string.IsNullOrEmpty(user.ProfileImagePath))
+                    {
+                        string oldFilePath = Path.Combine(_env.WebRootPath, user.ProfileImagePath.TrimStart('/'));
+                        if (File.Exists(oldFilePath))
+                        {
+                            File.Delete(oldFilePath);
+                        }
+                    }
+
+                    // Save new image
+                    string fileName = Guid.NewGuid().ToString() + Path.GetExtension(requestDto.ProfileImage.FileName);
+                    string filePath = Path.Combine(uploadsFolder, fileName);
+
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await requestDto.ProfileImage.CopyToAsync(stream);
+                    }
+
+                    user.ProfileImagePath = "/uploads/" + fileName;
+                }
+
+
+                if(requestDto.Email != user.Email) 
+                {
+                    var hash = BCrypt.Net.BCrypt.HashPassword(requestDto.Email);
+                    var token = hash.Replace("+", " "); 
+                    var passwordResetLink = $"{_appSettings.PublicApplicationUrl}/auth/confirm-mail?PasswordToken={token}";
+
+                    var emailModel = new EmailInvitationSendRequestDto
+                    {
+                        ResetPasswordUrl = passwordResetLink,
+                        Title = "Verify Your Email",
+                        ApiUrl = _appSettings.ApiUrl,
+                        ApplicationUrl = _appSettings.PublicApplicationUrl,
+                        MsgText = "A request was made to update the Email for your Veridian Urban Index (VUI) account. Please verify your email and reset your password.",
+                        Mail = _appSettings.AdminMail,
+                        BtnText = "Verify",
+                        DescriptionAboutBtnText = "Please verify your email address by clicking the button above."
+                    };
+
+                    var isMailSent = await _emailService.SendEmailAsync(requestDto.Email,"Verify Your Email",
+                        "~/Views/EmailTemplates/ChangePassword.cshtml", emailModel
+                    );
+                   
+                    if (isMailSent)
+                    {
+                        user.IsEmailConfirmed = false; // Require reconfirmation for new email
+                        user.Email = requestDto.Email;
+                        user.ResetToken = token;
+                        user.ResetTokenDate = DateTime.Now;
+                    }
+                    else 
+                    {
+                        return ResultResponseDto<UpdateUserResponseDto>.Failure(new List<string>() 
+                            { "Failed to send email confirmation. Please try again later." }
+                        );
+                    }
+                }
+
+                // Update fields
+                user.FullName = requestDto.FullName;
+                user.Phone = requestDto.Phone;
+                user.Is2FAEnabled = requestDto.Is2FAEnabled;
+
+                _context.Users.Update(user);
+                await _context.SaveChangesAsync();
+
+                var response = new UpdateUserResponseDto
+                {
+                    UserID = user.UserID,
+                    FullName = user.FullName,
+                    Phone = user.Phone,
+                    Email = user.Email,
+                    Is2FAEnabled = user.Is2FAEnabled,
+                    ProfileImagePath = user.ProfileImagePath,
+                    Tier = user.Tier ?? Enums.TieredAccessPlan.Pending
+                };
+
+                return ResultResponseDto<UpdateUserResponseDto>.Success(response, new List<string> { "Updated successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure UpdateUser", ex);
+                return ResultResponseDto<UpdateUserResponseDto>.Failure(new string[] { "There is an error please try later" });
             }
         }
 

@@ -25,5 +25,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<object>> ContactUs(ContactUsRequestDto passwordToken);
         Task<ResultResponseDto<UserResponseDto>> TwofaVerification(string email, int otp);
         Task<ResultResponseDto<string>> ReSendLoginOtp(string email);
+        Task<ResultResponseDto<UpdateUserResponseDto>> UpdateUser(UpdateUserDto requestDto);
     }
 }
