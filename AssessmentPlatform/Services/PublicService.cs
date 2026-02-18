@@ -6,6 +6,7 @@ using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Text.Json;
 
 namespace AssessmentPlatform.Services
@@ -16,11 +17,14 @@ namespace AssessmentPlatform.Services
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
         private readonly IWebHostEnvironment _env;
-        public PublicService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env)
+        private readonly IMemoryCache _cache;
+
+        public PublicService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, IMemoryCache cache)
         {
             _context = context;
             _appLogger = appLogger;
             _env = env;
+            _cache = cache;
         }
         public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetAllCities()
         {
@@ -209,8 +213,19 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<List<PromotedPillarsResponseDto>>> GetPromotedCities()
         {
+            const string cacheKey = "PromotedCities";
+
             try
             {
+                // ✅ Try get from cache
+                if (_cache.TryGetValue(cacheKey, out List<PromotedPillarsResponseDto> cachedData))
+                {
+                    return ResultResponseDto<List<PromotedPillarsResponseDto>>.Success(
+                        cachedData,
+                        new List<string> { "Promoted cities fetched successfully" }
+                    );
+                }
+
                 int currentYear = DateTime.Now.Year;
 
                 var result = await _context.AIPillarScores
@@ -235,7 +250,8 @@ namespace AssessmentPlatform.Services
                         ImagePath = g.Key.ImagePath,
                         Cities = g
                             .OrderByDescending(x => x.AIProgress)
-                            .Take(3).OrderBy(x=>x.AIProgress)
+                            .Take(3)
+                            .OrderBy(x => x.AIProgress)
                             .Select(c => new PromotedCityResponseDto
                             {
                                 CityID = c.CityID,
@@ -248,7 +264,16 @@ namespace AssessmentPlatform.Services
                                 ScoreProgress = c.AIProgress,
                                 Description = c.EvidenceSummary,
                             }).ToList()
-                    }).OrderBy(p => p.DisplayOrder).ToListAsync();
+                    })
+                    .OrderBy(p => p.DisplayOrder)
+                    .ToListAsync();
+
+                _cache.Set(cacheKey, result, new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+                    SlidingExpiration = TimeSpan.FromMinutes(2),
+                    Priority = CacheItemPriority.High
+                });
 
                 return ResultResponseDto<List<PromotedPillarsResponseDto>>.Success(
                     result,
