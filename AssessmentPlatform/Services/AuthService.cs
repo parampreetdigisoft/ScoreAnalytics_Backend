@@ -804,8 +804,14 @@ namespace AssessmentPlatform.Services
                 if (_appSettings.LinkValidHours >= (DateTime.Now - user.ResetTokenDate).Hours)
                 {
                     user.IsEmailConfirmed = true;
-                    _context.Users.Update(user);
-                    await _context.SaveChangesAsync();
+                    if (!string.IsNullOrEmpty(user.TemporaryMail))
+                    {
+                        user.Email = user.TemporaryMail;
+                        user.TemporaryMail = null;
+
+                        _context.Users.Update(user);
+                        await _context.SaveChangesAsync();
+                    }
 
                     return ResultResponseDto<object>.Success(new { }, new string[] { "Mail Confirmed Successfully, You Can Login Now!" });
                 }
@@ -1023,7 +1029,7 @@ namespace AssessmentPlatform.Services
                     if (isMailSent)
                     {
                         user.IsEmailConfirmed = false; // Require reconfirmation for new email
-                        user.Email = requestDto.Email;
+                        user.TemporaryMail = requestDto.Email;
                         user.ResetToken = token;
                         user.ResetTokenDate = DateTime.Now;
                     }
