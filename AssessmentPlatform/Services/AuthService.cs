@@ -1006,16 +1006,17 @@ namespace AssessmentPlatform.Services
 
                 if(requestDto.Email != user.Email) 
                 {
+                    var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
                     var hash = BCrypt.Net.BCrypt.HashPassword(requestDto.Email);
                     var token = hash.Replace("+", " "); 
-                    var passwordResetLink = $"{_appSettings.PublicApplicationUrl}/auth/confirm-mail?PasswordToken={token}";
+                    var passwordResetLink = $"{url}/auth/confirm-mail?PasswordToken={token}";
 
                     var emailModel = new EmailInvitationSendRequestDto
                     {
                         ResetPasswordUrl = passwordResetLink,
                         Title = "Verify Your Email",
                         ApiUrl = _appSettings.ApiUrl,
-                        ApplicationUrl = _appSettings.PublicApplicationUrl,
+                        ApplicationUrl = url,
                         MsgText = "A request was made to update the Email for your Veridian Urban Index (VUI) account. Please verify your email and reset your password.",
                         Mail = _appSettings.AdminMail,
                         BtnText = "Verify",
