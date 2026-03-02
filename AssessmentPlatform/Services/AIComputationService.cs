@@ -405,12 +405,22 @@ namespace AssessmentPlatform.Services
                 return new PaginationResponse<AIEstimatedQuestionScoreDto>();
             }
         }
-        public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, UserRole userRole)
+
+        public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, UserRole userRole, int userID)
         {
             try
             {
+                var pillars = await GetAICityPillars(
+                    cityDetails.CityID,
+                    userID,
+                    userRole,
+                    cityDetails.ScoringYear);
+
                 var document = Document.Create(container =>
                 {
+                    // =========================
+                    // CITY SUMMARY PAGE
+                    // =========================
                     container.Page(page =>
                     {
                         page.Size(PageSizes.A4);
@@ -418,8 +428,21 @@ namespace AssessmentPlatform.Services
                         page.PageColor(Colors.White);
                         page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
 
-                        page.Header().Element(x => CityComposeHeader(x, cityDetails, userRole));
-                        page.Content().Element(content => CitySummeryComposeContent(content, cityDetails, userRole));
+                        // Header with City Name
+                        page.Header().Element(x =>
+                            CityComposeHeader(x, cityDetails, userRole,null));
+
+                        page.Content().Element(content =>
+                        {
+                            content.Column(column =>
+                            {
+                                column.Spacing(10);
+
+                                column.Item().Element(x =>
+                                    CitySummeryComposeContent(x, cityDetails, userRole));
+                            });
+                        });
+
                         page.Footer().AlignCenter().Text(x =>
                         {
                             x.CurrentPageNumber();
@@ -427,7 +450,44 @@ namespace AssessmentPlatform.Services
                             x.TotalPages();
                         });
                     });
+
+                    // =========================
+                    // PILLAR PAGES
+                    // =========================
+                    foreach (var p in pillars.Result.Pillars)
+                    {
+                        container.Page(page =>
+                        {
+                            page.Size(PageSizes.A4);
+                            page.Margin(25);
+                            page.PageColor(Colors.White);
+                            page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+
+                            // Header with Pillar Name
+                            page.Header().Element(x =>
+                                CityComposeHeader(x, cityDetails, userRole, p.PillarName));
+
+                            page.Content().Element(content =>
+                            {
+                                content.Column(column =>
+                                {
+                                    column.Spacing(10);
+
+                                    column.Item().Element(x =>
+                                        PillarComposeContent(x, p, userRole));
+                                });
+                            });
+
+                            page.Footer().AlignCenter().Text(x =>
+                            {
+                                x.CurrentPageNumber();
+                                x.Span(" / ");
+                                x.TotalPages();
+                            });
+                        });
+                    }
                 });
+
                 return document.GeneratePdf();
             }
             catch (Exception ex)
@@ -463,25 +523,26 @@ namespace AssessmentPlatform.Services
                 return new byte[] { };
             }
         }
-        void CityComposeHeader(IContainer container, AiCitySummeryDto data, UserRole userRole)
+        void CityComposeHeader(IContainer container, AiCitySummeryDto data, UserRole userRole, string? pillarName)
         {
             container.Column(column =>
             {
-                // Top Bar with Logo/Title
+                // Top Bar
                 column.Item().Background("#12352f").Padding(8).Row(row =>
                 {
                     row.RelativeItem().Column(col =>
                     {
-                        col.Item().Text($"City Analysis Report")
+                        col.Item().Text("City Analysis Report")
                             .FontSize(16)
                             .FontColor(Colors.White);
                     });
 
                     row.ConstantItem(150).AlignRight().Column(col =>
                     {
-                        col.Item().AlignRight().Text($"Generated")
+                        col.Item().AlignRight().Text("Generated")
                             .FontSize(9)
                             .FontColor("#a5a8ad");
+
                         col.Item().AlignRight().Text(DateTime.Now.ToString("MMM dd, yyyy"))
                             .FontSize(10)
                             .Bold()
@@ -489,17 +550,35 @@ namespace AssessmentPlatform.Services
                     });
                 });
 
-                // Pillar Name Header
+                // Main Title Section (Dynamic)
                 column.Item().Background("#336b58").Padding(12).Column(col =>
                 {
-                    col.Item().Text(data.CityName)
-                        .FontSize(22)
-                        .Bold()
-                        .FontColor(Colors.White);
+                    if (!string.IsNullOrEmpty(pillarName))
+                    {
+                        // ✅ Show Pillar Name
+                        col.Item().Text(pillarName)
+                            .FontSize(22)
+                            .Bold()
+                            .FontColor(Colors.White);
 
-                    col.Item().PaddingTop(3).Text($"{data.CityName},{data.State},{data.Country} | Data Year: {data.ScoringYear}")
-                        .FontSize(10)
-                        .FontColor("#E0E0E0");
+                        col.Item().PaddingTop(3)
+                            .Text($"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.ScoringYear}")
+                            .FontSize(10)
+                            .FontColor("#E0E0E0");
+                    }
+                    else
+                    {
+                        // ✅ Show City Name
+                        col.Item().Text(data.CityName)
+                            .FontSize(22)
+                            .Bold()
+                            .FontColor(Colors.White);
+
+                        col.Item().PaddingTop(3)
+                            .Text($"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.ScoringYear}")
+                            .FontSize(10)
+                            .FontColor("#E0E0E0");
+                    }
                 });
             });
         }
@@ -671,7 +750,7 @@ namespace AssessmentPlatform.Services
                     column.Item().PaddingTop(10).Element(c =>
                         DataSourcesSection(c, data.DataSourceCitations.ToList()));
                 }
-
+                //column.Item().PageBreak();
             });
         }
         void PillarScoreCard(IContainer container, string label, string value, string color, bool isBadge)
