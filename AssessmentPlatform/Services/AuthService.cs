@@ -1006,6 +1006,17 @@ namespace AssessmentPlatform.Services
 
                 if(requestDto.Email != user.Email) 
                 {
+                    var email = requestDto.Email.Trim().ToLower();
+
+                    var isDuplicate = await _context.Users
+                        .AnyAsync(x => x.Email.ToLower() == email
+                                    && x.UserID != requestDto.UserID);
+                    if (isDuplicate)
+                    {
+                        return ResultResponseDto<UpdateUserResponseDto>
+                            .Failure(new List<string> { "Email already exists." });
+                    }
+
                     var url = user.Role != UserRole.CityUser ? _appSettings.ApplicationUrl : _appSettings.PublicApplicationUrl;
                     var hash = BCrypt.Net.BCrypt.HashPassword(requestDto.Email);
                     var token = hash.Replace("+", " "); 
