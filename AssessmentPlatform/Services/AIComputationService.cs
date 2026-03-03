@@ -406,21 +406,75 @@ namespace AssessmentPlatform.Services
             }
         }
 
+        private async Task<List<KpiChartItem>> GetAccessKpis(int cityID, int userID, UserRole role, int year = 0)
+        {            
+            var startDate = new DateTime(year, 1, 1);
+            var endDate = new DateTime(year + 1, 1, 1);
+
+            var baseQuery = _context.AnalyticalLayerResults
+                .AsNoTracking()
+                .Include(ar => ar.AnalyticalLayer)
+                    .ThenInclude(al => al.FiveLevelInterpretations)
+                .Include(ar => ar.City)
+                .Where(x => (x.AiLastUpdated >= startDate && x.AiLastUpdated < endDate));
+
+            if (role == UserRole.CityUser)
+            {
+                var validCities = _context.PublicUserCityMappings
+                    .Where(x =>
+                        x.IsActive &&
+                        x.UserID == userID)
+                    .Select(x => x.CityID);
+
+                var validPillarIds = _context.CityUserPillarMappings
+                    .Where(x => x.IsActive && x.UserID == userID)
+                    .Select(x => x.PillarID);
+
+                var validLayerIds = _context.AnalyticalLayerPillarMappings
+                    .Where(x =>
+                        validPillarIds.Contains(x.PillarID))
+                    .Select(x => x.LayerID)
+                    .Distinct();
+
+                baseQuery = baseQuery
+                    .Where(ar =>
+                        validCities.Contains(ar.CityID) &&
+                        validLayerIds.Contains(ar.LayerID));
+            }
+            
+
+           var kpiRaw = baseQuery.Where(x => x.CityID == cityID).Select(x => new
+            {
+                KpiShortName = x.AnalyticalLayer.LayerCode,
+                KpiName = x.AnalyticalLayer.LayerName,
+                Value = x.AiCalValue5
+            });
+
+            var kpis = await kpiRaw
+                    .Select(k => new KpiChartItem(k.KpiShortName, k.KpiName, k.Value))
+                    .ToListAsync();
+
+            return kpis ?? new List<KpiChartItem>();
+        }
         public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, UserRole userRole, int userID)
         {
             try
-            {
-                var pillars = await GetAICityPillars(
-                    cityDetails.CityID,
-                    userID,
-                    userRole,
-                    cityDetails.ScoringYear);
+            {               
+                var pillars = await GetAICityPillars(cityDetails.CityID, userID, userRole, cityDetails.ScoringYear);
+
+                var kpis = await GetAccessKpis(cityDetails.CityID, userID, userRole, cityDetails.ScoringYear);
+                                
+                // ▶ NEW – pillar chart items
+                var pillarChartItems = pillars.Result.Pillars
+                    .Select(p => new KpiChartItem(
+                        p.PillarName?.Length > 20
+                            ? p.PillarName[..20] : p.PillarName ?? "—",
+                        p.PillarName ?? "—",
+                        p.AIProgress))
+                    .ToList();
 
                 var document = Document.Create(container =>
-                {
-                    // =========================
-                    // CITY SUMMARY PAGE
-                    // =========================
+                {                    
                     container.Page(page =>
                     {
                         page.Size(PageSizes.A4);
@@ -451,9 +505,67 @@ namespace AssessmentPlatform.Services
                         });
                     });
 
-                    // =========================
-                    // PILLAR PAGES
-                    // =========================
+                    // ▶ NEW – PAGE 2 : Pillar Overview Chart
+                    if (pillarChartItems.Any())
+                    {
+                        container.Page(page =>
+                        {
+                            page.Size(PageSizes.A4);
+                            page.Margin(25);
+                            page.PageColor(Colors.White);
+                            page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+
+                            page.Header().Element(x =>
+                                CityComposeHeader(x, cityDetails, userRole, "Pillar Overview"));
+
+                            page.Content().Element(content =>
+                                PillarLineChartPage(content, pillarChartItems));
+
+                            page.Footer().AlignCenter().Text(x =>
+                            {
+                                x.CurrentPageNumber(); x.Span(" / "); x.TotalPages();
+                            });
+                        });
+                    }
+                    if (kpis.Any())
+                    {
+                        // Split into groups of 33 so each page has ≤33 KPIs
+                        var kpiGroups = kpis
+                            .Select((k, i) => (k, i))
+                            .GroupBy(x => x.i / 24)
+                            .Select(g => g.Select(x => x.k).ToList())
+                            .ToList();
+
+                        for (int gi = 0; gi < kpiGroups.Count; gi++)
+                        {
+                            var group = kpiGroups[gi];
+                            int pageLabel = gi + 1;
+                            int totalGroups = kpiGroups.Count;
+
+                            container.Page(page =>
+                            {
+                                page.Size(PageSizes.A4);
+                                page.Margin(25);
+                                page.PageColor(Colors.White);
+                                page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+
+                                page.Header().Element(x =>
+                                    CityComposeHeader(x, cityDetails, userRole,
+                                        totalGroups > 1
+                                            ? $"KPI Dashboard  ({pageLabel}/{totalGroups})"
+                                            : "KPI Dashboard"));
+
+                                page.Content().Element(content =>
+                                    KpiDashboardPage(content, group));
+
+                                page.Footer().AlignCenter().Text(x =>
+                                {
+                                    x.CurrentPageNumber(); x.Span(" / "); x.TotalPages();
+                                });
+                            });
+                        }
+                    }
+
                     foreach (var p in pillars.Result.Pillars)
                     {
                         container.Page(page =>
@@ -496,6 +608,254 @@ namespace AssessmentPlatform.Services
                 return new byte[] { };
             }
         }
+        void KpiDashboardPage(IContainer container, List<KpiChartItem> kpis)
+        {
+            container.PaddingTop(6).Column(col =>
+            {
+                // ── Legend / intro strip ────────────────────────
+                col.Item().Background("#12352f").Padding(10).Row(row =>
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text($"{kpis.Count} KPI Indicators")
+                            .FontSize(14).Bold().FontColor(Colors.White);
+                        c.Item().Text("Score represents AI-calculated performance value (0–100)")
+                            .FontSize(8).FontColor("#a5c9bc");
+                    });
+
+                    // mini colour legend
+                    row.ConstantItem(200).AlignMiddle().Column(c =>
+                    {
+                        c.Item().Row(r =>
+                        {
+                            KpiLegendDot(r, "#58a389", "High  ≥ 70");
+                            KpiLegendDot(r, "#c4a230", "Mid   40–69");
+                            KpiLegendDot(r, "#c45c3a", "Low   < 40");
+                        });
+                    });
+                });
+
+                col.Item().PaddingTop(10).Column(grid =>
+                {
+                    // Pair rows: 3 KPI cards per row
+                    var rows = kpis
+                        .Select((k, i) => (k, i))
+                        .GroupBy(x => x.i / 3)
+                        .Select(g => g.Select(x => x.k).ToList());
+
+                    foreach (var rowItems in rows)
+                    {
+                        grid.Item().PaddingBottom(6).Row(row =>
+                        {
+                            foreach (var kpi in rowItems)
+                            {
+                                row.RelativeItem().PaddingRight(6)
+                                    .Element(c => KpiMiniCard(c, kpi));
+                            }
+                            // fill empty cells so columns stay aligned
+                            for (int i = rowItems.Count; i < 3; i++)
+                                row.RelativeItem().PaddingRight(6).Text("");
+                        });
+                    }
+                });
+            });
+        }
+        void KpiMiniCard(IContainer container, KpiChartItem kpi)
+        {
+            var value = (float)(kpi.Value ?? 0);
+            var barColor = GetKpiBarColor(kpi.Value ?? 0);
+            var labelColor = GetKpiLabelColor(kpi.Value ?? 0);
+            var name = kpi.Name?.Length > 42 ? kpi.Name[..42] + "…" : kpi.Name ?? "—";
+
+            container
+                .Background(Colors.White)
+                .Border(1)
+                .BorderColor("#E8EDE9")
+                .CornerRadius(3)
+                .Padding(9)
+                .Column(col =>
+                {
+                    // Short code badge + value
+                    col.Item().Row(row =>
+                    {
+                        row.AutoItem()
+                            .Background("#12352f")
+                            .CornerRadius(2)
+                            .Padding(3)
+                            .Text(kpi.ShortName ?? "KPI")
+                            .FontSize(7).Bold().FontColor(Colors.White);
+
+                        row.RelativeItem();
+
+                        row.AutoItem()
+                            .Text($"{value:F1}%")
+                            .FontSize(11).Bold()
+                            .FontColor(labelColor);
+                    });
+
+                    // KPI full name
+                    col.Item().PaddingTop(4)
+                        .Text(name)
+                        .FontSize(8)
+                        .FontColor("#424242")
+                        .LineHeight(1.3f);
+
+                    // Progress bar
+                    col.Item().PaddingTop(6).Height(8).Background("#F0F4F1").Row(barRow =>
+                    {
+                        if (value > 0)
+                        {
+                            barRow.RelativeItem(value).Background(barColor);
+                            barRow.RelativeItem(Math.Max(0.01f, 100 - (value >= 100 ? 99.9f : value)));
+                        }
+                        else
+                        {
+                            barRow.RelativeItem().Background("#F0F4F1");
+                        }
+                    });
+                });
+        }
+        static void KpiLegendDot(RowDescriptor row, string color, string label)
+        {
+            row.AutoItem().Width(10).Height(10)
+                .Background(color).CornerRadius(5);
+            row.AutoItem().PaddingLeft(3).PaddingRight(10)
+                .Text(label).FontSize(7).FontColor(Colors.White);
+        }
+
+        void PillarLineChartPage(IContainer container, List<KpiChartItem> pillars)
+        {
+            var data = pillars
+                .Where(p => p.Value.HasValue)
+                .Take(14)
+                .ToList();
+
+            if (!data.Any())
+                return;
+
+            var avg = data.Average(x => x.Value ?? 0);
+            var best = data.OrderByDescending(x => x.Value).First();
+            var worst = data.OrderBy(x => x.Value).First();
+
+            container.Padding(20).Column(col =>
+            {
+                col.Spacing(10);
+
+                // TITLE
+                col.Item().Text("Pillar Performance Overview")
+                    .FontSize(16)
+                    .Bold()
+                    .FontColor("#163329");
+
+                // CHART
+                col.Item().Height(450).Border(1).BorderColor("#E5ECE9").Padding(20)
+                .Column(chart =>
+                {
+                    chart.Spacing(4);
+
+                    foreach (var item in data)
+                    {
+                        var value = (float)(item.Value ?? 0);
+                        var color = GetBarColor(value);
+
+                        chart.Item().Row(row =>
+                        {
+                            // Pillar Name
+                            row.ConstantItem(140)
+                                .AlignMiddle()
+                                .Text(Shorten(item.Name, 18))
+                                .FontSize(9);
+
+                            // Bar Area
+                            row.RelativeItem().Height(18).Background("#F3F6F5")
+                            .Row(bar =>
+                            {
+                                bar.RelativeItem(value)
+                                    .Background(color);
+
+                                bar.RelativeItem(Math.Max(0.01f, 100 - value));
+                            });
+
+                            // Value Text
+                            row.ConstantItem(40)
+                                .AlignMiddle()
+                                .AlignRight()
+                                .Text($"{value:F0}%")
+                                .FontSize(9)
+                                .Bold();
+                        });
+                    }
+                });
+
+                // AVERAGE SCORE
+                col.Item().AlignCenter().Text($"Average Score: {avg:F1}%")
+                    .FontSize(14)
+                    .Bold()
+                    .FontColor(GetBarColor((float)avg));
+
+                // SUMMARY BOXES
+                col.Item().PaddingTop(1).Row(summary =>
+                {
+                    summary.RelativeItem().Background("#E8F5E9").Padding(15).Column(box =>
+                    {
+                        box.Item().Text("Best Performing Pillar")
+                            .FontSize(10).Bold();
+
+                        box.Item().Text(Shorten(best.Name, 30))
+                            .FontSize(9);
+
+                        box.Item().Text($"{best.Value:F1}%")
+                            .FontSize(12)
+                            .Bold()
+                            .FontColor("#2E7D32");
+                    });
+
+                    summary.ConstantItem(20);
+
+                    summary.RelativeItem().Background("#FDECEA").Padding(15).Column(box =>
+                    {
+                        box.Item().Text("Lowest Performing Pillar")
+                            .FontSize(10).Bold();
+
+                        box.Item().Text(Shorten(worst.Name, 30))
+                            .FontSize(9);
+
+                        box.Item().Text($"{worst.Value:F1}%")
+                            .FontSize(12)
+                            .Bold()
+                            .FontColor("#C62828");
+                    });
+                });
+            });
+        }
+        static string Shorten(string text, int max)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return "";
+
+            return text.Length <= max ? text : text.Substring(0, max) + "...";
+        }
+
+        static string GetBarColor(float value)
+        {
+            if (value >= 80) return "#2E7D32";   // green
+            if (value >= 60) return "#F9A825";   // amber
+            return "#C62828";                    // red
+        }
+        static string GetKpiBarColor(decimal value) => value switch
+        {
+            >= 70 => "#58a389",   // green  — performing
+            >= 40 => "#c4a230",   // amber  — developing
+            _ => "#c45c3a"    // red    — needs improvement
+        };
+
+        static string GetKpiLabelColor(decimal value) => value switch
+        {
+            >= 70 => "#2c6b52",
+            >= 40 => "#8a6e1e",
+            _ => "#8a3c26"
+        };
+
         public async Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse pillarData, UserRole userRole)
         {
             try
@@ -586,31 +946,6 @@ namespace AssessmentPlatform.Services
         {
             container.PaddingTop(4).Column(column =>
             {
-                if(userRole != UserRole.CityUser)
-                {
-                    column.Item().Row(row =>
-                    {
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Confidence",
-                            data.ConfidenceLevel, GetConfidenceBadgeColor(data.ConfidenceLevel), true));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Score",
-                            data.AIProgress != null ? $"{data.AIProgress}%" : "N/A", "#6b732f", false));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "Evaluator Score",
-                            data.EvaluatorProgress != null ? $"{data.EvaluatorProgress}%" : "N/A", "#232420", false));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "Discrepancy",
-                            $"{data.Discrepancy:F1}%", GetDiscrepancyColor(data.Discrepancy ?? 0), false));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "Average Score",
-                            $"{((data.AIProgress + data.EvaluatorProgress) ?? 0) / 2:F0}%", "#4a4d4f", false));
-                    });
-                }
-
 
                 // Progress Bars
                 var random = new AiCityPillarReponse
@@ -620,7 +955,7 @@ namespace AssessmentPlatform.Services
                     AIDataYear = data.ScoringYear,
                     AIProgress = data.AIProgress
                 };
-                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, random,userRole));
+                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, random, userRole));
 
                 // Evidence Summary Section
                 column.Item().PaddingTop(10).Element(c =>
@@ -694,32 +1029,7 @@ namespace AssessmentPlatform.Services
         {
             container.PaddingTop(8).Column(column =>
             {
-                // Score Cards Row
-                if(userRole != UserRole.CityUser)
-                {
-                    column.Item().Row(row =>
-                    {
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Confidence",
-                            data.ConfidenceLevel, GetConfidenceBadgeColor(data.ConfidenceLevel), true));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "AI Score",
-                            data.AIProgress != null ? $"{data.AIProgress}%" : "N/A", "#6b732f", false));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "Evaluator Score",
-                            data.EvaluatorProgress != null ? $"{data.EvaluatorProgress}%" : "N/A", "#232420", false));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "Discrepancy",
-                            $"{data.Discrepancy:F1}%", GetDiscrepancyColor(data.Discrepancy ?? 0), false));
-                        row.Spacing(10);
-
-                        row.RelativeItem().Element(c => PillarScoreCard(c, "Average Score",
-                            $"{((data.AIProgress + data.EvaluatorProgress) ?? 0) / 2:F0}%", "#4a4d4f", false));
-                    });
-                }
-
+                
                 // Progress Bars
                 column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, data, userRole));
 
@@ -753,39 +1063,6 @@ namespace AssessmentPlatform.Services
                 //column.Item().PageBreak();
             });
         }
-        void PillarScoreCard(IContainer container, string label, string value, string color, bool isBadge)
-        {
-            container.Background(Colors.White)
-                .Border(1)
-                .BorderColor("#E0E0E0")
-                .Padding(10)
-                .Column(column =>
-                {
-                    column.Item().Text(label)
-                        .FontSize(10)
-                        .FontColor("#757575")
-                        .Bold();
-
-                    if (isBadge)
-                    {
-                        column.Item().PaddingTop(8).Background(color)
-                            .CornerRadius(12)
-                            .Padding(6)
-                            .AlignCenter()
-                            .Text(value)
-                            .FontSize(13)
-                            .Bold()
-                            .FontColor(Colors.Black);
-                    }
-                    else
-                    {
-                        column.Item().PaddingTop(8).Text(value)
-                            .FontSize(16)
-                            .Bold()
-                            .FontColor(color);
-                    }
-                });
-        }
         void PillarProgressSection(IContainer container, AiCityPillarReponse data, UserRole userRole)
         {
             container.Background(Colors.White)
@@ -799,26 +1076,11 @@ namespace AssessmentPlatform.Services
                         .Bold()
                         .FontColor("#203d33");
 
-                    if(userRole == UserRole.CityUser)
+                    column.Item().PaddingTop(12).Column(col =>
                     {
-                        column.Item().PaddingTop(12).Column(col =>
-                        {
-                            PillarProgressBar(col, "Score", data.AIProgress, "#58a389");
-                            col.Item().PaddingTop(10);
-                        });
-                    }
-                    else
-                    {
-                        column.Item().PaddingTop(12).Column(col =>
-                        {
-                            PillarProgressBar(col, "AI Progress", data.AIProgress, "#6b732f");
-                            col.Item().PaddingTop(10);
-                            PillarProgressBar(col, "Evaluator Progress", data.EvaluatorProgress, "#2b4039");
-                            col.Item().PaddingTop(10);
-                            PillarProgressBar(col, "Discrepancy", data.Discrepancy, "#73675c");
-                        });
-                    }
-
+                        PillarProgressBar(col, "Score", data.AIProgress, "#58a389");
+                        col.Item().PaddingTop(10);
+                    });
                 });
         }
         void PillarProgressBar(ColumnDescriptor column, string label, decimal? percentage, string color)
@@ -965,26 +1227,12 @@ namespace AssessmentPlatform.Services
 
                     });
 
-
-                    col.Item().PaddingTop(5).AlignCenter().Text("AI Power City Assessment Platform")
+                    col.Item().PaddingTop(5).AlignCenter().Text("City Assessment Platform")
                         .FontSize(8)
                         .FontColor("#9E9E9E");
                 });
             });
         }
-        static string GetConfidenceBadgeColor(string confidence) => confidence?.ToLower() switch
-        {
-            "high" => "#44826c",
-            "medium" => "#FFC107",
-            "low" => "#F44336",
-            _ => "#9E9E9E"
-        };
-        static string GetDiscrepancyColor(decimal discrepancy) => discrepancy switch
-        {
-            < 10 => "#4a754c",
-            < 25 => "#FFC107",
-            _ => "#F44336"
-        };
         static string GetSourceTypeBadgeColor(string sourceType) => sourceType?.ToLower() switch
         {
             "government" => "#133328",
@@ -1320,4 +1568,7 @@ namespace AssessmentPlatform.Services
 
         #endregion
     }
+
+    public record KpiChartItem(string ShortName, string Name, decimal? Value);
+
 }
