@@ -1485,45 +1485,76 @@ namespace AssessmentPlatform.Services
         // ═══════════════════════════════════════════════════════════════════════════════
 
         // ─────────────────────────────────────────────────────────────────────────────
-        //  KPI DASHBOARD PAGE  ·  coloured bar chart layout
+        //  KPI DASHBOARD PAGE  ·  numbered bar chart + full-name reference tables
         // ─────────────────────────────────────────────────────────────────────────────
 
         void KpiDashboardPage(IContainer container, List<KpiChartItem> kpis)
         {
-            var data = kpis.Where(x => x.Value.HasValue).Take(107).ToList();
-            if (!data.Any()) return;
+            // accept 90–107 KPIs; sort high→low so chart looks intentional
+            var data = kpis
+                .Where(x => x.Value.HasValue)
+                .Take(107)
+                .OrderByDescending(x => x.Value)
+                .ToList();
 
-            // sort high→low so it looks intentional, not random
-            data = data.OrderByDescending(x => x.Value).ToList();
+            if (!data.Any()) return;
 
             int total = data.Count;
             int green = data.Count(x => x.Value >= 70);
-            int amber = data.Count(x => x.Value >= 40 && x.Value < 70);
+            int amber = data.Count(x => x.Value is >= 40 and < 70);
             int red = data.Count(x => x.Value < 40);
             float avg = (float)data.Average(x => x.Value ?? 0);
 
-            // groups of 20 per chart row
+            // 18 bars per chart row — compact but legible
             var groups = data
                 .Select((k, i) => new { k, i })
                 .GroupBy(x => x.i / 18)
                 .Select(g => g.Select(x => x.k).ToList())
                 .ToList();
 
-            container.Padding(16).Column(col =>
+            container.Padding(14).Column(col =>
             {
-                col.Spacing(8);
+                col.Spacing(12);
 
-                // ── summary band ──────────────────────────────────────────────────
+                // ── top summary strip ─────────────────────────────────────────────
                 col.Item().Height(70).Element(x =>
                     DrawKpiSummaryBand(x, total, green, amber, red, avg));
 
-                // ── bar-chart groups ──────────────────────────────────────────────
+                // ── chart + reference-table sections ─────────────────────────────
+                int offset = 0;
                 foreach (var group in groups.Where(g => g.Any()))
-                    col.Item().Height(148).Element(x => DrawKpiBarChart(x, group));
+                {
+                    int localOffset = offset;          // capture for lambda
+                    col.Item().Element(x => DrawKpiGroupSection(x, group, localOffset));
+                    offset += group.Count;
+                }
             });
         }
 
-        // ── KPI summary band (stat cards row) ───────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────────
+        //  GROUP SECTION  ·  bar chart on top, two-column legend table below
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        void DrawKpiGroupSection(IContainer container, List<KpiChartItem> group, int offset)
+        {
+            container
+                .Border(1).BorderColor("#C5D9D0")
+                .Column(col =>
+                {
+                    // bar chart — numbers printed below each bar
+                    col.Item().Height(148).Element(x => DrawKpiBarChart(x, group, offset));
+
+                    // hairline separator between chart and table
+                    col.Item().Height(1).Background("#C5D9D0");
+
+                    // two-column reference table
+                    col.Item().Padding(6).Element(x => DrawKpiReferenceTable(x, group, offset));
+                });
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        //  SUMMARY BAND  ·  five stat cards in a dark-green strip
+        // ─────────────────────────────────────────────────────────────────────────────
 
         static void DrawKpiSummaryBand(
             IContainer container,
@@ -1534,21 +1565,16 @@ namespace AssessmentPlatform.Services
                 .Padding(10)
                 .Row(row =>
                 {
-                    KpiStatPill(row.RelativeItem(), total.ToString(),
-                        "Total KPIs", "#4CAF50", "#4CAF5025");
+                    KpiStatPill(row.RelativeItem(), total.ToString(), "Total KPIs", "#4CAF50", "#4CAF5025");
                     row.ConstantItem(6);
-                    KpiStatPill(row.RelativeItem(), green.ToString(),
-                        "Performing ≥70 %", "#4CAF50", "#4CAF5025");
+                    KpiStatPill(row.RelativeItem(), green.ToString(), "Performing ≥ 70 %", "#4CAF50", "#4CAF5025");
                     row.ConstantItem(6);
-                    KpiStatPill(row.RelativeItem(), amber.ToString(),
-                        "Developing 40–69 %", "#FFC107", "#FFC10725");
+                    KpiStatPill(row.RelativeItem(), amber.ToString(), "Developing 40–69 %", "#FFC107", "#FFC10725");
                     row.ConstantItem(6);
-                    KpiStatPill(row.RelativeItem(), red.ToString(),
-                        "Needs Improvement", "#EF5350", "#EF535025");
+                    KpiStatPill(row.RelativeItem(), red.ToString(), "Needs Improvement", "#EF5350", "#EF535025");
                     row.ConstantItem(6);
-                    KpiStatPill(row.RelativeItem(), $"{avg:F1}%",
-                        "Average Score", GetBarColor(avg) == "#2E7D32" ? "#4CAF50"
-                                       : GetBarColor(avg) == "#F9A825" ? "#FFC107" : "#EF5350",
+                    KpiStatPill(row.RelativeItem(), $"{avg:F1}%", "Average Score",
+                        avg >= 70 ? "#4CAF50" : avg >= 40 ? "#FFC107" : "#EF5350",
                         "#4CAF5025");
                 });
         }
@@ -1568,31 +1594,31 @@ namespace AssessmentPlatform.Services
                 });
         }
 
-        // ── KPI bar chart (one group of ≤20 KPIs) ───────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────────
+        //  BAR CHART  ·  sequential index numbers below each bar (not cryptic codes)
+        // ─────────────────────────────────────────────────────────────────────────────
 
-        void DrawKpiBarChart(IContainer container, List<KpiChartItem> data)
+        void DrawKpiBarChart(IContainer container, List<KpiChartItem> data, int offset)
         {
             container
                 .Background(Colors.White)
-                .Border(1).BorderColor("#DDE8E3")
                 .Canvas((canvas, size) =>
                 {
                     if (!data.Any()) return;
 
                     const float lp = 8f;   // left pad
                     const float rp = 8f;   // right pad
-                    const float tp = 22f;  // top pad (room for value label)
-                    const float bp = 26f;  // bottom pad (room for KPI code label)
+                    const float tp = 22f;  // top pad  (value labels)
+                    const float bp = 26f;  // bottom pad (index labels)
 
                     float chartW = size.Width - lp - rp;
                     float chartH = size.Height - tp - bp;
-
                     int n = data.Count;
                     float barW = chartW / n;
                     float innerW = barW * 0.62f;
                     float barGap = (barW - innerW) / 2f;
 
-                    // ── background grid ──────────────────────────────────────────
+                    // ── background grid lines ─────────────────────────────────────
                     using var gridPaint = new SKPaint
                     {
                         Color = SKColor.Parse("#F2F7F4"),
@@ -1614,7 +1640,7 @@ namespace AssessmentPlatform.Services
                         canvas.DrawText($"{(int)pct}", lp + 2, gy - 2, gridLblPaint);
                     }
 
-                    // dashed 70 % threshold
+                    // ── dashed 70 % performance threshold ────────────────────────
                     float y70 = tp + chartH - 0.70f * chartH;
                     using var threshPaint = new SKPaint
                     {
@@ -1625,57 +1651,47 @@ namespace AssessmentPlatform.Services
                     };
                     canvas.DrawLine(lp, y70, lp + chartW, y70, threshPaint);
 
-                    // ── bars ─────────────────────────────────────────────────────
+                    // ── paint reused across bars ──────────────────────────────────
                     using var valLblPaint = new SKPaint
+                    { TextSize = 6.5f, IsAntialias = true, TextAlign = SKTextAlign.Center };
+                    using var numLblPaint = new SKPaint
                     {
-                        Color = SKColor.Parse("#37474F"),
-                        TextSize = 6.5f,
-                        IsAntialias = true,
-                        TextAlign = SKTextAlign.Center
-                    };
-                    using var codeLblPaint = new SKPaint
-                    {
+                        Color = SKColor.Parse("#546E7A"),
                         TextSize = 6.5f,
                         IsAntialias = true,
                         TextAlign = SKTextAlign.Center
                     };
 
+                    // ── bars ──────────────────────────────────────────────────────
                     for (int i = 0; i < n; i++)
                     {
                         float v = (float)(data[i].Value ?? 0);
                         float bx = lp + i * barW + barGap;
                         float bh = v / 100f * chartH;
                         float by = tp + chartH - bh;
+                        SKColor color = GetColor(v);
 
-                        SKColor barColor = GetColor(v);
-                        SKColor barLight = barColor.WithAlpha(35);
-
-                        // bar background (ghost)
+                        // ghost (full-height tinted background)
                         using var ghostPaint = new SKPaint
-                        {
-                            Color = barLight,
-                            IsAntialias = true
-                        };
+                        { Color = color.WithAlpha(35), IsAntialias = true };
                         canvas.DrawRoundRect(
                             new SKRoundRect(new SKRect(bx, tp, bx + innerW, tp + chartH), 2, 2),
                             ghostPaint);
 
-                        // filled bar with vertical gradient
-                        var barRect = new SKRect(bx, by, bx + innerW, tp + chartH);
+                        // filled bar with linear gradient
                         using var shader = SKShader.CreateLinearGradient(
-                            new SKPoint(0, by),
-                            new SKPoint(0, tp + chartH),
-                            new[] { barColor, barColor.WithAlpha(180) },
-                            null,
-                            SKShaderTileMode.Clamp);
+                            new SKPoint(0, by), new SKPoint(0, tp + chartH),
+                            new[] { color, color.WithAlpha(180) },
+                            null, SKShaderTileMode.Clamp);
                         using var barPaint = new SKPaint { Shader = shader, IsAntialias = true };
                         canvas.DrawRoundRect(
-                            new SKRoundRect(barRect, 2, 2), barPaint);
+                            new SKRoundRect(new SKRect(bx, by, bx + innerW, tp + chartH), 2, 2),
+                            barPaint);
 
                         // top cap accent line
                         using var capPaint = new SKPaint
                         {
-                            Color = barColor,
+                            Color = color,
                             StrokeWidth = 2.5f,
                             StrokeCap = SKStrokeCap.Round,
                             IsAntialias = true
@@ -1683,22 +1699,121 @@ namespace AssessmentPlatform.Services
                         canvas.DrawLine(bx + 1, by, bx + innerW - 1, by, capPaint);
 
                         // value label above bar
-                        float valueLabelY = by - 3f;
-                        if (valueLabelY < tp + 8) valueLabelY = by + 10f;
-                        valLblPaint.Color = barColor;
-                        canvas.DrawText($"{v:F0}", bx + innerW / 2f, valueLabelY, valLblPaint);
+                        float vly = by - 3f;
+                        if (vly < tp + 8f) vly = by + 10f;
+                        valLblPaint.Color = color;
+                        canvas.DrawText($"{v:F1}%", bx + innerW / 2f, vly, valLblPaint);
 
-                        // code label below chart
-                        codeLblPaint.Color = SKColor.Parse("#546E7A");
+                        // ── sequential index number below bar (e.g. "1", "2", …) ──
+                        // Users cross-reference this with the legend table below.
                         canvas.DrawText(
-                            Shorten(data[i].ShortName ?? "", 5),
+                            $"{offset + i + 1}",
                             bx + innerW / 2f,
                             size.Height - 6f,
-                            codeLblPaint);
+                            numLblPaint);
                     }
                 });
         }
 
+        // ─────────────────────────────────────────────────────────────────────────────
+        //  REFERENCE TABLE  ·  two-column layout, colored status bar, full KPI names
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        void DrawKpiReferenceTable(IContainer container, List<KpiChartItem> group, int offset)
+        {
+            // split into two equal columns to keep the table compact
+            int half = (int)Math.Ceiling(group.Count / 2.0);
+            var left = group.Take(half).ToList();
+            var right = group.Skip(half).ToList();
+
+            container.Row(row =>
+            {
+                row.RelativeItem().Element(x => DrawLegendHalf(x, left, offset));
+                row.ConstantItem(5);
+                row.RelativeItem().Element(x => DrawLegendHalf(x, right, offset + half));
+            });
+        }
+
+        // ── one half of the two-column reference table ────────────────────────────────
+
+        void DrawLegendHalf(IContainer container, List<KpiChartItem> items, int offset)
+        {
+            if (!items.Any())
+            {
+                container.Element(_ => { });
+                return;
+            }
+
+            container.Table(table =>
+            {
+                // columns:  status-bar | # | Code | Full Name | Score
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.ConstantColumn(3);   // coloured status accent bar
+                    cols.ConstantColumn(18);  // sequential #
+                    cols.ConstantColumn(28);  // short code
+                    cols.RelativeColumn();    // full KPI name
+                    cols.ConstantColumn(30);  // score value
+                });
+
+                // ── header ────────────────────────────────────────────────────────
+                table.Header(h =>
+                {
+                    // accent column — no header text, just background
+                    h.Cell().ColumnSpan(1).Background("#1B4332").Element(_ => { });
+
+                    void Hdr(IContainer c, string txt) =>
+                        c.Background("#1B4332")
+                         .PaddingVertical(4).PaddingHorizontal(4)
+                         .Text(txt).FontSize(6f).Bold().FontColor("#FFFFFF");
+
+                    Hdr(h.Cell(), "#");
+                    Hdr(h.Cell(), "Code");
+                    Hdr(h.Cell(), "KPI Name");
+                    Hdr(h.Cell(), "Score");
+                });
+
+                // ── data rows ─────────────────────────────────────────────────────
+                for (int i = 0; i < items.Count; i++)
+                {
+                    var kpi = items[i];
+                    float v = (float)(kpi.Value ?? 0);
+                    string colorHex = GetBarColor(v);           // "#2E7D32" | "#F9A825" | "#C62828"
+                    string rowBg = i % 2 == 0 ? "#FFFFFF" : "#EDF7F2";
+                    int num = offset + i + 1;
+
+                    // col 1 — narrow coloured bar showing status at a glance
+                    table.Cell()
+                         .Background(colorHex)
+                         .Element(_ => { });
+
+                    // col 2 — sequential number (matches chart bar)
+                    table.Cell()
+                         .Background(rowBg)
+                         .PaddingVertical(4).PaddingHorizontal(3)
+                         .Text($"{num}").FontSize(6.5f).FontColor("#90A4AE");
+
+                    // col 3 — short code (bold, muted dark)
+                    table.Cell()
+                         .Background(rowBg)
+                         .PaddingVertical(4).PaddingHorizontal(3)
+                         .Text(kpi.ShortName ?? "").FontSize(6.5f).Bold().FontColor("#455A64");
+
+                    // col 4 — full KPI name (primary readable text)
+                    table.Cell()
+                         .Background(rowBg)
+                         .PaddingVertical(4).PaddingHorizontal(3)
+                         .Text(kpi.Name ?? "").FontSize(7f).FontColor("#1C3A32");
+
+                    // col 5 — score, coloured to match status
+                    table.Cell()
+                         .Background(rowBg)
+                         .PaddingVertical(4).PaddingHorizontal(4)
+                         .AlignRight()
+                         .Text($"{v:F1}%").FontSize(6.5f).Bold().FontColor(colorHex);
+                }
+            });
+        }
         // ─────────────────────────────────────────────────────────────────────────────
         //  PILLAR OVERVIEW PAGE  ·  redesigned horizontal bar layout + ring chart
         // ─────────────────────────────────────────────────────────────────────────────
@@ -2127,7 +2242,7 @@ namespace AssessmentPlatform.Services
                 column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, data, userRole));
 
                 column.Item().PaddingTop(10).Element(c =>
-                    PillarContentSection(c, "Executive Summary", data.EvidenceSummary, "#163329"));
+                    PillarContentSection(c, "Evidence Summary", data.EvidenceSummary, "#163329"));
 
                 column.Item().PageBreak();
                 column.Item().PaddingTop(10).Element(c =>
@@ -2139,7 +2254,7 @@ namespace AssessmentPlatform.Services
                 column.Item().PaddingTop(10).Element(c =>
                     PillarContentSection(c, "Institutional Assessment", data.InstitutionalAssessment, "#2e9975"));
                 column.Item().PaddingTop(10).Element(c =>
-                    PillarContentSection(c, "Data Gap Analysis", data.DataGapAnalysis, "#a4bab2"));
+                    PillarContentSection(c, "Analytical Foundations and Data Integration", data.DataGapAnalysis, "#a4bab2"));
 
                 if (data.DataSourceCitations?.Any() == true)
                 {
@@ -2286,21 +2401,7 @@ namespace AssessmentPlatform.Services
             if (value >= 60) return "#F9A825";
             return "#C62828";
         }
-
-        static string GetKpiBarColor(decimal value) => value switch
-        {
-            >= 70 => "#58a389",
-            >= 40 => "#c4a230",
-            _ => "#c45c3a"
-        };
-
-        static string GetKpiLabelColor(decimal value) => value switch
-        {
-            >= 70 => "#2c6b52",
-            >= 40 => "#8a6e1e",
-            _ => "#8a3c26"
-        };
-
+               
         static string GetSourceTypeBadgeColor(string sourceType) => sourceType?.ToLower() switch
         {
             "government" => "#133328",
@@ -2326,7 +2427,6 @@ namespace AssessmentPlatform.Services
 
 
     }
-
     public record KpiChartItem(string ShortName, string Name, decimal? Value);
 
 }
