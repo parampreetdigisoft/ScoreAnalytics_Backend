@@ -2097,7 +2097,7 @@ namespace AssessmentPlatform.Services
                 column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, random, userRole));
 
                 column.Item().PaddingTop(10).Element(c =>
-                    PillarContentSection(c, "Evidence Summary", data.EvidenceSummary, "#163329"));
+                    PillarContentSection(c, "Executive Summary", data.EvidenceSummary, "#163329"));
 
                 column.Item().PageBreak();
                 column.Item().PaddingTop(10).Element(c =>
@@ -2127,7 +2127,7 @@ namespace AssessmentPlatform.Services
                 column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, data, userRole));
 
                 column.Item().PaddingTop(10).Element(c =>
-                    PillarContentSection(c, "Evidence Summary", data.EvidenceSummary, "#163329"));
+                    PillarContentSection(c, "Executive Summary", data.EvidenceSummary, "#163329"));
 
                 column.Item().PageBreak();
                 column.Item().PaddingTop(10).Element(c =>
