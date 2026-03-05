@@ -847,7 +847,8 @@ namespace AssessmentPlatform.Services
                     }
 
                     // ── Section 4+ : Per-Pillar Detail ──────────────────────────────
-                    foreach (var p in pillars.Result.Pillars)
+                    var accessiblePillars = pillars.Result.Pillars.Where(p => p.IsAccess).ToList();
+                    foreach (var p in accessiblePillars)
                     {
                         container.Page(page =>
                         {
