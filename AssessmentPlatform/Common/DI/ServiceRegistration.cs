@@ -36,6 +36,7 @@ namespace AssessmentPlatform.Common.DI
             services.AddScoped<IAIComputationService, AIComputationService>();
             services.AddScoped<ICommonService, CommonService>();
             services.AddScoped<IBlogService, BlogService>();
+            services.AddScoped<IPdfGeneratorService, PdfGeneratorService>();
             return services;
         }
     }

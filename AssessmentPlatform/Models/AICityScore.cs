@@ -18,7 +18,7 @@
         public string EquityAssessment { get; set; }
         public string SustainabilityOutlook { get; set; }
         public string StrategicRecommendations { get; set; }
-        public string DataTransparencyNote { get; set; }
+        public string DataTransparencyNote { get; set; }//WHY THIS ASSESSMENT MATTERS
         public DateTime? UpdatedAt { get; set; }
         public City? City { get; set; }
         public bool IsVerified { get; set; }

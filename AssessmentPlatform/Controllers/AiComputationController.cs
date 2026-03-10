@@ -139,6 +139,50 @@ namespace AssessmentPlatform.Controllers
                 });
             }
         }
+
+        [HttpGet("aiAllCityDetailsReport")]
+        public async Task<IActionResult> DownloadAllCityPdf()
+        {
+            try
+            {
+                var userId = GetUserIdFromClaims();
+                if (userId == null)
+                    return Unauthorized("User ID not found in token.");
+
+                var role = GetRoleFromClaims();
+                if (role == null)
+                    return Unauthorized("You Don't have access.");
+
+                if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+                {
+                    return Unauthorized("You Don't have access.");
+                }
+                var year = DateTime.Now.Year;
+                var cityDetails = await _aIComputationService.GetAllCityAiSummeryDetail(userId ?? 0, userRole, year);
+
+                if(cityDetails.Count > 0)
+                {
+                    // Generate PDF
+                    var pdfBytes = await _aIComputationService.GenerateAllCityDetailsPdf(cityDetails, userRole, userId.GetValueOrDefault(), year);
+
+                    // Return PDF with proper headers
+                    var fileName = $"All_Details_{DateTime.Now:yyyyMMdd}.pdf";
+
+                    return File(pdfBytes, "application/pdf", fileName);
+                }
+                return NotFound("No City Found.");
+
+            }
+            catch (Exception ex)
+            {
+                // Log error
+                return StatusCode(500, new
+                {
+                    message = "Error generating PDF",
+                    error = ex.Message
+                });
+            }
+        }
         [HttpGet("aiPillarDetailsReport")]
         public async Task<IActionResult> DownloadPillarPdf([FromQuery] AiCitySummeryRequestPdfDto request)
         {
