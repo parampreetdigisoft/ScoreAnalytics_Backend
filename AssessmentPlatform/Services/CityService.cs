@@ -87,8 +87,13 @@ namespace AssessmentPlatform.Services
                     existing.Country = q.Country;
                     existing.Latitude = q.Latitude;
                     existing.Longitude = q.Longitude;
+                    existing.Population = q.Population;
+                    existing.Income = q.Income;
+
                     _context.Cities.Update(existing);
                     await _context.SaveChangesAsync();
+
+                    await UpdatePeerCities(existing.CityID, q.PeerCities ?? new List<int>());
 
                     return ResultResponseDto<string>.Success("", new string[] { "City edited Successfully" });
                 }
@@ -105,13 +110,63 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
             }
         }
+        public async Task UpdatePeerCities(int cityId, List<int> peerCityIds)
+        {
+            if (peerCityIds == null)
+                peerCityIds = new List<int>();
+
+            // Remove self and duplicates
+            peerCityIds = peerCityIds
+                .Where(x => x != cityId)
+                .Distinct()
+                .ToList();
+
+            var existingPeers = await _context.CityPeers
+                .Where(x => x.CityID == cityId && !x.IsDeleted)
+                .ToListAsync();
+
+            var existingPeerIds = existingPeers
+                .Select(x => x.PeerCityID)
+                .ToList();
+
+            // Soft delete removed peers
+            var removePeers = existingPeers
+                .Where(x => !peerCityIds.Contains(x.PeerCityID))
+                .ToList();
+
+            foreach (var peer in removePeers)
+            {
+                peer.IsDeleted = true;
+                peer.IsActive = false;
+                peer.UpdatedDate = DateTime.UtcNow;
+            }
+
+            // Add new peers
+            var newPeers = peerCityIds
+                .Where(x => !existingPeerIds.Contains(x))
+                .ToList();
+
+            foreach (var peerId in newPeers)
+            {
+                await _context.CityPeers.AddAsync(new CityPeer
+                {
+                    CityID = cityId,
+                    PeerCityID = peerId,
+                    IsActive = true,
+                    UpdatedDate = DateTime.UtcNow
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
         public async Task<ResultResponseDto<string>> AddBulkCityAsync(BulkAddCityDto request, string image="")
         {
             try
             {
                 // Normalize input list
                 var inputCities = request.Cities
-                    .Select(c => new { Country = c.Country,PostalCode = c.PostalCode, CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim(), Longitude = c.Longitude, Latitude = c.Latitude })
+                    .Select(c => new { Country = c.Country,PostalCode = c.PostalCode, CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim(), Longitude = c.Longitude, Latitude = c.Latitude, Income = c.Income, Population = c.Population })
                     .Distinct()
                     .ToList();
 
@@ -150,7 +205,9 @@ namespace AssessmentPlatform.Services
                         IsDeleted = false,
                         Image = image,
                         Longitude = cityDto.Longitude,
-                        Latitude = cityDto.Latitude
+                        Latitude = cityDto.Latitude,
+                        Income = cityDto.Income,
+                        Population = cityDto.Population,
                     };
                     _context.Cities.Add(city);
                 }
@@ -193,7 +250,23 @@ namespace AssessmentPlatform.Services
                 var q = await _context.Cities.FindAsync(id);
                 if (q == null) return ResultResponseDto<bool>.Failure(new string[] { "City not exists" });
 
-                _context.Cities.Remove(q);
+                q.IsActive = false;
+                q.IsDeleted = true;
+                q.UpdatedDate = DateTime.UtcNow;
+                _context.Cities.Update(q);
+
+                await _context.CityPeers.Where(x => x.CityID == id).ForEachAsync(x =>
+                {
+                    x.IsActive = false;
+                    x.IsDeleted = true;
+                    x.UpdatedDate = DateTime.UtcNow;
+                });
+
+                await _context.UserCityMappings.Where(x => x.CityID == id).ForEachAsync(x =>
+                {
+                    x.IsDeleted = true;
+                });
+
                 await _context.SaveChangesAsync();
                 return ResultResponseDto<bool>.Success(true, new string[] { "City deleted Successfully" });
             }
@@ -233,13 +306,13 @@ namespace AssessmentPlatform.Services
         }
 
         #region GetCitiesAsync
-        public async Task<PaginationResponse<CityResponseDto>> GetCitiesAsync(PaginationRequest request, UserRole role)
+        public async Task<PaginationResponse<UserCityMappingResponseDto>> GetCitiesAsync(PaginationRequest request, UserRole role)
         {
             try
             {
                 int year = DateTime.UtcNow.Year;
 
-                IQueryable<CityResponseDto> query = role == UserRole.Admin
+                IQueryable<UserCityMappingResponseDto> query = role == UserRole.Admin
                     ? GetAdminCityQuery(year)
                     : GetUserCityQuery(request.UserId, year);
 
@@ -266,7 +339,7 @@ namespace AssessmentPlatform.Services
             catch (Exception ex)
             {
                 await _appLogger.LogAsync("Error Occurred in GetCitiesAsync", ex);
-                return new PaginationResponse<CityResponseDto>();
+                return new PaginationResponse<UserCityMappingResponseDto>();
             }
         }
         private IQueryable<UserCityMappingResponseDto> GetAdminCityQuery(int year)
@@ -294,7 +367,10 @@ namespace AssessmentPlatform.Services
                     UpdatedDate = c.UpdatedDate,
                     IsDeleted = c.IsDeleted,
                     Score = 0,
-                    AiScore = ai != null ? ai.AIScore : 0
+                    AiScore = ai != null ? ai.AIScore : 0,
+                    CityPeers = c.CityPeers,
+                    Population = c.Population,
+                    Income = c.Income
                 };
         }
 
@@ -333,7 +409,7 @@ namespace AssessmentPlatform.Services
                     AiScore = ai.AIProgress
                 };
         }
-        private async Task ApplyManualScoresAsync(PaginationResponse<CityResponseDto> response,PaginationRequest request,UserRole role, int year)
+        private async Task ApplyManualScoresAsync(PaginationResponse<UserCityMappingResponseDto> response,PaginationRequest request,UserRole role, int year)
         {
             var scores = await _commonService.GetCitiesProgressAsync(request.UserId.GetValueOrDefault(),(int)role, year);
 
@@ -345,6 +421,7 @@ namespace AssessmentPlatform.Services
 
             foreach (var city in response.Data)
             {
+                city.PeerCitiesIDs = city.CityPeers?.Where(x=>x.IsActive && !x.IsDeleted).Select(x => x.PeerCityID).ToList() ?? new List<int>();
                 if (scoreMap.TryGetValue(city.CityID, out var score))
                 {
                     city.Score = score;

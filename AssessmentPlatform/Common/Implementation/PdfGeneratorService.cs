@@ -169,7 +169,7 @@ namespace AssessmentPlatform.Common.Implementation
             }
 
             // ── Section 4+ : Per-Pillar Detail ──────────────────────────────
-            var accessiblePillars = pillars.ToList();
+            var accessiblePillars = pillars.Where(x => x.IsAccess && UserRole.CityUser == userRole || UserRole.CityUser != userRole).ToList();
             foreach (var p in accessiblePillars)
             {
                 container.Page(page =>

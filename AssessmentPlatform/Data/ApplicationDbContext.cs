@@ -34,7 +34,7 @@ namespace AssessmentPlatform.Data
         public DbSet<GetCitiesProgressAdminDto> GetCitiesProgressAdminDto { get; set; }
         public DbSet<AIUserCityMapping> AIUserCityMappings { get; set; }
         public DbSet<Blog> Blogs { get; set; }
-
+        public DbSet<CityPeer> CityPeers { get; set; } = default!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -119,6 +119,7 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<EvaluationCityProgressResultDto>().HasNoKey().ToView(null); 
             modelBuilder.Entity<GetCitiesProgressAdminDto>().HasNoKey().ToView(null); 
             modelBuilder.Entity<Blog>().HasKey(b => b.BlogID);
+            modelBuilder.Entity<CityPeer>().HasKey(b => b.CityPeerID);
 
             base.OnModelCreating(modelBuilder);
         }
