@@ -966,7 +966,73 @@ namespace AssessmentPlatform.Services
                         p.AIProgress, null))
                     .ToList();
 
-                var document = await _iPdfGeneratorService.GenerateCityDetailsPdf(cityDetails, pillars.Result.Pillars, kpis, userRole);
+                var peersCityIds = await _context.Cities
+                    .Where(x => x.CityID == cityDetails.CityID)
+                    .SelectMany(x => x.CityPeers)
+                    .Select(x => x.PeerCityID)
+                    .ToListAsync();
+                if(peersCityIds.Count > 0)
+                {
+                    peersCityIds.Add(cityDetails.CityID);
+                }
+
+                var startYear = cityDetails.ScoringYear - 5;
+
+                var peerCities = await _context.Cities
+                    .Where(c => peersCityIds.Contains(c.CityID))
+                    .Select(c => new PeerCityHistoryReportDto
+                    {
+                        CityID = c.CityID,
+                        CityName = c.CityName,
+                        State = c.State,
+                        Country = c.Country,
+                        Region = c.Region,
+                        PostalCode = c.PostalCode,
+                        UpdatedDate = c.UpdatedDate,
+                        Image = c.Image,
+                        Latitude = c.Latitude,
+                        Longitude = c.Longitude,
+                        Population = c.Population,
+                        Income = c.Income,
+
+                        CityHistory = _context.AIPillarScores
+                            .Include(x => x.Pillar)
+                            .Where(x =>
+                                x.CityID == c.CityID &&
+                                x.Year >= startYear &&
+                                x.Year <= cityDetails.ScoringYear)
+                            .GroupBy(x => x.Year)
+                            .Select(yearGroup => new PeerCityYearHistoryDto
+                            {
+                                CityID = c.CityID,
+                                Year = yearGroup.Key,
+
+                                ScoreProgress = yearGroup.Average(x => x.AIProgress ?? 0),
+
+                                Pillars = yearGroup
+                                    .GroupBy(p => new
+                                    {
+                                        p.PillarID,
+                                        p.Pillar.PillarName,
+                                        p.Pillar.DisplayOrder
+                                    })
+                                    .Select(pillarGroup => new PeerCityPillarHistoryReportDto
+                                    {
+                                        PillarID = pillarGroup.Key.PillarID,
+                                        PillarName = pillarGroup.Key.PillarName,
+                                        DisplayOrder = pillarGroup.Key.DisplayOrder,
+                                        ScoreProgress = pillarGroup.Average(x => x.AIProgress ?? 0)
+                                    })
+                                    .OrderBy(x => x.DisplayOrder)
+                                    .ToList()
+                            })
+                            .OrderBy(x => x.Year)
+                            .ToList()
+                    })
+                    .ToListAsync();
+
+
+                var document = await _iPdfGeneratorService.GenerateCityDetailsPdf(cityDetails, pillars.Result.Pillars, kpis, peerCities, userRole);
 
                 return document;
             }

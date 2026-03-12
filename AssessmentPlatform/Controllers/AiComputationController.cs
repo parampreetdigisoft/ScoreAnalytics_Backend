@@ -119,7 +119,7 @@ namespace AssessmentPlatform.Controllers
                     return Unauthorized("You Don't have access.");
                 }
 
-                var cityDetails = await _aIComputationService.GetCityAiSummeryDetail(userId ?? 0, userRole, request.CityID,request.Year);
+                var cityDetails = await _aIComputationService.GetCityAiSummeryDetail(userId ?? 0, userRole, request.CityID, request.Year);
 
                 // Generate PDF
                 var pdfBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails, userRole, userId.GetValueOrDefault());

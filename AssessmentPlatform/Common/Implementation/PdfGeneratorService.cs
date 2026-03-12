@@ -10,7 +10,7 @@ using SkiaSharp;
 
 namespace AssessmentPlatform.Common.Implementation
 {
-    public class PdfGeneratorService : IPdfGeneratorService
+    public partial class PdfGeneratorService : IPdfGeneratorService
     {
         #region constructor
 
@@ -36,7 +36,7 @@ namespace AssessmentPlatform.Common.Implementation
                         {
                             var kpiChartItems = kpis?
                             .Where(x => x.CityID == cityDetails.CityID)
-                            .Take(107)
+                            .Take(109)
                             .ToList() ?? new List<KpiChartItem>();
 
                             var pillarChartItems = pillars
@@ -47,7 +47,7 @@ namespace AssessmentPlatform.Common.Implementation
                                 p.AIProgress, null))
                             .ToList();
 
-                            AddCityDetailsPdf(container, cityDetails, pillars, kpiChartItems, userRole, true);
+                            AddCityDetailsPdf(container, cityDetails, pillars, kpiChartItems,new(), userRole, true);
                         }
                     }
                 });
@@ -61,13 +61,13 @@ namespace AssessmentPlatform.Common.Implementation
             }
         }
 
-        public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, List<AiCityPillarReponse> pillars, List<KpiChartItem> kpis, UserRole userRole)
+        public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, List<AiCityPillarReponse> pillars, List<KpiChartItem> kpis, List<PeerCityHistoryReportDto> peerCity, UserRole userRole)
         {
             try
             {
                 
                 // KPI chart items capped at 107
-                var kpiChartItems = kpis.Take(107).ToList();
+                var kpiChartItems = kpis.Take(109).ToList();
                 // Build pillar chart items (max 14)
                 var pillarChartItems = pillars
                     .Take(14)
@@ -79,7 +79,7 @@ namespace AssessmentPlatform.Common.Implementation
 
                 var document = Document.Create(container =>
                 {
-                    AddCityDetailsPdf(container, cityDetails, pillars, kpis, userRole);
+                    AddCityDetailsPdf(container, cityDetails, pillars, kpis, peerCity, userRole);
                 });
 
                 return document.GeneratePdf();
@@ -119,10 +119,11 @@ namespace AssessmentPlatform.Common.Implementation
             }
         }
 
-        public void AddCityDetailsPdf(IDocumentContainer container, AiCitySummeryDto cityDetails, List<AiCityPillarReponse> pillars, List<KpiChartItem> kpis, UserRole userRole, bool isAllCities = false)
+        public void AddCityDetailsPdf(IDocumentContainer container, AiCitySummeryDto cityDetails, List<AiCityPillarReponse> pillars, List<KpiChartItem> kpis,
+            List<PeerCityHistoryReportDto> peerCities, UserRole userRole, bool isAllCities = false)
         {
             // KPI chart items capped at 107
-            var kpiChartItems = kpis.Take(107).ToList(); 
+            var kpiChartItems = kpis.Take(109).ToList(); 
             // Build pillar chart items (max 14)
             var pillarChartItems = pillars
             .Take(14)
@@ -133,9 +134,10 @@ namespace AssessmentPlatform.Common.Implementation
             .ToList();
 
             // ── Section 1 : Global Dashboard ─────────────────────────────────
-            if(!isAllCities)
-            AddGlobalDashboardPage(
-                container, cityDetails, pillarChartItems, kpis, userRole);
+            if (!isAllCities)
+                AddGlobalDashboardPage(
+                    container, cityDetails, pillarChartItems, kpis, userRole);
+
 
             // ── Section 2 : City Summary ─────────────────────────────────────
             container.Page(page =>
@@ -154,6 +156,8 @@ namespace AssessmentPlatform.Common.Implementation
                 });
                 PageFooter(page);
             });
+
+
             // ── Section 3 : Pillar Radial Overview ───────────────────────────
             if (pillars.Any())
             {
@@ -166,6 +170,13 @@ namespace AssessmentPlatform.Common.Implementation
                         PillarLineChartPage(content, pillarChartItems));
                     PageFooter(page);
                 });
+            }
+
+            // ── Section 1 : Global Dashboard ─────────────────────────────────
+            if (!isAllCities)
+            {
+                AddPeerCityComparisonSection(container, peerCities, cityDetails, userRole);
+                AddPerformanceTrendsSection(container, peerCities, cityDetails, userRole);
             }
 
             // ── Section 4+ : Per-Pillar Detail ──────────────────────────────
@@ -203,7 +214,7 @@ namespace AssessmentPlatform.Common.Implementation
                         KpiDashboardPage(content, kpiChartItems));
                     PageFooter(page);
                 });
-            }          
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────────────
@@ -241,7 +252,7 @@ namespace AssessmentPlatform.Common.Implementation
             UserRole userRole)
         {
             var vPillars = pillars.Where(p => p.Value.HasValue).ToList();
-            var vKpis = kpis.Where(k => k.Value.HasValue).ToList();
+            //var vKpis = kpis.Where(k => k.Value.HasValue).ToList();
 
             doc.Page(page =>
             {
@@ -249,7 +260,7 @@ namespace AssessmentPlatform.Common.Implementation
                 page.Header().Element(x =>
                     CityComposeHeader(x, city, userRole, "City Performance Dashboard"));
                 page.Content().Element(x =>
-                    RenderDashboardContent(x, vPillars, vKpis, city));
+                    RenderDashboardContent(x, vPillars, kpis, city));
                 PageFooter(page);
             });
         }
@@ -260,6 +271,8 @@ namespace AssessmentPlatform.Common.Implementation
             List<KpiChartItem> kpis,
             AiCitySummeryDto city)
         {
+            //var vKpis = kpis.Where(k => k.Value.HasValue).ToList();
+
             float overall = (float)city.AIProgress.GetValueOrDefault();
             int kpiGreen = kpis.Count(k => k.Value >= 70);
             int kpiAmber = kpis.Count(k => k.Value >= 40 && k.Value < 70);
@@ -284,12 +297,22 @@ namespace AssessmentPlatform.Common.Implementation
                 });
 
                 // ── Row 2 : KPI distribution stat cards ──────────────────────────
-                col.Item().Height(110).Element(x =>
+                var topKpis = kpis
+                    .Where(x =>
+                        string.Equals(x.ShortName, "UDRI", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.ShortName, "PRUPS", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (topKpis.Any())
+                    col.Item().Height(90).Element(x =>
+                    DrawTopKpiBand(x, topKpis));
+
+                col.Item().Height(100).Element(x =>
                     RenderKpiDistributionBand(x, kpis.Count, kpiGreen, kpiAmber, kpiRed));
 
                 // ── Row 3 : KPI sorted sparkline ─────────────────────────────────
                 if (kpis.Any())
-                    col.Item().Height(150).Element(x =>
+                    col.Item().Height(120).Element(x =>
                         RenderKpiSparklineCard(x, kpis));
             });
         }
@@ -309,7 +332,7 @@ namespace AssessmentPlatform.Common.Implementation
             container
                 .Background(Colors.White)
                 .Border(1).BorderColor("#D8E8E2")
-                .Padding(12)
+                .Padding(8)
                 .Column(col =>
                 {
                     col.Spacing(0);
@@ -319,7 +342,7 @@ namespace AssessmentPlatform.Common.Implementation
                         .FontSize(10).Bold().FontColor("#12352f");
 
                     // Donut chart
-                    col.Item().Height(150).Canvas((canvas, size) =>
+                    col.Item().Height(140).Canvas((canvas, size) =>
                         PaintDonut(canvas, size, score));
 
                     col.Item().Height(1).Background("#E8F0EC");
@@ -444,14 +467,14 @@ namespace AssessmentPlatform.Common.Implementation
             container
                 .Background(Colors.White)
                 .Border(1).BorderColor("#D8E8E2")
-                .Padding(10)
+                .Padding(8)
                 .Column(col =>
                 {
                     col.Item().AlignCenter()
                         .Text("Pillar Performance Radar")
                         .FontSize(10).Bold().FontColor("#12352f");
 
-                    col.Item().Height(240).Canvas((canvas, size) =>
+                    col.Item().Height(230).Canvas((canvas, size) =>
                         PaintSpiderChart(canvas, size, pillars));
                 });
         }
@@ -777,7 +800,7 @@ namespace AssessmentPlatform.Common.Implementation
             // accept 90–107 KPIs; sort high→low so chart looks intentional
             var data = kpis
                 .Where(x => x.Value.HasValue)
-                .Take(107)
+                .Take(109)
                 .OrderByDescending(x => x.Value)
                 .ToList();
 
@@ -796,6 +819,12 @@ namespace AssessmentPlatform.Common.Implementation
                 .Select(g => g.Select(x => x.k).ToList())
                 .ToList();
 
+            var topKpis = kpis
+                .Where(x =>
+                    string.Equals(x.ShortName, "UDRI", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(x.ShortName, "PRUPS", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
             container.Padding(14).Column(col =>
             {
                 col.Spacing(12);
@@ -803,6 +832,10 @@ namespace AssessmentPlatform.Common.Implementation
                 // ── top summary strip ─────────────────────────────────────────────
                 col.Item().Height(70).Element(x =>
                     DrawKpiSummaryBand(x, total, green, amber, red, avg));
+
+                if(topKpis.Any())
+                    col.Item().Height(100).Element(x =>
+                    DrawTopKpiBand(x,topKpis));
 
                 // ── chart + reference-table sections ─────────────────────────────
                 int offset = 0;
@@ -860,6 +893,54 @@ namespace AssessmentPlatform.Common.Implementation
                     KpiStatPill(row.RelativeItem(), $"{avg:F1}%", "Average Score",
                         avg >= 70 ? "#4CAF50" : avg >= 40 ? "#FFC107" : "#EF5350",
                         "#4CAF5025");
+                });
+        }
+
+        static void DrawTopKpiBand(IContainer container, List<KpiChartItem> kpis)
+        {
+            var udri = kpis.FirstOrDefault(x => x.ShortName.Equals("UDRI", StringComparison.OrdinalIgnoreCase));
+            var prups = kpis.FirstOrDefault(x => x.ShortName.Equals("PRUPS", StringComparison.OrdinalIgnoreCase));
+
+            container
+                .Background("#12352f")
+                .Padding(1)
+                .Row(row =>
+                {
+                    DrawMainKpi(row.RelativeItem(), udri);
+                    row.ConstantItem(10);
+                    DrawMainKpi(row.RelativeItem(), prups);
+                });
+        }
+        static void DrawMainKpi(IContainer container, KpiChartItem kpi)
+        {
+            var value = kpi?.Value ?? 0;
+
+            var color = value >= 70
+                ? "#4CAF50"
+                : value >= 40
+                    ? "#FFC107"
+                    : "#EF5350";
+
+            container
+                .Background(color + "20")
+                .Border(1)
+                .BorderColor(color)
+                .Padding(10)
+                .Column(col =>
+                {
+                    col.Item().Text(kpi?.ShortName ?? "N/A")
+                        .FontSize(14)
+                        .SemiBold()
+                        .FontColor("#ffffff");
+
+                    col.Item().Text($"{value:F1}%")
+                        .FontSize(18)
+                        .Bold()
+                        .FontColor(color);
+
+                    col.Item().Text(kpi?.Name ?? "")
+                        .FontSize(10)
+                        .FontColor("#d0d0d0");
                 });
         }
 
@@ -1707,9 +1788,1473 @@ namespace AssessmentPlatform.Common.Implementation
             return text[..maxLength] + "...";
         }
 
-        
+
 
         #endregion pdf pillars and city report
 
     }
+
+    public partial class PdfGeneratorService
+    {
+        // ══════════════════════════════════════════════════════════════════════════
+        //  CONSTANTS  – tweak here to adjust chart sizing for 4-6 peers / 14 pillars
+        // ══════════════════════════════════════════════════════════════════════════
+
+        private const int MaxPeerCities = 6;
+        private const int MaxPillars = 14;
+
+        // Palette: index 0 = selected city (gold), 1-5 = peer cities
+        private static readonly string[] CityPalette =
+        {
+            "#F0B429",   // gold  – selected city
+            "#4CAF8A",   // teal
+            "#1E88E5",   // blue
+            "#FB8C00",   // orange
+            "#7B61FF",   // purple
+            "#E05252",   // red
+        };
+
+        // Pillar palette (up to 14 distinct colours)
+        private static readonly string[] PillarPalette =
+        {
+            "#12352F","#336B58","#4CAF8A","#F0B429","#F5A623",
+            "#E05252","#7B61FF","#1E88E5","#43A047","#FB8C00",
+            "#0097A7","#8D6E63","#E91E63","#607D8B"
+        };
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  ENTRY POINTS  – called from AddCityDetailsPdf
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void AddPeerCityComparisonSection(
+            IDocumentContainer container,
+            List<PeerCityHistoryReportDto> peerCities,
+            AiCitySummeryDto cityDetails,
+            UserRole userRole)
+        {
+            if (peerCities == null || !peerCities.Any()) return;
+
+            // Separate: main city entry + actual peer entries (cap at MaxPeerCities)
+            var main = FindMainCity(peerCities, cityDetails);
+            var peers = peerCities
+                .Where(p => !IsSameCity(p.CityName, cityDetails.CityName))
+                .Take(MaxPeerCities)
+                .ToList();
+
+            // ── 5.1  Population-Based ────────────────────────────────────────────
+            container.Page(page =>
+            {
+                ApplyPageDefaults(page);
+                page.Header().Element(x =>
+                    CityComposeHeader(x, cityDetails, userRole, "Population-Based Peer Comparison"));
+                page.Content().Element(c =>
+                    PopulationPeerPage(c, peers, main, cityDetails));
+                PageFooter(page);
+            });
+
+            // ── 5.2  Regional ────────────────────────────────────────────────────
+            container.Page(page =>
+            {
+                ApplyPageDefaults(page);
+                page.Header().Element(x =>
+                    CityComposeHeader(x, cityDetails, userRole, "Regional Peer Group Comparison"));
+                page.Content().Element(c =>
+                    RegionalPeerPage(c, peers, main, cityDetails));
+                PageFooter(page);
+            });
+
+            // ── 5.3  Income-Level ────────────────────────────────────────────────
+            container.Page(page =>
+            {
+                ApplyPageDefaults(page);
+                page.Header().Element(x =>
+                    CityComposeHeader(x, cityDetails, userRole, "Income-Level Peer Comparison"));
+                page.Content().Element(c =>
+                    IncomePeerPage(c, peers, main, cityDetails));
+                PageFooter(page);
+            });
+
+           
+            // ── 5.5  Relative Ranking ────────────────────────────────────────────
+            container.Page(page =>
+            {
+                ApplyPageDefaults(page);
+                page.Header().Element(x =>
+                    CityComposeHeader(x, cityDetails, userRole, "Relative Ranking Among Peer Cities"));
+                page.Content().Element(c =>
+                    RelativeRankingPage(c, peers, main, cityDetails));
+                PageFooter(page);
+            });
+        }
+
+        void AddPerformanceTrendsSection(
+            IDocumentContainer container,
+            List<PeerCityHistoryReportDto> peerCities,
+            AiCitySummeryDto cityDetails,
+            UserRole userRole)
+        {
+            if (peerCities == null || !peerCities.Any()) return;
+
+            var main = FindMainCity(peerCities, cityDetails);
+            var peers = peerCities
+                .Where(p => !IsSameCity(p.CityName, cityDetails.CityName))
+                .Take(MaxPeerCities)
+                .ToList();
+
+            // ── 6.1 + 6.2  Historical & Five-Year Evolution ──────────────────────
+            container.Page(page =>
+            {
+                ApplyPageDefaults(page);
+                page.Header().Element(x =>
+                    CityComposeHeader(x, cityDetails, userRole, "Performance Trends Over Time"));
+                page.Content().Element(c =>
+                    HistoricalTrendsPage(c, peers, main, cityDetails));
+                PageFooter(page);
+            });
+
+            // ── 6.3  Pillar-Level Trend ──────────────────────────────────────────
+            container.Page(page =>
+            {
+                ApplyPageDefaults(page);
+                page.Header().Element(x =>
+                    CityComposeHeader(x, cityDetails, userRole, "Pillar-Level Trend Analysis"));
+                page.Content().Element(c =>
+                    PillarTrendPage(c, main, cityDetails));
+                PageFooter(page);
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  5.1  POPULATION-BASED PEER GROUP COMPARISON
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void PopulationPeerPage(
+            IContainer container,
+            List<PeerCityHistoryReportDto> peers,
+            PeerCityHistoryReportDto? main,
+            AiCitySummeryDto cityDetails)
+        {
+            // All cities (main + peers) sorted by population desc
+            var all = BuildAllCities(main, peers)
+                .Where(c => c.Population.HasValue)
+                .OrderByDescending(c => c.Population)
+                .Take(MaxPeerCities + 1)
+                .ToList();
+
+            if (!all.Any()) { DrawNoDataPage(container); return; }
+
+            long maxPop = (long)(all.Max(p => p.Population) ?? 1);
+
+            container.Padding(16).Column(col =>
+            {
+                col.Spacing(12);
+
+                col.Item().Element(x => DrawInsightBand(x,
+                    $"{all.Count} cities compared  |  " +
+                    $"Largest: {all.First().CityName} ({FormatPop(all.First().Population)})  |  " +
+                    $"Smallest: {all.Last().CityName} ({FormatPop(all.Last().Population)})"));
+
+                // ── Population bar chart ──────────────────────────────────────
+                col.Item().Text("Population Size by City")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Height(all.Count * 40).Canvas((canvas, size) =>
+                    DrawPopulationBars(canvas, size, all, cityDetails, maxPop));
+
+                col.Item().Element(x => DrawCityLegend(x, all, cityDetails));
+
+                // ── Score vs Population scatter ───────────────────────────────
+                col.Item().PaddingTop(8)
+                    .Text("Score vs Population  (each dot = one city)")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Height(all.Count * 40).Canvas((canvas, size) =>
+                    DrawScatterPlot(canvas, size, all, cityDetails,
+                        c => (float)(c.Population ?? 0),
+                        c => GetLatestScoreOrZero(c),
+                        "Population", "Score"));
+            });
+        }
+
+        void DrawPopulationBars(
+            SKCanvas canvas, Size size,
+            List<PeerCityHistoryReportDto> cities,
+            AiCitySummeryDto cityDetails,
+            long maxPop)
+        {
+            float rowH = 30f;
+            float labelW = 130f;
+            float barArea = size.Width - labelW - 72f;
+
+            for (int i = 0; i < cities.Count; i++)
+            {
+                var city = cities[i];
+                float y = i * rowH + 4f;
+                float barW = (float)((city.Population ?? 0) / (double)maxPop * barArea);
+                bool isMain = IsSameCity(city.CityName, cityDetails.CityName);
+
+                // Row background
+                if (i % 2 == 0)
+                    canvas.DrawRect(new SKRect(0, y - 2, size.Width, y + rowH - 4),
+                        new SKPaint { Color = SKColor.Parse("#f4f7f5") });
+
+                // Highlight selected city row
+                if (isMain)
+                    canvas.DrawRect(new SKRect(0, y - 2, size.Width, y + rowH - 4),
+                        new SKPaint { Color = SKColor.Parse("#FFF8E1") });
+
+                DrawCanvasText(canvas, city.CityName, 4, y + 5, 9,
+                    isMain ? "#12352f" : "#444444", bold: isMain);
+
+                string barColor = isMain ? CityPalette[0] : CityPalette[1 + (i % (CityPalette.Length - 1))];
+                canvas.DrawRoundRect(
+                    new SKRoundRect(new SKRect(labelW, y + 4, labelW + barW, y + rowH - 6), 3),
+                    new SKPaint { Color = SKColor.Parse(barColor), IsAntialias = true });
+
+                DrawCanvasText(canvas, FormatPop(city.Population),
+                    labelW + barW + 5, y + 5, 9, "#555555");
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  5.2  REGIONAL PEER GROUP COMPARISON
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void RegionalPeerPage(
+            IContainer container,
+            List<PeerCityHistoryReportDto> peers,
+            PeerCityHistoryReportDto? main,
+            AiCitySummeryDto cityDetails)
+        {
+            var all = BuildAllCities(main, peers);
+
+            var byRegion = all
+                .GroupBy(p => string.IsNullOrWhiteSpace(p.Region) ? p.Country ?? "Unknown" : p.Region)
+                .OrderByDescending(g => g.Count())
+                .ToList();
+
+            container.Padding(16).Column(col =>
+            {
+                col.Spacing(12);
+
+                col.Item().Element(x => DrawInsightBand(x,
+                    $"{byRegion.Count} region(s)  |  {all.Count} total cities analysed"));
+
+                col.Item().Text("City Distribution by Region")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Height(180).Canvas((canvas, size) =>
+                    DrawDonutChart(canvas, size,
+                        byRegion.Select(g => (g.Key, (float)g.Count())).ToList()));
+
+                col.Item().PaddingTop(4)
+                    .Text("Average Score per Region")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Canvas((canvas, size) =>
+                {
+                    var regionScores = byRegion
+                        .Select(g => (
+                            Region: g.Key,
+                            Avg: g.Average(c => GetLatestScoreOrZero(c)),  // includes 0
+                            Count: g.Count()
+                        ))
+                        .OrderByDescending(r => r.Avg)
+                        .ToList();
+
+                    float barH = 28f;
+                    float labelW = 120f;
+                    float barArea = size.Width - labelW - 65f;
+
+                    for (int i = 0; i < regionScores.Count; i++)
+                    {
+                        var r = regionScores[i];
+                        float y = i * barH + 4f;
+                        float barW = r.Avg / 100f * barArea;
+
+                        if (i % 2 == 0)
+                            canvas.DrawRect(new SKRect(0, y - 2, size.Width, y + barH - 4),
+                                new SKPaint { Color = SKColor.Parse("#f4f7f5") });
+
+                        DrawCanvasText(canvas, r.Region, 4, y + 5, 9, "#333333");
+                        canvas.DrawRoundRect(
+                            new SKRoundRect(new SKRect(labelW, y + 3, labelW + barW, y + barH - 6), 3),
+                            new SKPaint { Color = SKColor.Parse(ScoreColor(r.Avg)), IsAntialias = true });
+                        DrawCanvasText(canvas, $"{r.Avg:F1}  (n={r.Count})",
+                            labelW + barW + 5, y + 5, 9, "#555555");
+                    }
+                });
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  5.3  INCOME-LEVEL PEER COMPARISON
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void IncomePeerPage(
+            IContainer container,
+            List<PeerCityHistoryReportDto> peers,
+            PeerCityHistoryReportDto? main,
+            AiCitySummeryDto cityDetails)
+        {
+            var all = BuildAllCities(main, peers);
+            var withIncome = all.Where(p => p.Income.HasValue).OrderBy(p => p.Income).ToList();
+
+            if (!withIncome.Any()) { DrawNoDataPage(container); return; }
+
+            int q = Math.Max(1, withIncome.Count / 4);
+            var segments = new[]
+            {
+                ("Low Income",    withIncome.Take(q).ToList()),
+                ("Lower-Middle",  withIncome.Skip(q).Take(q).ToList()),
+                ("Upper-Middle",  withIncome.Skip(2 * q).Take(q).ToList()),
+                ("High Income",   withIncome.Skip(3 * q).ToList())
+            };
+            string[] segColors = { "#E05252", "#F5A623", "#4CAF8A", "#12352F" };
+
+            container.Padding(16).Column(col =>
+            {
+                col.Spacing(12);
+
+                col.Item().Element(x => DrawInsightBand(x,
+                    $"Income quartile analysis  |  {withIncome.Count} cities  |  " +
+                    $"Range: {withIncome.Min(p => p.Income):C0} – {withIncome.Max(p => p.Income):C0}"));
+
+                // ── Avg score per quartile bars ──────────────────────────────
+                col.Item().Text("Average Score by Income Quartile")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Height(130).Canvas((canvas, size) =>
+                {
+                    float barAreaW = (size.Width - 40f) / 4f - 8f;
+                    for (int i = 0; i < segments.Length; i++)
+                    {
+                        var (label, cities) = segments[i];
+                        if (!cities.Any()) continue;
+
+                        // count 0 scores: use GetLatestScoreOrZero
+                        float avg = cities.Average(c => GetLatestScoreOrZero(c));
+                        float barH = avg / 100f * 90f;
+                        float x = 20 + i * ((size.Width - 40f) / 4f);
+
+                        canvas.DrawRoundRect(
+                            new SKRoundRect(new SKRect(x, 100 - barH, x + barAreaW, 100), 4),
+                            new SKPaint { Color = SKColor.Parse(segColors[i]), IsAntialias = true });
+
+                        DrawCanvasText(canvas, $"{avg:F1}", x + barAreaW / 2 - 10, 100 - barH - 14, 9,
+                            "#12352f", bold: true);
+                        DrawCanvasText(canvas, label, x, 108, 8, "#555555");
+                        DrawCanvasText(canvas, $"n={cities.Count}", x, 118, 8, "#888888");
+                    }
+                });
+
+                // ── Scatter: Income vs Score ──────────────────────────────────
+                col.Item().PaddingTop(4)
+                    .Text("Income vs Composite Score  (each dot = one city)")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Height(160).Canvas((canvas, size) =>
+                    DrawScatterPlot(canvas, size, withIncome, cityDetails,
+                        c => (float)(c.Income ?? 0),
+                        c => GetLatestScoreOrZero(c),
+                        "Income (USD)", "Score"));
+
+                // ── Top performers table ──────────────────────────────────────
+                col.Item().PaddingTop(6)
+                    .Text("Top Performers by Income Group")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(cols =>
+                    {
+                        cols.ConstantColumn(90);
+                        cols.RelativeColumn();
+                        cols.ConstantColumn(60);
+                        cols.ConstantColumn(55);
+                    });
+                    DrawTableHeader(table, new[] { "Income Group", "City", "Country", "Score" });
+
+                    foreach (var (label, cities) in segments)
+                    {
+                        foreach (var city in cities.OrderByDescending(c => GetLatestScoreOrZero(c)).Take(2))
+                        {
+                            bool isMain = IsSameCity(city.CityName, cityDetails.CityName);
+                            string rowBg = isMain ? "#fff9e6" : Colors.White;
+                            float score = GetLatestScoreOrZero(city);
+
+                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                                .Padding(5).Text(label).FontSize(8).FontColor("#555555");
+                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                                .Padding(5).Text(city.CityName).FontSize(8)
+                                .FontColor(isMain ? "#12352f" : "#333333");
+                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                                .Padding(5).Text(city.Country ?? "—").FontSize(8).FontColor("#555555");
+                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                                .Padding(5).AlignRight()
+                                .Text($"{score:F1}").FontSize(8).Bold().FontColor(ScoreColor(score));
+                        }
+                    }
+                });
+            });
+        }
+
+        
+        // ══════════════════════════════════════════════════════════════════════════
+        //  5.5  RELATIVE RANKING AMONG PEER CITIES
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void RelativeRankingPage(
+            IContainer container,
+            List<PeerCityHistoryReportDto> peers,
+            PeerCityHistoryReportDto? main,
+            AiCitySummeryDto cityDetails)
+        {
+            // Build ranked list including main city; include 0-score cities
+            var all = BuildAllCities(main, peers)
+                .Select(c => (City: c, Score: GetLatestScoreOrZero(c)))
+                .OrderByDescending(x => x.Score)
+                .ToList();
+
+            int total = all.Count;
+            int mainRank = all.FindIndex(r => IsSameCity(r.City.CityName, cityDetails.CityName)) + 1;
+            float mainScore = mainRank > 0 ? all[mainRank - 1].Score : 0f;
+            float pctile = mainRank > 0 ? (1f - (float)mainRank / total) * 100f : 0f;
+
+            container.Padding(16).Column(col =>
+            {
+                col.Spacing(12);
+
+                // ── Hero rank banner ──────────────────────────────────────────
+                col.Item().Background("#12352f").Padding(14).Row(row =>
+                {
+                    row.RelativeItem().Column(c =>
+                    {
+                        c.Item().Text($"#{mainRank} of {total}")
+                            .FontSize(32).Bold().FontColor("#f0b429");
+                        c.Item().Text($"{cityDetails.CityName}  \u00b7  {cityDetails.Country}")
+                            .FontSize(12).FontColor("#a5d6c2");
+                    });
+                    row.ConstantItem(130).Column(c =>
+                    {
+                        c.Item().AlignRight().Text("Score").FontSize(9).FontColor("#a5a8ad");
+                        c.Item().AlignRight().Text($"{mainScore:F1}")
+                            .FontSize(28).Bold().FontColor(Colors.White);
+                        c.Item().AlignRight().Text($"Top {100 - pctile:F0}% of peers")
+                            .FontSize(10).FontColor("#4caf8a");
+                    });
+                });
+
+                // ── Score distribution histogram ──────────────────────────────
+                col.Item().Text("Score Distribution Among All Cities")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Height(150).Canvas((canvas, size) =>
+                    DrawHistogram(canvas, size,
+                        all.Select(r => r.Score).ToList(), mainScore, 10));
+
+                // ── Full ranking table ────────────────────────────────────────
+                col.Item().Text("Full City Ranking").FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(cols =>
+                    {
+                        cols.ConstantColumn(24);   // rank
+                        cols.RelativeColumn();     // city name
+                        cols.ConstantColumn(65);   // country
+                        cols.ConstantColumn(55);   // region
+                        cols.ConstantColumn(52);   // population
+                        cols.ConstantColumn(70);   // score bar
+                    });
+
+                    DrawTableHeader(table, new[] { "#", "City", "Country", "Region", "Pop.", "Score" });
+
+
+                    foreach (var (entry, idx) in all.Select((e, i) => (e, i)))
+                    {
+                        bool isMain = IsSameCity(entry.City.CityName, cityDetails.CityName);
+                        string bg = isMain ? "#fff9e6" : (idx % 2 == 0 ? Colors.White : "#fafafa");
+                        string rankColor = idx == 0 ? "#f0b429"
+                                         : idx == 1 ? "#a5a8ad"
+                                         : idx == 2 ? "#cd7f32" : "#555555";
+
+                        table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e8e8e8")
+                            .Padding(4).Text($"{idx + 1}").FontSize(8).FontColor(rankColor);
+                        table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e8e8e8")
+                            .Padding(4).Text(entry.City.CityName).FontSize(8)
+                            .FontColor(isMain ? "#12352f" : "#333333");
+                        table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e8e8e8")
+                            .Padding(4).Text(entry.City.Country ?? "—").FontSize(8).FontColor("#555555");
+                        table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e8e8e8")
+                            .Padding(4).Text(entry.City.Region ?? "—").FontSize(8).FontColor("#555555");
+                        table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e8e8e8")
+                            .Padding(4).AlignRight()
+                            .Text(FormatPop(entry.City.Population)).FontSize(8).FontColor("#555555");
+
+                        table.Cell()
+                        .Background(bg)
+                        .BorderBottom(0.5f)
+                        .BorderColor("#e8e8e8")
+                        .Padding(4)
+                        .Row(r =>
+                        {
+                            var percent = entry.Score / 100f;
+
+                            r.RelativeItem().Height(10).Background("#eeeeee").Layers(layer =>
+                            {
+                                layer.PrimaryLayer().Background("#eeeeee");
+
+                                layer.Layer().Width((float)percent * 100)
+                                    .Background(ScoreColor(entry.Score));
+                            });
+
+                            r.ConstantItem(24).AlignRight().Text($"{entry.Score:F1}")
+                                .FontSize(8)
+                                .FontColor("#333333");
+                        });
+                    }
+                });
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  6.1 + 6.2  HISTORICAL PERFORMANCE TRENDS
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void HistoricalTrendsPage(
+            IContainer container,
+            List<PeerCityHistoryReportDto> peers,
+            PeerCityHistoryReportDto? main,
+            AiCitySummeryDto cityDetails)
+        {
+            var all = BuildAllCities(main, peers);
+            var mainCity = main ?? peers.FirstOrDefault();
+
+            if (mainCity == null) { DrawNoDataPage(container); return; }
+
+            // All distinct years across all cities
+            var allYears = all
+                .SelectMany(c => c.CityHistory ?? Enumerable.Empty<PeerCityYearHistoryDto>())
+                .Select(h => h.Year)
+                .Distinct()
+                .OrderBy(y => y)
+                .ToList();
+
+            if (!allYears.Any()) { DrawNoDataPage(container); return; }
+
+            var mainHistory = (mainCity.CityHistory ?? new())
+                .OrderBy(h => h.Year).ToList();
+
+            // Peer average per year (include 0-score years)
+            var peerAvg = allYears.Select(yr =>
+            {
+                var scores = peers
+                    .Select(p => p.CityHistory?.FirstOrDefault(h => h.Year == yr))
+                    .Select(h => h != null ? (float?)h.ScoreProgress : null)
+                    .Where(s => s.HasValue)
+                    .Select(s => s!.Value)
+                    .ToList();
+                return (Year: yr, Avg: scores.Any() ? scores.Average() : 0f, HasData: scores.Any());
+            }).ToList();
+
+            container.Padding(16).Column(col =>
+            {
+                col.Spacing(14);
+
+                // Insight
+                if (mainHistory.Count >= 2)
+                {
+                    float first = (float)mainHistory.First().ScoreProgress;
+                    float last = (float)mainHistory.Last().ScoreProgress;
+                    float delta = last - first;
+                    col.Item().Element(x => DrawInsightBand(x,
+                        $"Period: {allYears.First()} – {allYears.Last()}  |  " +
+                        $"{mainCity.CityName}: {(delta >= 0 ? "+" : "")}{delta:F1} pts  |  " +
+                        $"Latest score: {last:F1}  |  " +
+                        $"{peers.Count} peer city(ies)"));
+                }
+
+                // ── 6.1  Multi-line trend ────────────────────────────────────
+                col.Item().Text("6.1  Historical Score Trend")
+                    .FontSize(12).Bold().FontColor("#12352f");
+
+                col.Item().Height(190).Canvas((canvas, size) =>
+                    DrawMultiLineTrendChart(canvas, size, allYears, peers, mainCity, cityDetails, peerAvg));
+
+                // Legend: one entry per city
+                col.Item().Element(x => DrawCityLineLegend(x, mainCity, peers, cityDetails));
+
+                col.Item().PaddingVertical(4).LineHorizontal(0.5f).LineColor("#e0e0e0");
+
+                // ── 6.2  Five-year area chart ────────────────────────────────
+                col.Item().Text("6.2  Five-Year Composite Score Evolution")
+                    .FontSize(12).Bold().FontColor("#12352f");
+
+                var last5 = allYears.TakeLast(5).ToList();
+                var mainLast5 = mainHistory.Where(h => last5.Contains(h.Year))
+                                            .OrderBy(h => h.Year).ToList();
+                var peerLast5 = peerAvg.Where(p => last5.Contains(p.Year))
+                                        .OrderBy(p => p.Year).ToList();
+
+                col.Item().Height(120).Canvas((canvas, size) =>
+                    DrawAreaComparisonChart(canvas, size, last5, mainLast5,
+                        peerLast5.Select(p => (p.Year, p.Avg)).ToList()));
+
+                // YoY table
+                if (mainLast5.Count > 1)
+                    col.Item().Element(x =>
+                        DrawYoYTable(x, last5, mainLast5,
+                            peerLast5.Select(p => (p.Year, p.Avg)).ToList()));
+            });
+        }
+
+        void DrawYoYTable(
+            IContainer container,
+            List<int> years,
+            List<PeerCityYearHistoryDto> mainHistory,
+            List<(int Year, float Avg)> peerAvg)
+        {
+            container.Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.ConstantColumn(65);
+                    for (int i = 0; i < years.Count; i++) cols.RelativeColumn();
+                });
+
+                // Header
+                table.Cell().Background("#12352f").Padding(5)
+                    .Text("Metric").FontSize(8).Bold().FontColor(Colors.White);
+                foreach (var yr in years)
+                    table.Cell().Background("#12352f").Padding(5).AlignRight()
+                        .Text(yr.ToString()).FontSize(8).Bold().FontColor(Colors.White);
+
+                // Score row
+                table.Cell().Background("#f4f7f5").Padding(5)
+                    .Text("Score").FontSize(8).FontColor("#333333");
+                foreach (var yr in years)
+                {
+                    float s = (float)(mainHistory.FirstOrDefault(h => h.Year == yr)?.ScoreProgress ?? 0);
+                    table.Cell().Background("#f4f7f5").Padding(5).AlignRight()
+                        .Text($"{s:F1}").FontSize(8).Bold().FontColor(ScoreColor(s));
+                }
+
+                // YoY delta
+                table.Cell().Background(Colors.White).Padding(5)
+                    .Text("YoY \u0394").FontSize(8).FontColor("#333333");
+                for (int i = 0; i < years.Count; i++)
+                {
+                    if (i == 0)
+                    {
+                        table.Cell().Background(Colors.White).Padding(5)
+                            .Text("—").FontSize(8).FontColor("#aaaaaa");
+                        continue;
+                    }
+                    float prev = (float)(mainHistory.FirstOrDefault(h => h.Year == years[i - 1])?.ScoreProgress ?? 0);
+                    float curr = (float)(mainHistory.FirstOrDefault(h => h.Year == years[i])?.ScoreProgress ?? 0);
+                    float d = curr - prev;
+                    table.Cell().Background(Colors.White).Padding(5).AlignRight()
+                        .Text($"{(d >= 0 ? "+" : "")}{d:F1}").FontSize(8)
+                        .FontColor(d >= 0 ? "#336b58" : "#e05252");
+                }
+
+                // vs Peers
+                table.Cell().Background("#f4f7f5").Padding(5)
+                    .Text("vs Peers").FontSize(8).FontColor("#333333");
+                foreach (var yr in years)
+                {
+                    float myS = (float)(mainHistory.FirstOrDefault(h => h.Year == yr)?.ScoreProgress ?? 0);
+                    float pAvg = peerAvg.FirstOrDefault(p => p.Year == yr).Avg;
+                    float d = myS - pAvg;
+                    table.Cell().Background("#f4f7f5").Padding(5).AlignRight()
+                        .Text($"{(d >= 0 ? "+" : "")}{d:F1}").FontSize(8)
+                        .FontColor(d >= 0 ? "#336b58" : "#e05252");
+                }
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  6.3  PILLAR-LEVEL TREND  (main city only; up to 14 pillars)
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void PillarTrendPage(
+            IContainer container,
+            PeerCityHistoryReportDto? mainCity,
+            AiCitySummeryDto cityDetails)
+        {
+            if (mainCity == null) { DrawNoDataPage(container); return; }
+
+            var history = mainCity.CityHistory ?? new();
+            var allYears = history.Select(h => h.Year).OrderBy(y => y).ToList();
+
+            if (!allYears.Any()) { DrawNoDataPage(container); return; }
+
+            // Collect all unique pillars (cap at MaxPillars = 14)
+            var pillars = history
+                .SelectMany(h => h.Pillars ?? Enumerable.Empty<PeerCityPillarHistoryReportDto>())
+                .GroupBy(p => p.PillarID)
+                .Select(g => g.OrderBy(p => p.DisplayOrder).First())
+                .OrderBy(p => p.DisplayOrder)
+                .Take(MaxPillars)
+                .ToList();
+
+            container.Padding(16).Column(col =>
+            {
+                col.Spacing(12);
+
+                col.Item().Element(x => DrawInsightBand(x,
+                    $"{pillars.Count} pillar(s)  |  {allYears.Count} year(s)  |  City: {mainCity.CityName}"));
+
+                col.Item().Text("Pillar Score Trajectory Over Time")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Height(200).Canvas((canvas, size) =>
+                    DrawPillarLineChart(canvas, size, allYears, history, pillars));
+
+                //// Pillar colour legend
+                col.Item().Element(x => DrawLegend(x,
+                    pillars.Select((p, i) =>
+                        (PillarPalette[i % PillarPalette.Length], p.PillarName)).ToArray(), 10));
+
+                // ── Pillar heatmap table ──────────────────────────────────────
+                col.Item().PaddingTop(4)
+                    .Text("Pillar Score Heatmap  (darker = higher score)")
+                    .FontSize(11).Bold().FontColor("#12352f");
+
+                col.Item().Table(table =>
+                {
+                    table.ColumnsDefinition(cols =>
+                    {
+                        cols.ConstantColumn(110);
+                        foreach (var _ in allYears) cols.RelativeColumn();
+                    });
+
+                    table.Cell().Background("#12352f").Padding(5)
+                        .Text("Pillar").FontSize(8).Bold().FontColor(Colors.White);
+                    foreach (var yr in allYears)
+                        table.Cell().Background("#12352f").Padding(5).AlignCenter()
+                            .Text(yr.ToString()).FontSize(8).Bold().FontColor(Colors.White);
+
+                    foreach (var (pillar, pi) in pillars.Select((p, i) => (p, i)))
+                    {
+                        string rowBg = pi % 2 == 0 ? "#f4f7f5" : Colors.White;
+
+                        table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                            .Padding(5).Text(pillar.PillarName).FontSize(8)
+                            .Bold().FontColor("#12352f");
+
+                        foreach (var yr in allYears)
+                        {
+                            var h = history.FirstOrDefault(h2 => h2.Year == yr);
+                            var ps = h?.Pillars?.FirstOrDefault(p2 => p2.PillarID == pillar.PillarID);
+                            // treat null as "no data"; 0 is a valid score
+                            bool hasData = ps != null;
+                            float score = hasData ? (float)ps!.ScoreProgress : -1f;
+
+                            string cellBg = !hasData ? "#f0f0f0"
+                                : InterpolateColor("#ffffff", "#12352f", score / 100f);
+
+                            table.Cell().Background(cellBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                                .Padding(4).AlignCenter()
+                                .Text(!hasData ? "—" : $"{score:F1}").FontSize(8)
+                                .FontColor(score >= 50 ? Colors.White : "#333333");
+                        }
+                    }
+                });
+
+                // ── Trend highlights ──────────────────────────────────────────
+                if (allYears.Count >= 2 && pillars.Any())
+                {
+                    col.Item().PaddingTop(6)
+                        .Text("Pillar Trend Highlights").FontSize(11).Bold().FontColor("#12352f");
+
+                    var pillarDeltas = pillars.Select(p =>
+                    {
+                        var firstH = history.FirstOrDefault()?.Pillars?
+                            .FirstOrDefault(pp => pp.PillarID == p.PillarID);
+                        var lastH = history.LastOrDefault()?.Pillars?
+                            .FirstOrDefault(pp => pp.PillarID == p.PillarID);
+                        float d = (float)((lastH?.ScoreProgress ?? 0) - (firstH?.ScoreProgress ?? 0));
+                        return (Name: p.PillarName, Delta: d);
+                    }).OrderByDescending(x => x.Delta).ToList();
+
+                    col.Item().Row(row =>
+                    {
+                        // Most improved  (replaced emoji with ASCII arrow)
+                        row.RelativeItem().Background("#e8f5e9").Padding(10).Column(c =>
+                        {
+                            c.Item().Text("(+) Most Improved").FontSize(9).Bold().FontColor("#336b58");
+                            foreach (var pd in pillarDeltas.Take(3))
+                                c.Item().Row(r =>
+                                {
+                                    r.RelativeItem().Text(Shorten(pd.Name, 28)).FontSize(8).FontColor("#333333");
+                                    r.ConstantItem(44).AlignRight()
+                                        .Text($"+{pd.Delta:F1}").FontSize(8).Bold().FontColor("#336b58");
+                                });
+                        });
+
+                        row.ConstantItem(10);
+
+                        // Needs attention  (replaced emoji with ASCII)
+                        row.RelativeItem().Background("#fdecea").Padding(10).Column(c =>
+                        {
+                            c.Item().Text("(!) Needs Attention").FontSize(9).Bold().FontColor("#e05252");
+                            foreach (var pd in pillarDeltas.TakeLast(3).Reverse())
+                                c.Item().Row(r =>
+                                {
+                                    r.RelativeItem().Text(Shorten(pd.Name, 28)).FontSize(8).FontColor("#333333");
+                                    r.ConstantItem(44).AlignRight()
+                                        .Text($"{pd.Delta:F1}").FontSize(8).Bold().FontColor("#e05252");
+                                });
+                        });
+                    });
+                }
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  CANVAS CHART RENDERERS
+        // ══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Multi-line trend chart: one coloured line per city (gold = main, palette = peers).
+        /// Thin grey peer lines are no longer used; each peer gets its own distinct colour.
+        /// </summary>
+        void DrawMultiLineTrendChart(
+            SKCanvas canvas, Size size,
+            List<int> years,
+            List<PeerCityHistoryReportDto> peers,
+            PeerCityHistoryReportDto mainCity,
+            AiCitySummeryDto cityDetails,
+            List<(int Year, float Avg, bool HasData)> peerAvg)
+        {
+            if (years.Count < 2) return;
+
+            const float padL = 36f, padR = 12f, padT = 10f, padB = 24f;
+            float w = size.Width - padL - padR;
+            float h = size.Height - padT - padB;
+
+            float Xp(int yr) => padL + (yr - years.First()) / (float)(years.Last() - years.First()) * w;
+            float Yp(float v) => padT + h - Math.Clamp(v, 0, 100) / 100f * h;
+
+            // Grid
+            foreach (int s in new[] { 0, 25, 50, 75, 100 })
+            {
+                float y = Yp(s);
+                canvas.DrawLine(padL, y, padL + w, y,
+                    new SKPaint { Color = SKColor.Parse("#e8e8e8"), StrokeWidth = 0.5f });
+                DrawCanvasText(canvas, s.ToString(), 2, y - 5, 7, "#aaaaaa");
+            }
+            foreach (int yr in years)
+            {
+                float x = Xp(yr);
+                canvas.DrawLine(x, padT, x, padT + h,
+                    new SKPaint { Color = SKColor.Parse("#f0f0f0"), StrokeWidth = 0.5f });
+                DrawCanvasText(canvas, yr.ToString(), x - 14, padT + h + 7, 7, "#888888");
+            }
+
+            // Peer average (dashed green)
+            var avgPts = peerAvg.Where(p => p.HasData)
+                .Select(p => new SKPoint(Xp(p.Year), Yp(p.Avg))).ToList();
+            DrawDashedPolyline(canvas, avgPts,
+                new SKPaint
+                {
+                    Color = SKColor.Parse("#4CAF8A"),
+                    StrokeWidth = 1.5f,
+                    IsAntialias = true,
+                    IsStroke = true
+                });
+
+            // Individual peer lines
+            for (int pi = 0; pi < peers.Count; pi++)
+            {
+                var peer = peers[pi];
+                string clr = CityPalette[1 + (pi % (CityPalette.Length - 1))];
+
+                var pts = (peer.CityHistory ?? new())
+                    .Where(h => years.Contains(h.Year))
+                    .OrderBy(h => h.Year)
+                    .Select(h => new SKPoint(Xp(h.Year), Yp((float)h.ScoreProgress)))
+                    .ToList();
+
+                DrawPolyline(canvas, pts,
+                    new SKPaint
+                    {
+                        Color = SKColor.Parse(clr).WithAlpha(180),
+                        StrokeWidth = 1.2f,
+                        IsAntialias = true,
+                        IsStroke = true
+                    });
+            }
+
+            // Main city line (gold, bold)
+            var mainPts = (mainCity.CityHistory ?? new())
+                .Where(h => years.Contains(h.Year))
+                .OrderBy(h => h.Year)
+                .Select(h => new SKPoint(Xp(h.Year), Yp((float)h.ScoreProgress)))
+                .ToList();
+
+            DrawPolyline(canvas, mainPts,
+                new SKPaint
+                {
+                    Color = SKColor.Parse(CityPalette[0]),
+                    StrokeWidth = 2.5f,
+                    IsAntialias = true,
+                    IsStroke = true
+                });
+
+            foreach (var pt in mainPts)
+                canvas.DrawCircle(pt.X, pt.Y, 4f,
+                    new SKPaint { Color = SKColor.Parse(CityPalette[0]), IsAntialias = true });
+        }
+
+        void DrawAreaComparisonChart(
+            SKCanvas canvas, Size size,
+            List<int> years,
+            List<PeerCityYearHistoryDto> mainHistory,
+            List<(int Year, float Avg)> peerAvg)
+        {
+            if (years.Count < 2) return;
+
+            const float padL = 36f, padR = 10f, padT = 6f, padB = 20f;
+            float w = size.Width - padL - padR;
+            float h = size.Height - padT - padB;
+
+            float Xp(int yr) => padL + (yr - years.First()) / (float)(years.Last() - years.First()) * w;
+            float Yp(float v) => padT + h - Math.Clamp(v, 0, 100) / 100f * h;
+
+            foreach (int s in new[] { 0, 25, 50, 75, 100 })
+            {
+                float y = Yp(s);
+                canvas.DrawLine(padL, y, padL + w, y,
+                    new SKPaint { Color = SKColor.Parse("#e8e8e8"), StrokeWidth = 0.5f });
+                DrawCanvasText(canvas, s.ToString(), 2, y - 5, 7, "#aaaaaa");
+            }
+            foreach (int yr in years)
+                DrawCanvasText(canvas, yr.ToString(), Xp(yr) - 12, padT + h + 5, 7, "#888888");
+
+            // Peer area
+            var peerPath = new SKPath();
+            peerPath.MoveTo(Xp(years.First()), Yp(0));
+            foreach (int yr in years)
+            {
+                float v = peerAvg.FirstOrDefault(p => p.Year == yr).Avg;
+                peerPath.LineTo(Xp(yr), Yp(v));
+            }
+            peerPath.LineTo(Xp(years.Last()), Yp(0));
+            peerPath.Close();
+            canvas.DrawPath(peerPath,
+                new SKPaint { Color = SKColor.Parse("#4CAF8A").WithAlpha(40), IsAntialias = true });
+
+            // Main area
+            var mainPath = new SKPath();
+            mainPath.MoveTo(Xp(years.First()), Yp(0));
+            foreach (int yr in years)
+            {
+                float v = (float)(mainHistory.FirstOrDefault(h => h.Year == yr)?.ScoreProgress ?? 0);
+                mainPath.LineTo(Xp(yr), Yp(v));
+            }
+            mainPath.LineTo(Xp(years.Last()), Yp(0));
+            mainPath.Close();
+            canvas.DrawPath(mainPath,
+                new SKPaint { Color = SKColor.Parse(CityPalette[0]).WithAlpha(50), IsAntialias = true });
+
+            // Outlines
+            DrawPolyline(canvas,
+                years.Select(yr => new SKPoint(Xp(yr),
+                    Yp(peerAvg.FirstOrDefault(p => p.Year == yr).Avg))).ToList(),
+                new SKPaint
+                {
+                    Color = SKColor.Parse("#4CAF8A"),
+                    StrokeWidth = 1.5f,
+                    IsAntialias = true,
+                    IsStroke = true
+                });
+
+            DrawPolyline(canvas,
+                years.Select(yr => new SKPoint(Xp(yr),
+                    Yp((float)(mainHistory.FirstOrDefault(h => h.Year == yr)?.ScoreProgress ?? 0)))).ToList(),
+                new SKPaint
+                {
+                    Color = SKColor.Parse(CityPalette[0]),
+                    StrokeWidth = 2f,
+                    IsAntialias = true,
+                    IsStroke = true
+                });
+        }
+
+        /// <summary>Multi-pillar line chart — one coloured line per pillar (up to 14).</summary>
+        void DrawPillarLineChart(
+            SKCanvas canvas, Size size,
+            List<int> years,
+            List<PeerCityYearHistoryDto> history,
+            List<PeerCityPillarHistoryReportDto> pillars)
+        {
+            if (years.Count < 2) return;
+
+            const float padL = 36f, padR = 10f, padT = 8f, padB = 20f;
+            float w = size.Width - padL - padR;
+            float h = size.Height - padT - padB;
+
+            float Xp(int yr) => padL + (yr - years.First()) / (float)(years.Last() - years.First()) * w;
+            float Yp(float v) => padT + h - Math.Clamp(v, 0, 100) / 100f * h;
+
+            foreach (int s in new[] { 0, 25, 50, 75, 100 })
+            {
+                float y = Yp(s);
+                canvas.DrawLine(padL, y, padL + w, y,
+                    new SKPaint { Color = SKColor.Parse("#e8e8e8"), StrokeWidth = 0.5f });
+                DrawCanvasText(canvas, s.ToString(), 2, y - 5, 7, "#aaaaaa");
+            }
+            foreach (int yr in years)
+                DrawCanvasText(canvas, yr.ToString(), Xp(yr) - 12, padT + h + 5, 7, "#888888");
+
+            for (int pi = 0; pi < pillars.Count; pi++)
+            {
+                var pillar = pillars[pi];
+                string color = PillarPalette[pi % PillarPalette.Length];
+
+                var pts = years
+                    .Select(yr =>
+                    {
+                        var hEntry = history.FirstOrDefault(h => h.Year == yr);
+                        var ps = hEntry?.Pillars?.FirstOrDefault(p => p.PillarID == pillar.PillarID);
+                        return ps != null ? (float?)ps.ScoreProgress : null;
+                    })
+                    .Select((s, i) => (Year: years[i], Score: s))
+                    .Where(p => p.Score.HasValue)
+                    .Select(p => new SKPoint(Xp(p.Year), Yp(p.Score!.Value)))
+                    .ToList();
+
+                DrawPolyline(canvas, pts,
+                    new SKPaint
+                    {
+                        Color = SKColor.Parse(color),
+                        StrokeWidth = 1.5f,
+                        IsAntialias = true,
+                        IsStroke = true
+                    });
+
+                foreach (var pt in pts)
+                    canvas.DrawCircle(pt.X, pt.Y, 2.5f,
+                        new SKPaint { Color = SKColor.Parse(color), IsAntialias = true });
+            }
+        }
+
+        void DrawScatterPlot(
+            SKCanvas canvas, Size size,
+            List<PeerCityHistoryReportDto> cities,
+            AiCitySummeryDto cityDetails,
+            Func<PeerCityHistoryReportDto, float> xVal,
+            Func<PeerCityHistoryReportDto, float> yVal,
+            string xLabel, string yLabel)
+        {
+            const float padL = 42f, padR = 14f, padT = 8f, padB = 24f;
+            float w = size.Width - padL - padR;
+            float h = size.Height - padT - padB;
+
+            float xMin = cities.Any() ? cities.Min(xVal) : 0f;
+            float xMax = cities.Any() ? cities.Max(xVal) : 1f;
+            if (xMax <= xMin) xMax = xMin + 1;
+
+            float Xp(float v) => padL + (v - xMin) / (xMax - xMin) * w;
+            float Yp(float v) => padT + h - Math.Clamp(v, 0, 100) / 100f * h;
+
+            // Axes
+            canvas.DrawLine(padL, padT, padL, padT + h,
+                new SKPaint { Color = SKColor.Parse("#aaaaaa"), StrokeWidth = 0.8f });
+            canvas.DrawLine(padL, padT + h, padL + w, padT + h,
+                new SKPaint { Color = SKColor.Parse("#aaaaaa"), StrokeWidth = 0.8f });
+
+            foreach (int s in new[] { 0, 25, 50, 75, 100 })
+            {
+                float y = Yp(s);
+                canvas.DrawLine(padL, y, padL + w, y,
+                    new SKPaint { Color = SKColor.Parse("#eeeeee"), StrokeWidth = 0.5f });
+                DrawCanvasText(canvas, s.ToString(), 2, y - 5, 7, "#999999");
+            }
+
+            for (int i = 0; i < cities.Count; i++)
+            {
+                var city = cities[i];
+                bool isMain = IsSameCity(city.CityName, cityDetails.CityName);
+                float x = Xp(xVal(city));
+                float y = Yp(yVal(city));
+                string clr = isMain ? CityPalette[0] : CityPalette[1 + (i % (CityPalette.Length - 1))];
+
+                canvas.DrawCircle(x, y, isMain ? 6f : 4.5f,
+                    new SKPaint { Color = SKColor.Parse(clr), IsAntialias = true });
+
+                if (isMain)
+                    canvas.DrawCircle(x, y, 6f,
+                        new SKPaint
+                        {
+                            Color = SKColor.Parse("#12352f"),
+                            IsStroke = true,
+                            StrokeWidth = 1.5f,
+                            IsAntialias = true
+                        });
+            }
+
+            DrawCanvasText(canvas, xLabel, padL + w / 2 - 22, padT + h + 14, 8, "#666666");
+            DrawCanvasText(canvas, yLabel, 2, padT + h / 2, 8, "#666666");
+        }
+
+        void DrawDonutChart(SKCanvas canvas, Size size, List<(string Label, float Value)> segments)
+        {
+            float total = segments.Sum(s => s.Value);
+            if (total <= 0) return;
+
+            float cx = size.Height / 2f;
+            float cy = size.Height / 2f;
+            float outerR = size.Height / 2f - 6f;
+            float innerR = outerR * 0.52f;
+
+            float startAngle = -90f;
+            for (int i = 0; i < segments.Count; i++)
+            {
+                float sweep = segments[i].Value / total * 360f;
+                using var path = new SKPath();
+                var outer = new SKRect(cx - outerR, cy - outerR, cx + outerR, cy + outerR);
+                path.AddArc(outer, startAngle, sweep);
+                path.ArcTo(new SKRect(cx - innerR, cy - innerR, cx + innerR, cy + innerR),
+                    startAngle + sweep, -sweep, false);
+                path.Close();
+
+                canvas.DrawPath(path, new SKPaint
+                { Color = SKColor.Parse(PillarPalette[i % PillarPalette.Length]), IsAntialias = true });
+
+                startAngle += sweep;
+            }
+
+            // Centre count
+            DrawCanvasText(canvas, $"{segments.Count}", cx - 8, cy - 8, 14, "#12352f", bold: true);
+            DrawCanvasText(canvas, "groups", cx - 16, cy + 6, 7, "#555555");
+
+            // Legend right of donut
+            float lx = cx + outerR + 14f;
+            for (int i = 0; i < segments.Count; i++)
+            {
+                float ly = 12 + i * 17f;
+                canvas.DrawRoundRect(
+                    new SKRoundRect(new SKRect(lx, ly, lx + 10, ly + 10), 2),
+                    new SKPaint
+                    {
+                        Color = SKColor.Parse(PillarPalette[i % PillarPalette.Length]),
+                        IsAntialias = true
+                    });
+                DrawCanvasText(canvas,
+                    $"{Shorten(segments[i].Label, 18)}  ({segments[i].Value:F0})",
+                    lx + 14, ly, 8, "#333333");
+            }
+        }
+
+        void DrawHistogram(
+            SKCanvas canvas, Size size,
+            List<float> scores, float markerValue, int bins)
+        {
+            if (!scores.Any()) return;
+
+            const float padL = 30f, padR = 10f, padT = 6f, padB = 20f;
+            float w = size.Width - padL - padR;
+            float h = size.Height - padT - padB;
+            float binW = w / bins;
+            float bucketSz = 100f / bins;
+
+            int[] counts = new int[bins];
+            foreach (float s in scores)
+            {
+                int b = Math.Clamp((int)(s / bucketSz), 0, bins - 1);
+                counts[b]++;
+            }
+            int maxCount = counts.Max() == 0 ? 1 : counts.Max();
+
+            for (int b = 0; b < bins; b++)
+            {
+                float bH = (float)counts[b] / maxCount * h;
+                float x = padL + b * binW;
+                float midScr = b * bucketSz + bucketSz / 2f;
+
+                canvas.DrawRoundRect(
+                    new SKRoundRect(new SKRect(x + 2, padT + h - bH, x + binW - 2, padT + h), 2),
+                    new SKPaint { Color = SKColor.Parse(ScoreColor(midScr)), IsAntialias = true });
+
+                if (counts[b] > 0)
+                    DrawCanvasText(canvas, counts[b].ToString(), x + 3, padT + h - bH - 12, 7, "#555555");
+            }
+
+            for (int b = 0; b <= bins; b += 2)
+                DrawCanvasText(canvas, (b * bucketSz).ToString("F0"),
+                    padL + b * binW - 6, padT + h + 5, 7, "#888888");
+
+            // Marker for selected city
+            float mx = padL + Math.Clamp(markerValue, 0, 100) / 100f * w;
+            canvas.DrawLine(mx, padT, mx, padT + h,
+                new SKPaint
+                {
+                    Color = SKColor.Parse(CityPalette[0]),
+                    StrokeWidth = 2f,
+                    PathEffect = SKPathEffect.CreateDash(new[] { 4f, 3f }, 0)
+                });
+            DrawCanvasText(canvas, $"^{markerValue:F1}", mx - 12, padT - 1, 7, CityPalette[0], bold: true);
+        }
+
+        void DrawRolePillarHeatmap(
+            IContainer container,
+            List<(string Role, List<PeerCityHistoryReportDto> Cities)> roles)
+        {
+            var pillars = roles
+                .SelectMany(r => r.Cities)
+                .SelectMany(c => c.CityHistory ?? new())
+                .SelectMany(h => h.Pillars ?? new())
+                .GroupBy(p => p.PillarID)
+                .Select(g => g.First())
+                .OrderBy(p => p.DisplayOrder)
+                .Take(MaxPillars)
+                .ToList();
+
+            if (!pillars.Any()) return;
+
+            container.Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.ConstantColumn(90);
+                    foreach (var _ in pillars) cols.RelativeColumn();
+                });
+
+                table.Cell().Background("#12352f").Padding(5)
+                    .Text("Role / Pillar").FontSize(7).Bold().FontColor(Colors.White);
+                foreach (var p in pillars)
+                    table.Cell().Background("#12352f").Padding(4).AlignCenter()
+                        .Text(Shorten(p.PillarName, 8))
+                        .FontSize(7).Bold().FontColor(Colors.White);
+
+                foreach (var (role, cities) in roles)
+                {
+                    table.Cell().Background("#f4f7f5").BorderBottom(0.5f).BorderColor("#e0e0e0")
+                        .Padding(5).Text(role).FontSize(7).FontColor("#333333");
+
+                    foreach (var pillar in pillars)
+                    {
+                        // include 0-score entries
+                        var validScores = cities
+                            .SelectMany(c => c.CityHistory ?? new())
+                            .SelectMany(h => h.Pillars ?? new())
+                            .Where(p => p.PillarID == pillar.PillarID)
+                            .Select(p => (float)p.ScoreProgress)
+                            .ToList();
+
+                        bool hasData = validScores.Any();
+                        float avg = hasData ? validScores.Average() : -1f;
+
+                        string bg = !hasData ? "#f0f0f0"
+                            : InterpolateColor("#ffffff", "#12352f", avg / 100f);
+
+                        table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                            .Padding(3).AlignCenter()
+                            .Text(!hasData ? "—" : $"{avg:F0}")
+                            .FontSize(7).FontColor(avg >= 50 ? Colors.White : "#333333");
+                    }
+                }
+            });
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  SHARED LAYOUT HELPERS
+        // ══════════════════════════════════════════════════════════════════════════
+
+        void DrawInsightBand(IContainer container, string text)
+        {
+            container.Background("#e8f5e9").Padding(8)
+                .Text(text).FontSize(8.5f).FontColor("#12352f");
+        }
+
+        void DrawNoDataPage(IContainer container)
+        {
+            container.AlignCenter().AlignMiddle()
+                .Text("No data available for this section.")
+                .FontSize(12).FontColor("#aaaaaa");
+        }
+        void DrawLegend(IContainer container, (string Color, string Label)[] items, int textsize = 20)
+        {
+            var groups = items
+                .Select((x, i) => new { x, i })
+                .GroupBy(x => x.i / 7)
+                .Select(g => g.Select(v => v.x).ToList());
+
+            container.Column(col =>
+            {
+                col.Item().Row(row =>
+                {
+                    row.AutoItem().AlignMiddle()
+                        .Text("Legend:  ")
+                        .FontSize(8)
+                        .FontColor("#888888");
+                });
+
+                foreach (var group in groups)
+                {
+                    col.Item().Row(row =>
+                    {
+                        foreach (var (color, label) in group)
+                        {
+                            row.ConstantItem(10).Height(10).Canvas((c, s) =>
+                                c.DrawRoundRect(
+                                    new SKRoundRect(new SKRect(0, 1, 10, 9), 2),
+                                    new SKPaint { Color = SKColor.Parse(color) }));
+
+                            row.AutoItem()
+                                .PaddingLeft(3)
+                                .PaddingRight(10)
+                                .Text(Shorten(label, textsize))
+                                .FontSize(8)
+                                .FontColor("#555555");
+                        }
+                    });
+                }
+            });
+        }
+
+        /// <summary>City-specific legend: gold dot for selected city, palette dots for peers.</summary>
+        void DrawCityLineLegend(
+            IContainer container,
+            PeerCityHistoryReportDto mainCity,
+            List<PeerCityHistoryReportDto> peers,
+            AiCitySummeryDto cityDetails)
+        {
+            var items = new List<(string Color, string Label)>
+            {
+                (CityPalette[0],  $"{cityDetails.CityName} (selected)"),
+                ("#4CAF8A",       "Peer Average")
+            };
+            for (int i = 0; i < peers.Count; i++)
+                items.Add((CityPalette[1 + (i % (CityPalette.Length - 1))], peers[i].CityName));
+
+            DrawLegend(container, items.ToArray());
+        }
+
+        /// <summary>Legend row showing a coloured dot for every city in the chart.</summary>
+        void DrawCityLegend(
+            IContainer container,
+            List<PeerCityHistoryReportDto> allCities,
+            AiCitySummeryDto cityDetails)
+        {
+            var items = allCities
+                .Select((c, i) => (
+                    Color: IsSameCity(c.CityName, cityDetails.CityName)
+                        ? CityPalette[0]
+                        : CityPalette[1 + (i % (CityPalette.Length - 1))],
+                    Label: c.CityName
+                ))
+                .ToArray();
+
+            DrawLegend(container, items);
+        }
+
+        static void DrawTableHeader(TableDescriptor table, string[] headers)
+        {
+            foreach (string h in headers)
+                table.Cell().Background("#12352f").Padding(5)
+                    .Text(h).FontSize(8).Bold().FontColor(Colors.White);
+        }
+
+        static void DrawPolyline(SKCanvas canvas, List<SKPoint> pts, SKPaint paint)
+        {
+            for (int i = 0; i < pts.Count - 1; i++)
+                canvas.DrawLine(pts[i], pts[i + 1], paint);
+        }
+
+        static void DrawDashedPolyline(SKCanvas canvas, List<SKPoint> pts, SKPaint paint)
+        {
+            var dashed = paint.Clone();
+            dashed.PathEffect = SKPathEffect.CreateDash(new[] { 5f, 3f }, 0);
+            DrawPolyline(canvas, pts, dashed);
+        }
+
+        static void DrawCanvasText(
+            SKCanvas canvas, string text, float x, float y, float textSize,
+            string hexColor, bool bold = false)
+        {
+            using var paint = new SKPaint
+            {
+                Color = SKColor.Parse(hexColor),
+                TextSize = textSize,
+                IsAntialias = true,
+                Typeface = bold
+                    ? SKTypeface.FromFamilyName("Arial", SKFontStyle.Bold)
+                    : SKTypeface.FromFamilyName("Arial")
+            };
+            canvas.DrawText(text, x, y + textSize, paint);
+        }
+
+        // ══════════════════════════════════════════════════════════════════════════
+        //  UTILITY HELPERS
+        // ══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Returns the latest year's score including 0.
+        /// Returns -1 only when there is genuinely NO history entry at all.
+        /// </summary>
+        static float GetLatestScoreOrZero(PeerCityHistoryReportDto city)
+        {
+            var last = city.CityHistory?
+                .OrderByDescending(h => h.Year)
+                .FirstOrDefault();
+            return last != null ? (float)last.ScoreProgress : -1f;
+        }
+
+        /// <summary>Returns main-city entry from the combined list; null if not found.</summary>
+        static PeerCityHistoryReportDto? FindMainCity(
+            List<PeerCityHistoryReportDto> all, AiCitySummeryDto cityDetails) =>
+            all.FirstOrDefault(p => IsSameCity(p.CityName, cityDetails.CityName));
+
+        /// <summary>Case-insensitive city name equality check.</summary>
+        static bool IsSameCity(string? a, string? b) =>
+            string.Equals(a?.Trim(), b?.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>Builds a deduplicated list: main city first, then peers.</summary>
+        static List<PeerCityHistoryReportDto> BuildAllCities(
+            PeerCityHistoryReportDto? main,
+            List<PeerCityHistoryReportDto> peers)
+        {
+            var list = new List<PeerCityHistoryReportDto>();
+            if (main != null) list.Add(main);
+            list.AddRange(peers);
+            return list;
+        }
+
+        static string ScoreColor(float score) =>
+            score >= 70 ? "#336b58" : score >= 40 ? "#f5a623" : "#e05252";
+
+        static string DeriveRole(PeerCityHistoryReportDto city)
+        {
+            if (city.Population >= 5_000_000) return "Metropolis";
+            if (city.Population >= 1_000_000) return "Major City";
+            if (city.Population >= 300_000) return "Mid-Sized City";
+            if (city.Population >= 100_000) return "Large Town";
+            return "Small City";
+        }
+
+        static string FormatPop(int? pop)
+        {
+            if (!pop.HasValue || pop <= 0) return "N/A";
+            if (pop >= 1_000_000) return $"{pop / 1_000_000.0:F1}M";
+            if (pop >= 1_000) return $"{pop / 1_000.0:F0}K";
+            return pop.ToString()!;
+        }
+
+        static string InterpolateColor(string from, string to, float t)
+        {
+            t = Math.Clamp(t, 0f, 1f);
+            var c1 = SKColor.Parse(from);
+            var c2 = SKColor.Parse(to);
+            byte r = (byte)(c1.Red + (c2.Red - c1.Red) * t);
+            byte g = (byte)(c1.Green + (c2.Green - c1.Green) * t);
+            byte b = (byte)(c1.Blue + (c2.Blue - c1.Blue) * t);
+            return $"#{r:X2}{g:X2}{b:X2}";
+        }
+    }
+
 }
