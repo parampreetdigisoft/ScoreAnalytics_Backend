@@ -51,6 +51,7 @@ namespace AssessmentPlatform.Services
                 PasswordHash = hash,
                 Role = role,
                 IsEmailConfirmed = false,
+                TemporaryMail = email,
                 Tier = role == UserRole.CityUser ? Enums.TieredAccessPlan.Pending : null
             };
             _context.Users.Add(user);
@@ -716,7 +717,7 @@ namespace AssessmentPlatform.Services
             try
             {
                 // Check if the user already exists
-                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email && u.IsDeleted == false);
 
                 if (existingUser != null)
                 {
@@ -745,7 +746,9 @@ namespace AssessmentPlatform.Services
                         ApiUrl = _appSettings.ApiUrl,
                         ApplicationUrl = _appSettings.PublicApplicationUrl,
                         MsgText = "Thank you for signing up! Please verify your email and reset your password to complete registration.",
-                        Mail = _appSettings.AdminMail
+                        Mail = _appSettings.AdminMail,
+                        BtnText = "Verify",
+                        IsLoginBtn = false
                     };
 
                     isMailSend = await _emailService.SendEmailAsync(
