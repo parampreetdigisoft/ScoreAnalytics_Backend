@@ -969,6 +969,7 @@ namespace AssessmentPlatform.Services
                 var peersCityIds = await _context.Cities
                     .Where(x => x.CityID == cityDetails.CityID)
                     .SelectMany(x => x.CityPeers)
+                    .Where(x=> x.IsActive && !x.IsDeleted)
                     .Select(x => x.PeerCityID)
                     .ToListAsync();
                 if(peersCityIds.Count > 0)
