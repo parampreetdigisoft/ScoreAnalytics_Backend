@@ -1,4 +1,5 @@
-﻿using AssessmentPlatform.Common.Implementation;
+﻿using AssessmentPlatform.Backgroundjob;
+using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
@@ -22,12 +23,14 @@ namespace AssessmentPlatform.Services
         private readonly IAppLogger _appLogger;
         private readonly IWebHostEnvironment _env;
         private readonly ICommonService _commonService;
-        public CityService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, ICommonService commonService)
+        private readonly Download _download;
+        public CityService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, ICommonService commonService, Download download)
         {
             _context = context;
             _appLogger = appLogger;
             _env = env;
             _commonService = commonService;
+            _download = download;
         }
 
         #endregion
@@ -155,6 +158,10 @@ namespace AssessmentPlatform.Services
                     IsActive = true,
                     UpdatedDate = DateTime.UtcNow
                 });
+            }
+            if(newPeers.Count > 0 || removePeers.Count > 0)
+            {
+                _download.InsertAnalyticalLayerResults(cityId);
             }
 
             await _context.SaveChangesAsync();
