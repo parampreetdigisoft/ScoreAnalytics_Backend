@@ -44,7 +44,7 @@ namespace AssessmentPlatform.Common.Implementation
                             .Select(p => new KpiChartItem(
                                 p.PillarName?.Length > 20 ? p.PillarName[..20] : p.PillarName ?? "—",
                                 p.PillarName ?? "—",
-                                p.AIProgress, null))
+                                p.AIProgress, null,null))
                             .ToList();
 
                             AddCityDetailsPdf(container, cityDetails, pillars, kpiChartItems,new(), userRole, true);
@@ -74,7 +74,7 @@ namespace AssessmentPlatform.Common.Implementation
                     .Select(p => new KpiChartItem(
                         p.PillarName?.Length > 20 ? p.PillarName[..20] : p.PillarName ?? "—",
                         p.PillarName ?? "—",
-                        p.AIProgress, null))
+                        p.AIProgress, null,null))
                     .ToList();
 
                 var document = Document.Create(container =>
@@ -130,7 +130,7 @@ namespace AssessmentPlatform.Common.Implementation
             .Select(p => new KpiChartItem(
                 p.PillarName?.Length > 20 ? p.PillarName[..20] : p.PillarName ?? "—",
                 p.PillarName ?? "—",
-                p.AIProgress, null))
+                p.AIProgress, null,null))
             .ToList();
 
             // ── Section 1 : Global Dashboard ─────────────────────────────────
@@ -304,7 +304,7 @@ namespace AssessmentPlatform.Common.Implementation
                     .ToList();
 
                 if (topKpis.Any())
-                    col.Item().Height(90).Element(x =>
+                    col.Item().Height(100).Element(x =>
                     DrawTopKpiBand(x, topKpis));
 
                 col.Item().Height(100).Element(x =>
@@ -914,33 +914,54 @@ namespace AssessmentPlatform.Common.Implementation
         static void DrawMainKpi(IContainer container, KpiChartItem kpi)
         {
             var value = kpi?.Value ?? 0;
+            var valuePer = kpi?.Value != null ? Math.Round(kpi?.Value ?? 0,1) + "%" : "N/A";
 
             var color = value >= 70
                 ? "#4CAF50"
                 : value >= 40
                     ? "#FFC107"
                     : "#EF5350";
-
+            
             container
-                .Background(color + "20")
+                .Background(color + "15")
                 .Border(1)
                 .BorderColor(color)
-                .Padding(10)
+                .Padding(8)
                 .Column(col =>
                 {
-                    col.Item().Text(kpi?.ShortName ?? "N/A")
-                        .FontSize(14)
-                        .SemiBold()
-                        .FontColor("#ffffff");
+                    // TOP HEADER ROW
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem()
+                            .Text(kpi?.ShortName ?? "N/A")
+                            .FontSize(14)
+                            .SemiBold()
+                            .FontColor("#ffffff");
 
-                    col.Item().Text($"{value:F1}%")
+                        // Interpretation Condition Badge
+                        row.ConstantItem(120)
+                            .AlignRight()
+                            .Background(color)
+                            .PaddingVertical(2)
+                            .PaddingHorizontal(6)
+                            .AlignMiddle()
+                            .Text(kpi?.InterPretation ?? "N/A")
+                            .FontSize(8)
+                            .FontColor("#ffffff")
+                            .SemiBold();
+                    });
+
+                    // KPI VALUE
+                    col.Item().AlignCenter().Text($"{valuePer}")
                         .FontSize(18)
                         .Bold()
                         .FontColor(color);
 
-                    col.Item().Text(kpi?.Name ?? "")
+                    // KPI FULL NAME
+                    col.Item().AlignCenter().Text(kpi?.Name ?? "")
                         .FontSize(10)
-                        .FontColor("#d0d0d0");
+                        .FontColor("#cfcfcf");
+                   
                 });
         }
 
@@ -1118,7 +1139,8 @@ namespace AssessmentPlatform.Common.Implementation
                     cols.ConstantColumn(18);  // sequential #
                     cols.ConstantColumn(28);  // short code
                     cols.RelativeColumn();    // full KPI name
-                    cols.ConstantColumn(30);  // score value
+                    cols.ConstantColumn(50);    // full KPI name
+                    cols.ConstantColumn(35);  // score value
                 });
 
                 // ── header ────────────────────────────────────────────────────────
@@ -1135,6 +1157,7 @@ namespace AssessmentPlatform.Common.Implementation
                     Hdr(h.Cell(), "#");
                     Hdr(h.Cell(), "Code");
                     Hdr(h.Cell(), "KPI Name");
+                    Hdr(h.Cell(), "Condition");
                     Hdr(h.Cell(), "Score");
                 });
 
@@ -1142,8 +1165,9 @@ namespace AssessmentPlatform.Common.Implementation
                 for (int i = 0; i < items.Count; i++)
                 {
                     var kpi = items[i];
-                    float v = (float)(kpi.Value ?? 0);
-                    string colorHex = GetBarColor(v);           // "#2E7D32" | "#F9A825" | "#C62828"
+                    var value = kpi.Value ?? 0;
+                    var v = value == 100 ? Math.Round(value, 0) : Math.Round(value, 1);
+                    string colorHex = GetBarColor((float)v);           // "#2E7D32" | "#F9A825" | "#C62828"
                     string rowBg = i % 2 == 0 ? "#FFFFFF" : "#EDF7F2";
                     int num = offset + i + 1;
 
@@ -1170,12 +1194,19 @@ namespace AssessmentPlatform.Common.Implementation
                          .PaddingVertical(4).PaddingHorizontal(3)
                          .Text(kpi.Name ?? "").FontSize(7f).FontColor("#1C3A32");
 
-                    // col 5 — score, coloured to match status
+                    // col 5 — full KPI name (primary readable text)
                     table.Cell()
                          .Background(rowBg)
+                         .PaddingVertical(4).PaddingHorizontal(3)
+                         .Text(kpi.InterPretation ?? "").Bold().FontSize(7f).FontColor(colorHex);
+
+
+                    // col 6 — score, coloured to match status
+                    table.Cell()
+                         .Background(rowBg) 
                          .PaddingVertical(4).PaddingHorizontal(4)
                          .AlignRight()
-                         .Text($"{v:F1}%").FontSize(6.5f).Bold().FontColor(colorHex);
+                         .Text($"{v}%").FontSize(8.5f).Bold().FontColor(colorHex);
                 }
             });
         }
@@ -1611,7 +1642,7 @@ namespace AssessmentPlatform.Common.Implementation
 
                 column.Item().PageBreak();
                 column.Item().PaddingTop(10).Element(c =>
-                    PillarContentSection(c, "Red Flags", data.RedFlags, "#6e9688"));
+                    PillarContentSection(c, "Red Flags", data.RedFlags, "#ED561A", "#eb4634"));
                 column.Item().PaddingTop(10).Element(c =>
                     PillarContentSection(c, "Geographic Equity Note", data.GeographicEquityNote, "#0d8057"));
 
@@ -1675,7 +1706,7 @@ namespace AssessmentPlatform.Common.Implementation
 
         /// <summary>Generic titled content block with accent bar.</summary>
         static void PillarContentSection(
-            IContainer container, string title, string content, string accentColor)
+            IContainer container, string title, string content, string accentColor, string textcolor = "#424242")
         {
             container.Column(column =>
             {
@@ -1691,7 +1722,7 @@ namespace AssessmentPlatform.Common.Implementation
                     .Border(1).BorderColor("#E0E0E0")
                     .Padding(18)
                     .Text(content)
-                    .FontSize(10).LineHeight(1.6f).FontColor("#424242");
+                    .FontSize(10).LineHeight(1.6f).FontColor(textcolor);
             });
         }
 

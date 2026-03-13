@@ -928,17 +928,36 @@ namespace AssessmentPlatform.Services
             }
 
             var kpiRaw = baseQuery
-                .Where(x => !cityID.HasValue || x.CityID == cityID)
-                .Select(x => new
-                {
-                    KpiShortName = x.AnalyticalLayer.LayerCode,
-                    KpiName = x.AnalyticalLayer.LayerName,
-                    Value = x.AiCalValue5,
-                    CityID = x.CityID
-                });
+            .Where(x => !cityID.HasValue || x.CityID == cityID)
+            .Select(x => new
+            {
+                KpiShortName = x.AnalyticalLayer.LayerCode,
+                KpiName = x.AnalyticalLayer.LayerName,
+                CityID = x.CityID,
+                RawValue = x.AiCalValue5 
+            })
+            .Select(x => new
+            {
+                x.KpiShortName,
+                x.KpiName,
+                x.CityID,
+
+                Value = x.RawValue,
+
+                Interpretation = x.RawValue == null
+                    ? null
+                    : baseQuery
+                        .Where(b => b.CityID == x.CityID)
+                        .SelectMany(b => b.AnalyticalLayer.FiveLevelInterpretations)
+                        .Where(f =>
+                            f.MinRange <= (x.RawValue == null ? null : Math.Round(x.RawValue.Value, 0)) &&
+                            f.MaxRange >= (x.RawValue == null ? null : Math.Round(x.RawValue.Value, 0)))
+                        .Select(f => f.Condition)
+                        .FirstOrDefault()
+            });
 
             var kpis = await kpiRaw
-                .Select(k => new KpiChartItem(k.KpiShortName, k.KpiName, k.Value, k.CityID))
+                .Select(k => new KpiChartItem(k.KpiShortName, k.KpiName, k.Value, k.CityID,k.Interpretation))
                 .ToListAsync();
 
             return kpis ?? new List<KpiChartItem>();
@@ -963,7 +982,7 @@ namespace AssessmentPlatform.Services
                     .Select(p => new KpiChartItem(
                         p.PillarName?.Length > 20 ? p.PillarName[..20] : p.PillarName ?? "—",
                         p.PillarName ?? "—",
-                        p.AIProgress, null))
+                        p.AIProgress, null, null))
                     .ToList();
 
                 var peersCityIds = await _context.Cities
@@ -1068,9 +1087,17 @@ namespace AssessmentPlatform.Services
 
                 var kpis = new List<KpiChartItem>();
 
-                var document = await _iPdfGeneratorService.GenerateAllCitiesDetailsPdf(citiesDetails, pillars.Result, kpis, userRole);
+                var recordAvailable = pillars.Result.Any(x => citiesDetails.Select(x => x.CityID).Contains(x.Key));
+                if (recordAvailable)
+                {
+                    var document = await _iPdfGeneratorService.GenerateAllCitiesDetailsPdf(citiesDetails, pillars.Result, kpis, userRole);
 
-                return document;
+                    return document;
+                }
+                else
+                {
+                    return Array.Empty<byte>();
+                }
             }
             catch (Exception ex)
             {
@@ -1082,5 +1109,5 @@ namespace AssessmentPlatform.Services
         #endregion pdf pillars and city report
 
     }
-    public record KpiChartItem(string ShortName, string Name, decimal? Value, int? CityID);
+    public record KpiChartItem(string ShortName, string Name, decimal? Value, int? CityID,string? InterPretation);
 }

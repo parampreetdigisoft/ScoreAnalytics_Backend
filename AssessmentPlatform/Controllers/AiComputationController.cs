@@ -141,7 +141,7 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("aiAllCityDetailsReport")]
-        public async Task<IActionResult> DownloadAllCityPdf()
+        public async Task<IActionResult> DownloadAllCityPdf([FromQuery] DownloadReportDto request)
         {
             try
             {
@@ -162,13 +162,17 @@ namespace AssessmentPlatform.Controllers
 
                 if(cityDetails.Count > 0)
                 {
-                    // Generate PDF
-                    var pdfBytes = await _aIComputationService.GenerateAllCityDetailsPdf(cityDetails, userRole, userId.GetValueOrDefault(), year);
+                    cityDetails = cityDetails.Where(x => request.CityIDs.Contains(x.CityID)).ToList();  
 
-                    // Return PDF with proper headers
-                    var fileName = $"All_Details_{DateTime.Now:yyyyMMdd}.pdf";
+                    if(cityDetails.Count > 0)
+                    {
+                        var pdfBytes = await _aIComputationService.GenerateAllCityDetailsPdf(cityDetails, userRole, userId.GetValueOrDefault(), year);
 
-                    return File(pdfBytes, "application/pdf", fileName);
+                        var fileName = $"All_Details_{DateTime.Now:yyyyMMdd}.pdf";
+
+                        return File(pdfBytes, "application/pdf", fileName);
+                    }
+
                 }
                 return NotFound("No City Found.");
 
