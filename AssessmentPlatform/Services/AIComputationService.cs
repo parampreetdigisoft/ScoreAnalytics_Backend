@@ -934,27 +934,28 @@ namespace AssessmentPlatform.Services
                 KpiShortName = x.AnalyticalLayer.LayerCode,
                 KpiName = x.AnalyticalLayer.LayerName,
                 CityID = x.CityID,
-                RawValue = x.AiCalValue5 
+                RawValue = x.AiCalValue5,
+                AnalyticalLayer = x.AnalyticalLayer
             })
             .Select(x => new
             {
                 x.KpiShortName,
                 x.KpiName,
                 x.CityID,
-
                 Value = x.RawValue,
+                LayerID = x.AnalyticalLayer.LayerID,
 
-                Interpretation = x.RawValue == null
-                    ? null
-                    : baseQuery
-                        .Where(b => b.CityID == x.CityID)
-                        .SelectMany(b => b.AnalyticalLayer.FiveLevelInterpretations)
-                        .Where(f =>
-                            f.MinRange <= (x.RawValue == null ? null : Math.Round(x.RawValue.Value, 0)) &&
-                            f.MaxRange >= (x.RawValue == null ? null : Math.Round(x.RawValue.Value, 0)))
-                        .Select(f => f.Condition)
-                        .FirstOrDefault()
-            });
+                Interpretation = x.AnalyticalLayer.FiveLevelInterpretations.Select(i => new FiveLevelInterpretationsDto
+                (
+                   i.InterpretationID,
+                   i.LayerID,
+                   i.MinRange,
+                   i.MaxRange,
+                   i.Condition,
+                   i.StrategicAction
+                )).ToList()
+
+            }).OrderBy(x=>x.LayerID);
 
             var kpis = await kpiRaw
                 .Select(k => new KpiChartItem(k.KpiShortName, k.KpiName, k.Value, k.CityID,k.Interpretation))
@@ -971,19 +972,9 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var pillars = await GetAICityPillars(
-                    cityDetails.CityID, userID, userRole, cityDetails.ScoringYear);
+                var pillars = await GetAICityPillars(cityDetails.CityID, userID, userRole, cityDetails.ScoringYear);
 
                 var kpis = await GetAccessKpis(userID, userRole, cityDetails.CityID, cityDetails.ScoringYear);
-
-                // Build pillar chart items (max 14)
-                var pillarChartItems = pillars.Result.Pillars
-                    .Take(14)
-                    .Select(p => new KpiChartItem(
-                        p.PillarName?.Length > 20 ? p.PillarName[..20] : p.PillarName ?? "—",
-                        p.PillarName ?? "—",
-                        p.AIProgress, null, null))
-                    .ToList();
 
                 var peersCityIds = await _context.Cities
                     .Where(x => x.CityID == cityDetails.CityID)
@@ -1109,5 +1100,16 @@ namespace AssessmentPlatform.Services
         #endregion pdf pillars and city report
 
     }
-    public record KpiChartItem(string ShortName, string Name, decimal? Value, int? CityID,string? InterPretation);
+    public record PillarChartItem(string ShortName, string Name, decimal? Value);
+    public record KpiChartItem(string ShortName, string Name, decimal? Value, int? CityID, List<FiveLevelInterpretationsDto> InterPretation);
+    public record FiveLevelInterpretationsDto ( 
+         int InterpretationID ,
+         int LayerID ,
+         decimal? MinRange ,
+         decimal? MaxRange ,
+         string Condition ,
+         string StrategicAction 
+    );
+
+
 }
