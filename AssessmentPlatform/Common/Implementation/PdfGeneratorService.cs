@@ -39,14 +39,6 @@ namespace AssessmentPlatform.Common.Implementation
                             .Take(109)
                             .ToList() ?? new List<KpiChartItem>();
 
-                            var pillarChartItems = pillars
-                            .Take(14)
-                            .Select(p => new KpiChartItem(
-                                p.PillarName?.Length > 20 ? p.PillarName[..20] : p.PillarName ?? "—",
-                                p.PillarName ?? "—",
-                                p.AIProgress, null,null))
-                            .ToList();
-
                             AddCityDetailsPdf(container, cityDetails, pillars, kpiChartItems,new(), userRole, true);
                         }
                     }
@@ -1867,7 +1859,6 @@ namespace AssessmentPlatform.Common.Implementation
         //  CONSTANTS  – tweak here to adjust chart sizing for 4-6 peers / 14 pillars
         // ══════════════════════════════════════════════════════════════════════════
 
-        private const int MaxPeerCities = 6;
         private const int MaxPillars = 14;
 
         // Palette: index 0 = selected city (gold), 1-5 = peer cities
@@ -1905,7 +1896,6 @@ namespace AssessmentPlatform.Common.Implementation
             var main = FindMainCity(peerCities, cityDetails);
             var peers = peerCities
                 .Where(p => !IsSameCity(p.CityName, cityDetails.CityName))
-                .Take(MaxPeerCities)
                 .ToList();
 
             // ── 5.1  Population-Based ────────────────────────────────────────────
@@ -1964,8 +1954,7 @@ namespace AssessmentPlatform.Common.Implementation
 
             var main = FindMainCity(peerCities, cityDetails);
             var peers = peerCities
-                .Where(p => !IsSameCity(p.CityName, cityDetails.CityName))
-                .Take(MaxPeerCities)
+                .Where(p => !IsSameCity(p.CityName, cityDetails.CityName))      
                 .ToList();
 
             // ── 6.1 + 6.2  Historical & Five-Year Evolution ──────────────────────
@@ -2005,7 +1994,6 @@ namespace AssessmentPlatform.Common.Implementation
             var all = BuildAllCities(main, peers)
                 .Where(c => c.Population.HasValue)
                 .OrderByDescending(c => c.Population)
-                .Take(MaxPeerCities + 1)
                 .ToList();
 
             if (!all.Any()) { DrawNoDataPage(container); return; }
@@ -2235,12 +2223,13 @@ namespace AssessmentPlatform.Common.Implementation
                 {
                     table.ColumnsDefinition(cols =>
                     {
-                        cols.ConstantColumn(90);
+                        cols.ConstantColumn(100);
+                        cols.ConstantColumn(60);
+                        cols.ConstantColumn(100);
                         cols.RelativeColumn();
                         cols.ConstantColumn(60);
-                        cols.ConstantColumn(55);
                     });
-                    DrawTableHeader(table, new[] { "Income Group", "City", "Country", "Score" });
+                    DrawTableHeader(table, new[] {  "City", "Country", "Score", "Income Group", "Income", });
 
                     foreach (var (label, cities) in segments)
                     {
@@ -2249,17 +2238,20 @@ namespace AssessmentPlatform.Common.Implementation
                             bool isMain = IsSameCity(city.CityName, cityDetails.CityName);
                             string rowBg = isMain ? "#fff9e6" : Colors.White;
                             float score = GetLatestScoreOrZero(city);
-
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text(label).FontSize(8).FontColor("#555555");
+                            var income = FormatPop(city.Income);
+       
                             table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
                                 .Padding(5).Text(city.CityName).FontSize(8)
                                 .FontColor(isMain ? "#12352f" : "#333333");
                             table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
                                 .Padding(5).Text(city.Country ?? "—").FontSize(8).FontColor("#555555");
                             table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).AlignRight()
+                                .Padding(5)
                                 .Text($"{score:F1}").FontSize(8).Bold().FontColor(ScoreColor(score));
+                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                                .Padding(5).Text(label).FontSize(8).FontColor("#555555");
+                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
+                                .Padding(5).Text(income.ToString()).FontSize(8).FontColor("#555555");
                         }
                     }
                 });
@@ -3304,13 +3296,18 @@ namespace AssessmentPlatform.Common.Implementation
             return "Small City";
         }
 
-        static string FormatPop(int? pop)
+        static string FormatPop(decimal? value)
         {
-            if (!pop.HasValue || pop <= 0) return "N/A";
-            if (pop >= 1_000_000) return $"{pop / 1_000_000.0:F1}M";
-            if (pop >= 1_000) return $"{pop / 1_000.0:F0}K";
-            return pop.ToString()!;
+            if (!value.HasValue || value <= 0) return "N/A";
+
+            if (value >= 1_000_000_000) return $"{value / 1_000_000_000M:F1}B";
+            if (value >= 1_000_000) return $"{value / 1_000_000M:F1}M";
+            if (value >= 1_000) return $"{value / 1_000M:F0}K";
+
+            return value.Value.ToString("N0");
         }
+
+      
 
         static string InterpolateColor(string from, string to, float t)
         {
