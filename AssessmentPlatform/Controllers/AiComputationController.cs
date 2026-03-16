@@ -111,30 +111,41 @@ namespace AssessmentPlatform.Controllers
                     return Unauthorized("User ID not found in token.");
 
                 var role = GetRoleFromClaims();
-                if (role == null)
+                if (!Enum.TryParse<UserRole>(role, true, out var userRole))
                     return Unauthorized("You Don't have access.");
 
-                if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+                var cityDetails = await _aIComputationService
+                    .GetCityAiSummeryDetail(userId.Value, userRole, request.CityID, request.Year);
+
+                string fileName;
+                byte[] fileBytes;
+                string contentType;
+
+                if (request.Format?.ToLower() == "docx")
                 {
-                    return Unauthorized("You Don't have access.");
+                    fileBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails, userRole, userId.Value);
+
+                    contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+                    fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.docx";
+                }
+                else
+                {
+                    fileBytes = await _aIComputationService.GenerateCityDetailsPdf(
+                        cityDetails, userRole, userId.Value);
+
+                    contentType = "application/pdf";
+
+                    fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
                 }
 
-                var cityDetails = await _aIComputationService.GetCityAiSummeryDetail(userId ?? 0, userRole, request.CityID, request.Year);
-
-                // Generate PDF
-                var pdfBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails, userRole, userId.GetValueOrDefault());
-
-                // Return PDF with proper headers
-                var fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
-
-                return File(pdfBytes,"application/pdf",fileName);
+                return File(fileBytes, contentType, fileName);
             }
             catch (Exception ex)
             {
-                // Log error
                 return StatusCode(500, new
                 {
-                    message = "Error generating PDF",
+                    message = "Error generating report",
                     error = ex.Message
                 });
             }
