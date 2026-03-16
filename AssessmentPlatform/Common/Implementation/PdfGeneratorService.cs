@@ -1514,66 +1514,96 @@ namespace AssessmentPlatform.Common.Implementation
         // ─────────────────────────────────────────────────────────────────────────────
         //  HEADERS / FOOTERS
         // ─────────────────────────────────────────────────────────────────────────────
-
         void CityComposeHeader(
             IContainer container,
             AiCitySummeryDto data,
             UserRole userRole,
             string? pillarName)
         {
+            var logoPath = Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "wwwroot/assets/images/veridian-urban-index.png");
+
             container.Column(column =>
             {
-                column.Item().Background("#12352f").Padding(8).Row(row =>
+                column.Item().Background("#134534").Padding(12).Row(row =>
                 {
+                    // Left content
                     row.RelativeItem().Column(col =>
                     {
-                        col.Item().Text("City Analysis Report")
-                            .FontSize(16).FontColor(Colors.White);
+                        col.Spacing(2);
+
+                        string title = string.IsNullOrEmpty(pillarName) ? data.CityName : pillarName;
+
+                        col.Item().Text(title)
+                            .FontSize(21)
+                            .Bold()
+                            .FontColor(Colors.White);
+
+                        col.Item().Text($"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.ScoringYear}")
+                            .FontSize(10)
+                            .FontColor("#E8F3F0");
+
+                        col.Item().Text($"Generated: {DateTime.Now:MMM dd, yyyy}")
+                            .FontSize(8)
+                            .FontColor("#CFE3DD");
                     });
-                    row.ConstantItem(150).AlignRight().Column(col =>
-                    {
-                        col.Item().AlignRight().Text("Generated").FontSize(9).FontColor("#a5a8ad");
-                        col.Item().AlignRight().Text(DateTime.Now.ToString("MMM dd, yyyy"))
-                            .FontSize(10).Bold().FontColor(Colors.White);
-                    });
+
+                    // Right logo
+                    row.ConstantItem(80)
+                        .AlignRight()
+                        .AlignMiddle()
+                        .Background(Colors.White)
+                        .Padding(4)
+                        .Image(logoPath)
+                        .FitArea();
                 });
 
-                column.Item().Background("#336b58").Padding(12).Column(col =>
-                {
-                    string title = string.IsNullOrEmpty(pillarName) ? data.CityName : pillarName;
-                    col.Item().Text(title).FontSize(22).Bold().FontColor(Colors.White);
-                    col.Item().PaddingTop(3)
-                        .Text($"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.ScoringYear}")
-                        .FontSize(10).FontColor("#E0E0E0");
-                });
+                // Divider
+                column.Item().LineHorizontal(1).LineColor("#d9e2df");
             });
         }
 
         void PillarComposeHeader(IContainer container, AiCityPillarReponse data)
         {
+            var logoPath = Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "wwwroot/assets/images/veridian-urban-index.png");
+
             container.Column(column =>
             {
-                column.Item().Background("#12352f").Padding(8).Row(row =>
+                column.Item().Background("#134534").Padding(12).Row(row =>
                 {
+                    // Left content
                     row.RelativeItem().Column(col =>
                     {
-                        col.Item().Text("Pillar Analysis Report").FontSize(16).FontColor(Colors.White);
+                        col.Spacing(2);
+
+                        col.Item().Text(data.PillarName)
+                            .FontSize(21)
+                            .Bold()
+                            .FontColor(Colors.White);
+
+                        col.Item().Text($"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.AIDataYear}")
+                            .FontSize(10)
+                            .FontColor("#E8F3F0");
+
+                        col.Item().Text($"Generated: {DateTime.Now:MMM dd, yyyy}")
+                            .FontSize(8)
+                            .FontColor("#CFE3DD");
                     });
-                    row.ConstantItem(150).AlignRight().Column(col =>
-                    {
-                        col.Item().AlignRight().Text("Generated").FontSize(9).FontColor("#a5a8ad");
-                        col.Item().AlignRight().Text(DateTime.Now.ToString("MMM dd, yyyy"))
-                            .FontSize(10).Bold().FontColor(Colors.White);
-                    });
+
+                    // Logo
+                    row.ConstantItem(60)
+                        .AlignRight()
+                        .AlignMiddle()
+                        .Background(Colors.White)
+                        .Padding(4)
+                        .Image(logoPath)
+                        .FitArea();
                 });
 
-                column.Item().Background("#336b58").Padding(12).Column(col =>
-                {
-                    col.Item().Text(data.PillarName).FontSize(22).Bold().FontColor(Colors.White);
-                    col.Item().PaddingTop(3)
-                        .Text($"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.AIDataYear}")
-                        .FontSize(10).FontColor("#E0E0E0");
-                });
+                column.Item().LineHorizontal(1).LineColor("#d9e2df");
             });
         }
 
