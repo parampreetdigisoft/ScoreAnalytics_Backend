@@ -28,6 +28,7 @@ namespace AssessmentPlatform.Common.Implementation
         {
             try
             {
+                QuestPDF.Settings.EnableDebugging = true;
                 var document = Document.Create(container =>
                 {
                     foreach(var cityDetails in cities)
@@ -57,7 +58,8 @@ namespace AssessmentPlatform.Common.Implementation
         {
             try
             {
-               
+
+                QuestPDF.Settings.EnableDebugging = true;
                 var document = Document.Create(container =>
                 {
                     AddCityDetailsPdf(container, cityDetails, pillars, kpis, peerCity, userRole);
@@ -76,6 +78,8 @@ namespace AssessmentPlatform.Common.Implementation
         {
             try
             {
+                QuestPDF.Settings.EnableDebugging = true;
+
                 var document = Document.Create(container =>
                 {
                     container.Page(page =>

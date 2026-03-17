@@ -230,7 +230,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpGet("exportCities")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> ExportCities()
+        public async Task<IActionResult> ExportCities([FromQuery] ExportCityWithOptionDto request )
         {
             var claimUserId = GetUserIdFromClaims();
             if (claimUserId == null)
@@ -245,7 +245,7 @@ namespace AssessmentPlatform.Controllers
                 return Unauthorized("You Don't have access.");
             }
 
-            var result = await _cityService.ExportCities(claimUserId.GetValueOrDefault(), userRole);
+            var result = await _cityService.ExportCities(request, claimUserId.GetValueOrDefault(), userRole);
 
             if (!result.Succeeded)
                 return BadRequest(result.Messages);

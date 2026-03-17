@@ -6,6 +6,7 @@
         public string Country { get; set; }
         public string State { get; set; }
         public string CityName { get; set; }
+        public string? CityAliasName { get; set; }
         public string PostalCode { get; set; }
         public string? Region { get; set; }
         public IFormFile? ImageFile { get; set; }

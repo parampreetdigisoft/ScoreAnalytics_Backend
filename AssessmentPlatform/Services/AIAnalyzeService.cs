@@ -76,7 +76,7 @@ namespace AssessmentPlatform.Services
             }
 
 
-            var needtoImportCityIds = _context.AICityScores.Where(x => x.UpdatedAt < date).Select(x=>x.CityID);
+            var needtoImportCityIds = _context.AICityScores.Where(x => x.UpdatedAt < date && x.City.IsActive && !x.City.IsDeleted).Select(x=>x.CityID);
             foreach (var id in needtoImportCityIds)
             {
                 await AnalyzeSingleCity(id);

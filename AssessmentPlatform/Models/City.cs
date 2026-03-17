@@ -17,6 +17,7 @@
         public double? Longitude { get; set; }
         public int? Population { get; set; }
         public decimal? Income { get; set; }
+        public string? CityAliasName { get; set; }      
         public ICollection<CityPeer>? CityPeers { get; set; }
     }
 }

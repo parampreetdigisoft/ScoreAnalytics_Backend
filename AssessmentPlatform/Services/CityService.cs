@@ -92,6 +92,7 @@ namespace AssessmentPlatform.Services
                     existing.Longitude = q.Longitude;
                     existing.Population = q.Population;
                     existing.Income = q.Income;
+                    existing.CityAliasName = q.CityAliasName;
 
                     _context.Cities.Update(existing);
                     await _context.SaveChangesAsync();
@@ -167,86 +168,127 @@ namespace AssessmentPlatform.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task<ResultResponseDto<string>> AddBulkCityAsync(BulkAddCityDto request, string image="")
+        public async Task<ResultResponseDto<string>> AddBulkCityAsync(BulkAddCityDto request, string image = "")
         {
             try
             {
-                // Normalize input list
+                // ✅ Normalize input
                 var inputCities = request.Cities
-                    .Select(c => new { Country = c.Country,PostalCode = c.PostalCode, CityName = c.CityName.Trim(), State = c.State.Trim(), Region = c.Region?.Trim(), Longitude = c.Longitude, Latitude = c.Latitude, Income = c.Income, Population = c.Population })
-                    .Distinct()
+                    .Select(c => new
+                    {
+                        Country = c.Country,
+                        PostalCode = c.PostalCode,
+                        CityName = c.CityName.Trim().ToLower(),
+                        State = c.State.Trim().ToLower(),
+                        Region = c.Region?.Trim(),
+                        Longitude = c.Longitude,
+                        Latitude = c.Latitude,
+                        Income = c.Income,
+                        Population = c.Population,
+                        CityAliasName = c.CityAliasName,
+                        PeerCities = c.PeerCities
+                    })
+                    .GroupBy(c => new { c.CityName, c.State }) 
+                    .Select(g => g.First())
                     .ToList();
 
-                // Get already existing cities (match by CityName + State)
+                // ✅ Get existing cities (correct matching)
                 var existingCities = await _context.Cities
-                    .Where(x => x.IsActive && !x.IsDeleted &&
-                                inputCities.Select(c => c.CityName.ToLower()).Contains(x.CityName.ToLower()) &&
-                                inputCities.Select(c => c.State.ToLower()).Contains(x.State.ToLower()))
-                    .Select(x => new { x.CityName, x.State })
+                    .Where(x => x.IsActive && !x.IsDeleted)
+                    .Select(x => new
+                    {
+                        CityName = x.CityName.ToLower(),
+                        State = x.State.ToLower()
+                    })
                     .ToListAsync();
 
-                var existingCityNames = existingCities
-                    .Select(x => $"{x.CityName}, {x.State}")
-                    .ToList();
+                var existingSet = new HashSet<string>(
+                    existingCities.Select(x => $"{x.CityName}_{x.State}")
+                );
 
-                // Filter out cities that already exist
+                // ✅ Filter new cities
                 var newCities = inputCities
-                    .Where(c => !existingCities.Any(e =>
-                        e.CityName.Equals(c.CityName, StringComparison.OrdinalIgnoreCase) &&
-                        e.State.Equals(c.State, StringComparison.OrdinalIgnoreCase)))
+                    .Where(c => !existingSet.Contains($"{c.CityName}_{c.State}"))
                     .ToList();
 
-                // Add only non-existing cities
-                foreach (var cityDto in newCities)
+                var existingCityNames = inputCities
+                    .Where(c => existingSet.Contains($"{c.CityName}_{c.State}"))
+                    .Select(c => $"{c.CityName}, {c.State}")
+                    .ToList();
+
+                // ✅ Create city entities
+                var cityEntities = newCities.Select(cityDto => new City
                 {
-                    var city = new City
+                    Country = cityDto.Country,
+                    CityName = cityDto.CityName,
+                    State = cityDto.State,
+                    Region = cityDto.Region,
+                    CreatedDate = DateTime.UtcNow,
+                    PostalCode = cityDto.PostalCode,
+                    IsActive = true,
+                    IsDeleted = false,
+                    Image = image,
+                    Longitude = cityDto.Longitude,
+                    Latitude = cityDto.Latitude,
+                    Income = cityDto.Income,
+                    Population = cityDto.Population,
+                    CityAliasName = cityDto.CityAliasName
+                }).ToList();
+
+                await _context.Cities.AddRangeAsync(cityEntities);
+                await _context.SaveChangesAsync(); 
+
+                var cityPeers = new List<CityPeer>();
+
+                for (int i = 0; i < newCities.Count; i++)
+                {
+                    var dto = newCities[i];
+                    var city = cityEntities[i];
+
+                    if (dto.PeerCities != null && dto.PeerCities.Any())
                     {
-                        CityID = 0,
-                        Country = cityDto.Country,
-                        CityName = cityDto.CityName,
-                        State = cityDto.State,
-                        Region = cityDto.Region,
-                        CreatedDate = DateTime.Now,
-                        PostalCode = cityDto.PostalCode,
-                        IsActive = true,
-                        IsDeleted = false,
-                        Image = image,
-                        Longitude = cityDto.Longitude,
-                        Latitude = cityDto.Latitude,
-                        Income = cityDto.Income,
-                        Population = cityDto.Population,
-                    };
-                    _context.Cities.Add(city);
+                        cityPeers.AddRange(dto.PeerCities.Select(peerId => new CityPeer
+                        {
+                            CityID = city.CityID,
+                            PeerCityID = peerId,
+                            IsActive = true,
+                            UpdatedDate = DateTime.UtcNow
+                        }));
+                    }
                 }
 
-                await _context.SaveChangesAsync();
+                if (cityPeers.Any())
+                {
+                    await _context.CityPeers.AddRangeAsync(cityPeers);
+                    await _context.SaveChangesAsync();
+                }
 
-                // Build response message
+                // ✅ Response handling
                 if (existingCityNames.Any() && newCities.Any())
                 {
                     return ResultResponseDto<string>.Success(
                         "",
-                        new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
+                        new[] { $"{string.Join(", ", existingCityNames)} already exist" }
                     );
                 }
                 else if (existingCityNames.Any())
                 {
                     return ResultResponseDto<string>.Failure(
-                        new string[] { $"{string.Join(", ", existingCityNames)} already exist" }
+                        new[] { $"{string.Join(", ", existingCityNames)} already exist" }
                     );
                 }
                 else
                 {
                     return ResultResponseDto<string>.Success(
                         "",
-                        new string[] { $"City added successfully" }
+                        new[] { "City added successfully" }
                     );
                 }
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occure in AddCityAsync", ex);
-                return ResultResponseDto<string>.Failure(new string[] { "There is an error please try later" });
+                await _appLogger.LogAsync("Error Occurred in AddBulkCityAsync", ex);
+                return ResultResponseDto<string>.Failure(new[] { "There is an error please try later" });
             }
         }
 
@@ -263,6 +305,13 @@ namespace AssessmentPlatform.Services
                 _context.Cities.Update(q);
 
                 await _context.CityPeers.Where(x => x.CityID == id).ForEachAsync(x =>
+                {
+                    x.IsActive = false;
+                    x.IsDeleted = true;
+                    x.UpdatedDate = DateTime.UtcNow;
+                });
+
+                await _context.CityPeers.Where(x => x.PeerCityID == id).ForEachAsync(x =>
                 {
                     x.IsActive = false;
                     x.IsDeleted = true;
@@ -300,6 +349,7 @@ namespace AssessmentPlatform.Services
                 existing.UpdatedDate = DateTime.Now;
                 existing.Region = q.Region;
                 existing.State = q.State;
+                existing.CityAliasName = q.CityAliasName;
                 _context.Cities.Update(existing);
                 await _context.SaveChangesAsync();
 
@@ -377,7 +427,8 @@ namespace AssessmentPlatform.Services
                     AiScore = ai != null ? ai.AIScore : 0,
                     CityPeers = c.CityPeers,
                     Population = c.Population,
-                    Income = c.Income
+                    Income = c.Income,
+                    CityAliasName = c.CityAliasName
                 };
         }
 
@@ -413,7 +464,8 @@ namespace AssessmentPlatform.Services
                     AssignedBy = u.FullName,
                     UserCityMappingID = cm.UserCityMappingID,
                     Score = 0,
-                    AiScore = ai.AIProgress
+                    AiScore = ai.AIProgress,
+                    CityAliasName = c.CityAliasName
                 };
         }
         private async Task ApplyManualScoresAsync(PaginationResponse<UserCityMappingResponseDto> response,PaginationRequest request,UserRole role, int year)
@@ -943,7 +995,7 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<byte[]>> ExportCities(int userId, UserRole userRole)
+        public async Task<ResultResponseDto<byte[]>> ExportCities(ExportCityWithOptionDto request,int userId, UserRole userRole)
         {
             try
             {
@@ -953,13 +1005,15 @@ namespace AssessmentPlatform.Services
                 if(cities == null) return ResultResponseDto<byte[]>.Failure(new string[] { "There is an error please try later" });
                 IEnumerable<IGrouping<(int CityID, string CityName, string State, string Country), GetCitiesProgressAdminDto>>
                 result =
-                    cities.GroupBy(x => (
+                    cities.Where(x=> request.CityIDs==null  || request.CityIDs.Count==0 || request.CityIDs.Contains(x.CityID) || request.IsAllCity==true)
+                    .GroupBy(x => (
                         x.CityID,
                         x.CityName,
                         x.State,
                         x.Country
-                    ));
-                var byteRes =MakeCityPillarSheet(result);
+                    )).OrderBy(x=>x.Average(y=>y.PillarProgress));
+
+                var byteRes = MakeCityPillarSheet(request,result);
 
                 return ResultResponseDto<byte[]>.Success(byteRes, new string[] { "get successfully" });
             }
@@ -970,163 +1024,128 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        private byte[] MakeCityPillarSheet(IEnumerable<IGrouping<(int CityID, string CityName, string State, string Country), GetCitiesProgressAdminDto>> cityGroups)
+        private byte[] MakeCityPillarSheet(
+            ExportCityWithOptionDto request,
+            IEnumerable<IGrouping<(int CityID, string CityName, string State, string Country), GetCitiesProgressAdminDto>> cityGroups)
         {
-            using (var workbook = new XLWorkbook())
+            using var workbook = new XLWorkbook();
+            var ws = workbook.Worksheets.Add("Cities Progress Report");
+
+            bool isRanking = request.IsRanking == true;
+
+            // ---------------- Header ----------------
+            int totalColumns = isRanking ? 5 : 10;
+
+            ws.Range(1, 1, 1, totalColumns).Merge().Value = "Cities Progress Report";
+            ws.Range(2, 1, 2, totalColumns).Merge().Value = $"Report Year: {DateTime.UtcNow.Year}";
+            ws.Range(3, 1, 3, totalColumns).Merge().Value = $"Generated On: {DateTime.UtcNow:dd-MMM-yyyy HH:mm}";
+
+            var headerRange = ws.Range(1, 1, 3, totalColumns);
+            headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
+            headerRange.Style.Font.FontColor = XLColor.White;
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+            int row = 5;
+
+            // ---------------- Column Header ----------------
+            ws.Cell(row, 1).Value = "S.No.";
+            ws.Cell(row, 2).Value = "City Name";
+            ws.Cell(row, 3).Value = "State";
+            ws.Cell(row, 4).Value = "Country";
+
+            if (isRanking)
             {
-                var ws = workbook.Worksheets.Add("Cities Progress Report");
-
-                // ----------------------------
-                // Header Section
-                // ----------------------------
-                ws.Range("A1:J1").Merge().Value = "Cities Progress Report";
-                ws.Range("A2:J2").Merge().Value = $"Report Year: {DateTime.UtcNow.Year}";
-                ws.Range("A3:J3").Merge().Value = $"Generated On: {DateTime.UtcNow:dd-MMM-yyyy HH:mm}";
-
-                var headerRange = ws.Range("A1:J3");
-                headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
-                headerRange.Style.Font.FontColor = XLColor.White;
-                headerRange.Style.Font.Bold = true;
-                headerRange.Style.Font.FontSize = 14;
-                headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-
-                int row = 5;
-
-                // ----------------------------
-                // Column Headers
-                // ----------------------------
-                ws.Cell(row, 1).Value = "S.No.";
-                ws.Cell(row, 2).Value = "City Name";
-                ws.Cell(row, 3).Value = "State";
-                ws.Cell(row, 4).Value = "Country";
+                ws.Cell(row, 5).Value = "Evaluator - AI City Progress (%)";
+            }
+            else
+            {
                 ws.Cell(row, 5).Value = "Pillar Name";
                 ws.Cell(row, 6).Value = "Total Score";
                 ws.Cell(row, 7).Value = "Total Answers";
                 ws.Cell(row, 8).Value = "Evaluator Pillar Progress (%)";
                 ws.Cell(row, 9).Value = "AI Pillar Progress (%)";
                 ws.Cell(row, 10).Value = "Evaluator - AI City Progress (%)";
+            }
 
-                var columnHeader = ws.Range(row, 1, row, 10);
-                columnHeader.Style.Font.Bold = true;
-                columnHeader.Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
-                columnHeader.Style.Font.FontColor = XLColor.White;
-                columnHeader.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                columnHeader.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                columnHeader.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
-                columnHeader.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-                ws.Row(row).Height = 25;
+            var header = ws.Range(row, 1, row, totalColumns);
+            header.Style.Font.Bold = true;
+            header.Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
+            header.Style.Font.FontColor = XLColor.White;
 
-                row++;
-                int sno = 1;
+            row++;
+            int sno = 1;
 
-                // ----------------------------
-                // Data Rows
-                // ----------------------------
-                foreach (var cityGroup in cityGroups)
+            // ---------------- Data ----------------
+            foreach (var cityGroup in cityGroups)
+            {
+                var cityData = cityGroup.First();
+                var pillars = cityGroup.OrderBy(x => x.DisplayOrder).ToList();
+
+                var cityProgress = pillars.Average(x => x.PillarProgress);
+
+                // ========================
+                // ✅ RANK-WISE (1 ROW ONLY)
+                // ========================
+                if (isRanking)
                 {
-                    var cityData = cityGroup.First();
-                    var pillars = cityGroup.OrderBy(x => x.DisplayOrder).ToList();
+                    ws.Cell(row, 1).Value = sno++;
+                    ws.Cell(row, 2).Value = cityData.CityName;
+                    ws.Cell(row, 3).Value = cityData.State;
+                    ws.Cell(row, 4).Value = cityData.Country;
+                    ws.Cell(row, 5).Value = $"{cityProgress:F2}% - {cityData.AICityProgress:F2}%";
 
-                    int startRow = row;
-                    bool isFirstPillar = true;
-
-                    var cityProgress = pillars.Average(x=>x.PillarProgress);
-                    foreach (var pillar in pillars)
-                    {
-                        ws.Cell(row, 1).Value = sno++;
-                        ws.Cell(row, 2).Value = cityData.CityName;
-                        ws.Cell(row, 3).Value = cityData.State;
-                        ws.Cell(row, 4).Value = cityData.Country;
-                        ws.Cell(row, 5).Value = pillar.PillarName;
-                        ws.Cell(row, 6).Value = pillar.TotalScore;
-                        ws.Cell(row, 7).Value = pillar.TotalAns;
-                        ws.Cell(row, 8).Value = $"{pillar.PillarProgress:F2}%";
-                        ws.Cell(row, 9).Value = $"{pillar.AIPillarProgress:F2}%";
-
-                        // City progress only in first row for each city
-                        if (isFirstPillar)
-                        {
-                            ws.Cell(row, 10).Value = $"{cityProgress:F2}% - {cityData.AICityProgress:F2}%";
-                            ws.Cell(row, 10).Style.Font.Bold = true;
-                            ws.Cell(row, 10).Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
-                            isFirstPillar = false;
-                        }
-
-                        // Style data rows
-                        var dataRow = ws.Range(row, 1, row, 10);
-                        dataRow.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-                        dataRow.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-                        dataRow.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
-                        dataRow.Style.Border.DiagonalBorderColor = XLColor.LightGray;
-
-                        // Center align S.No and numeric columns
-                        ws.Cell(row, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        ws.Cell(row, 6).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        ws.Cell(row, 7).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        ws.Cell(row, 8).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        ws.Cell(row, 9).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                        ws.Cell(row, 10).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-
-                        // Bold pillar names
-                        ws.Cell(row, 5).Style.Font.FontColor = XLColor.FromArgb(23, 55, 94);
-
-                        row++;
-                    }
-
-                    // Merge city information cells for better visual grouping
-                    int endRow = row - 1;
-                    if (endRow > startRow)
-                    {
-                        ws.Range(startRow, 2, endRow, 2).Merge(); // City Name
-                        ws.Range(startRow, 3, endRow, 3).Merge(); // State
-                        ws.Range(startRow, 4, endRow, 4).Merge(); // Country
-                        ws.Range(startRow, 10, endRow, 10).Merge(); // City Progress
-                    }
-
-                    // Add visual separator between cities
-                    var cityRange = ws.Range(startRow, 1, endRow, 10);
-                    cityRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
-                    cityRange.Style.Border.OutsideBorderColor = XLColor.FromArgb(57, 123, 103);
-
-                    // Highlight city name cells
-                    ws.Range(startRow, 2, endRow, 2).Style.Font.Bold = true;
-                    ws.Range(startRow, 2, endRow, 2).Style.Fill.BackgroundColor = XLColor.FromArgb(57, 123, 103);
-
-                    // Alternate city group background
-                    if ((cityGroups.ToList().IndexOf(cityGroup) + 1) % 2 == 0)
-                    {
-                        cityRange.Style.Fill.BackgroundColor = XLColor.FromArgb(250, 250, 250);
-                    }
+                    row++;
+                    continue;
                 }
 
-                ws.Column(1).Width = 8;    
-                ws.Column(2).Width = 20;   
-                ws.Column(3).Width = 15;   
-                ws.Column(4).Width = 15;   
-                ws.Column(5).Width = 45;   
-                ws.Column(6).Width = 14;   
-                ws.Column(7).Width = 14;   
-                ws.Column(8).Width = 25;   
-                ws.Column(9).Width = 20;   
-                ws.Column(10).Width = 28;  
+                // ========================
+                // ✅ PILLAR-WISE
+                // ========================
+                int startRow = row;
+                bool first = true;
 
-
-                ws.SheetView.FreezeRows(5);
-                ws.SheetView.FreezeColumns(1);
-
-                var usedRange = ws.RangeUsed();
-                if (usedRange != null)
+                foreach (var pillar in pillars)
                 {
-                    ws.Range(5, 1, 5, 10).SetAutoFilter();
+                    ws.Cell(row, 1).Value = sno++;
+                    ws.Cell(row, 2).Value = cityData.CityName;
+                    ws.Cell(row, 3).Value = cityData.State;
+                    ws.Cell(row, 4).Value = cityData.Country;
+
+                    ws.Cell(row, 5).Value = pillar.PillarName;
+                    ws.Cell(row, 6).Value = pillar.TotalScore;
+                    ws.Cell(row, 7).Value = pillar.TotalAns;
+                    ws.Cell(row, 8).Value = $"{pillar.PillarProgress:F2}%";
+                    ws.Cell(row, 9).Value = $"{pillar.AIPillarProgress:F2}%";
+
+                    if (first)
+                    {
+                        ws.Cell(row, 10).Value = $"{cityProgress:F2}% - {cityData.AICityProgress:F2}%";
+                        first = false;
+                    }
+
+                    row++;
                 }
 
-                using (var stream = new MemoryStream())
+                int endRow = row - 1;
+
+                // Merge only for pillar mode
+                if (endRow > startRow)
                 {
-                    workbook.SaveAs(stream);
-                    return stream.ToArray();
+                    ws.Range(startRow, 2, endRow, 2).Merge();
+                    ws.Range(startRow, 3, endRow, 3).Merge();
+                    ws.Range(startRow, 4, endRow, 4).Merge();
+                    ws.Range(startRow, 10, endRow, 10).Merge();
                 }
             }
+
+            // ---------------- Formatting ----------------
+            ws.Columns().AdjustToContents();
+            ws.SheetView.FreezeRows(5);
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            return stream.ToArray();
         }
         #endregion
     }

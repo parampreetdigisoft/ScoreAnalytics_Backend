@@ -104,7 +104,7 @@ namespace AssessmentPlatform.Services
             currentYear = currentYear ==0 ? DateTime.Now.Year : currentYear;
             var firstDate = new DateTime(currentYear, 1, 1); 
             var endDate = new DateTime(currentYear+1, 1, 1); 
-            IQueryable<AICityScore> baseQuery = _context.AICityScores.Where(x=> x.UpdatedAt >= firstDate && x.UpdatedAt < endDate && x.Year== currentYear);
+            IQueryable<AICityScore> baseQuery = _context.AICityScores.Where(x=> x.UpdatedAt >= firstDate && x.UpdatedAt < endDate && x.Year== currentYear && x.City.IsActive && !x.City.IsDeleted);
 
             List<int> allowedCityIds = new();
             if (userRole == UserRole.Analyst)
@@ -659,7 +659,7 @@ namespace AssessmentPlatform.Services
                 if ((v && userRole == UserRole.Analyst) || userRole == UserRole.Admin)
                 {
 
-                    var aiResponse = await _context.AICityScores.Where(x => x.CityID == dto.CityID && x.Year == DateTime.UtcNow.Year).FirstOrDefaultAsync();
+                    var aiResponse = await _context.AICityScores.Where(x => x.CityID == dto.CityID && x.Year == DateTime.UtcNow.Year && x.City.IsActive && !x.City.IsDeleted).FirstOrDefaultAsync();
                     if (aiResponse != null)
                     {
                         aiResponse.IsVerified = dto.IsVerified;
@@ -700,7 +700,7 @@ namespace AssessmentPlatform.Services
 
 
                 await _download.AiResearchByCityId(dto.CityID, dto.CityEnable, dto.PillarEnable, dto.QuestionEnable);
-                var aiResponse = await _context.AICityScores.FirstOrDefaultAsync(x => x.CityID == dto.CityID);
+                var aiResponse = await _context.AICityScores.FirstOrDefaultAsync(x => x.CityID == dto.CityID && x.City.IsActive && !x.City.IsDeleted);
                 if(aiResponse != null)
                 {
                     aiResponse.IsVerified = false;
@@ -977,7 +977,7 @@ namespace AssessmentPlatform.Services
                 var kpis = await GetAccessKpis(userID, userRole, cityDetails.CityID, cityDetails.ScoringYear);
 
                 var peersCityIds = await _context.Cities
-                    .Where(x => x.CityID == cityDetails.CityID)
+                    .Where(x => x.CityID == cityDetails.CityID && x.IsActive && !x.IsDeleted)
                     .SelectMany(x => x.CityPeers)
                     .Where(x=> x.IsActive && !x.IsDeleted)
                     .Select(x => x.PeerCityID)
