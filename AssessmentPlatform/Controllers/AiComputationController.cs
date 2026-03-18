@@ -102,7 +102,7 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("aiCityDetailsReport")]
-        public async Task<IActionResult> DownloadCityPdf([FromQuery] AiCitySummeryRequestPdfDto request)
+        public async Task<IActionResult> DownloadCityReport([FromQuery] AiCitySummeryRequestPdfDto request)
         {
             try
             {
@@ -121,21 +121,16 @@ namespace AssessmentPlatform.Controllers
                 byte[] fileBytes;
                 string contentType;
 
-                if (request.Format?.ToLower() == "docx")
+                fileBytes = await _aIComputationService.GenerateCityDetailsReport(cityDetails, userRole, userId.Value, request.Format);
+
+                if (request.Format == Common.Interface.DocumentFormat.Docx)
                 {
-                    fileBytes = await _aIComputationService.GenerateCityDetailsPdf(cityDetails, userRole, userId.Value);
-
                     contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
                     fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.docx";
                 }
                 else
                 {
-                    fileBytes = await _aIComputationService.GenerateCityDetailsPdf(
-                        cityDetails, userRole, userId.Value);
-
                     contentType = "application/pdf";
-
                     fileName = $"{cityDetails.CityName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
                 }
 
@@ -152,7 +147,7 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("aiAllCityDetailsReport")]
-        public async Task<IActionResult> DownloadAllCityPdf([FromQuery] DownloadReportDto request)
+        public async Task<IActionResult> DownloadAllCityReport([FromQuery] DownloadReportDto request)
         {
             try
             {
@@ -177,11 +172,22 @@ namespace AssessmentPlatform.Controllers
 
                     if(cityDetails.Count > 0)
                     {
-                        var pdfBytes = await _aIComputationService.GenerateAllCityDetailsPdf(cityDetails, userRole, userId.GetValueOrDefault(), year);
+                        string fileName;
+                        string contentType;
+                        var pdfBytes = await _aIComputationService.GenerateAllCityDetailsReport(cityDetails, userRole, userId.GetValueOrDefault(), year, request.Format);
 
-                        var fileName = $"All_Details_{DateTime.Now:yyyyMMdd}.pdf";
+                        if (request.Format == Common.Interface.DocumentFormat.Docx)
+                        {
+                            contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                            fileName = $"Cities_Details_{DateTime.Now:yyyyMMdd}.docx";
+                        }
+                        else
+                        {
+                            contentType = "application/pdf";
+                            fileName = $"Cities_Details_{DateTime.Now:yyyyMMdd}.pdf";
+                        }
 
-                        return File(pdfBytes, "application/pdf", fileName);
+                        return File(pdfBytes, contentType, fileName);
                     }
 
                 }
@@ -199,7 +205,7 @@ namespace AssessmentPlatform.Controllers
             }
         }
         [HttpGet("aiPillarDetailsReport")]
-        public async Task<IActionResult> DownloadPillarPdf([FromQuery] AiCitySummeryRequestPdfDto request)
+        public async Task<IActionResult> DownloadPillarReport([FromQuery] AiCitySummeryRequestPdfDto request)
         {
             try
             {
@@ -221,13 +227,24 @@ namespace AssessmentPlatform.Controllers
                 var pillarDetails =  pillars.Result.Pillars.FirstOrDefault(x=>x.PillarID == request.PillarID);
                 if (pillarDetails != null)
                 {
+                    string contentType;
+                    string fileName;
 
                     // Generate PDF
-                    var pdfBytes = await _aIComputationService.GeneratePillarDetailsPdf(pillarDetails, userRole);
+                    var fileBytes = await _aIComputationService.GeneratePillarDetailsReport(pillarDetails, userRole,request.Format);
 
-                    // Return PDF with proper headers
-                    var fileName = $"{pillarDetails.PillarName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
-                    return File(pdfBytes, "application/pdf", fileName);
+                    if (request.Format == Common.Interface.DocumentFormat.Docx)
+                    {
+                        contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+                        fileName = $"{pillarDetails.PillarName}_Details_{DateTime.Now:yyyyMMdd}.docx";
+                    }
+                    else
+                    {
+                        contentType = "application/pdf";
+                        fileName = $"{pillarDetails.PillarName}_Details_{DateTime.Now:yyyyMMdd}.pdf";
+                    }
+
+                    return File(fileBytes, contentType, fileName);
                 }
                 return StatusCode(500, new
                 {

@@ -32,6 +32,7 @@ namespace AssessmentPlatform.Dtos.kpiDto
         public string? CalText3 { get; set; }
         public string? CalText4 { get; set; }
         public string? CalText5 { get; set; }
+        public string? Definition { get; set; }
         public ICollection<FiveLevelInterpretation> FiveLevelInterpretations { get; set; } = new List<FiveLevelInterpretation>();
         public City? City { get; set; }
     }

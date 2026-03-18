@@ -11,6 +11,7 @@
         public string? CalText3 { get; set; }
         public string? CalText4 { get; set; }
         public string? CalText5 { get; set; }
+        public string? Definition { get; set; }
         public bool IsDeleted { get; set; } = false;
         public ICollection<AnalyticalLayerResult> AnalyticalLayerResults { get; set; } = new List<AnalyticalLayerResult>();
         public ICollection<FiveLevelInterpretation> FiveLevelInterpretations { get; set; } = new List<FiveLevelInterpretation>();

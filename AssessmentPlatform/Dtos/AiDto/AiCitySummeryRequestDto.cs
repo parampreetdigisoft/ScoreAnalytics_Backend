@@ -16,7 +16,7 @@ namespace AssessmentPlatform.Dtos.AiDto
     public class AiCitySummeryRequestPdfDto : AiCityPillarRequestDto
     {
         public int? PillarID { get; set; }
-        public string? Format { get; set; } = "pdf";
+        public Common.Interface.DocumentFormat Format { get; set; } = Common.Interface.DocumentFormat.Pdf;
     }
     public class AiCityPillarRequestDto
     {

@@ -288,7 +288,7 @@ namespace AssessmentPlatform.Common.Implementation
                     .ToList();
 
                 if (topKpis.Any())
-                    col.Item().Height(100).Element(x =>
+                    col.Item().Height(130).Element(x =>
                     DrawTopKpiBand(x, topKpis));
 
                 col.Item().Height(100).Element(x =>
@@ -811,7 +811,7 @@ namespace AssessmentPlatform.Common.Implementation
                     DrawKpiSummaryBand(x, total, green, amber, red, avg));
 
                 if(topKpis.Any())
-                    col.Item().Height(100).Element(x =>
+                    col.Item().Height(130).Element(x =>
                     DrawTopKpiBand(x,topKpis));
 
                 // ── chart + reference-table sections ─────────────────────────────
@@ -1043,21 +1043,17 @@ namespace AssessmentPlatform.Common.Implementation
                 }
             });
         }
-
         void DrawKpiCard(ColumnDescriptor card, KpiChartItem kpi, int num)
         {
             var value = kpi.Value ?? 0;
             var v = value == 100 ? Math.Round(value, 0) : Math.Round(value, 1);
-            string accent = GetBarColor((float)v);                    // green / amber / red
-            string light = LightenHex(accent, 0.92f);               // very pale tint for alt rows
+            string accent = GetBarColor((float)v);
 
-            // find which of the 5 levels the value belongs to
             var interps = kpi.InterPretation ?? new List<FiveLevelInterpretationsDto>();
             FiveLevelInterpretationsDto? matched = interps.FirstOrDefault(x =>
                 x.MinRange.HasValue && x.MaxRange.HasValue &&
                 value >= x.MinRange.Value && value <= x.MaxRange.Value);
 
-            // fallback — nearest band (e.g. value == 100 and max is 99)
             if (matched == null && interps.Any())
                 matched = interps
                     .Where(x => x.MinRange.HasValue && x.MaxRange.HasValue)
@@ -1066,70 +1062,101 @@ namespace AssessmentPlatform.Common.Implementation
                         Math.Abs(value - x.MaxRange!.Value)))
                     .FirstOrDefault();
 
-            // ── outer border ────────────────────────────────────────────────────
             card.Item()
                 .Border(0.5f).BorderColor(accent)
                 .Column(inner =>
                 {
-                    // ── KPI header band ─────────────────────────────────────────
+                    // ── 1. KPI header band ──────────────────────────────────────────
+                    // Definition removed from here — gets its own strip below
                     inner.Item()
                          .Background(accent)
-                         .PaddingHorizontal(5).PaddingVertical(4)
+                         .PaddingHorizontal(5).PaddingVertical(3)
                          .Row(h =>
                          {
-                             // sequential number bubble
-                             h.ConstantItem(18)
+                             // Number bubble
+                             h.ConstantItem(16)
                               .AlignMiddle()
+                              .Background("#00000022")
+                              .AlignCenter()
                               .Text($"{num}")
-                              .FontSize(6.5f).Bold().FontColor("#FFFFFF");
+                              .FontSize(6f).Bold().FontColor("#FFFFFF");
 
-                             // short code + full name
+                             // Code + Name
                              h.RelativeItem()
-                              .PaddingLeft(3)
+                              .PaddingLeft(4)
+                              .AlignMiddle()
                               .Column(nc =>
                               {
-                                  nc.Item().Text(kpi.ShortName ?? "")
-                                    .FontSize(8f).Bold().FontColor("#FFFFFF");
-                                  nc.Item().Text(kpi.Name ?? "")
-                                    .FontSize(5.5f).FontColor("#FFFFFFCC");   // slight transparency via alpha colour
+                                  nc.Item()
+                                    .Text(kpi.ShortName ?? "")
+                                    .FontSize(7.5f).Bold().FontColor("#FFFFFF");
+                                  nc.Item()
+                                    .Text(kpi.Name ?? "")
+                                    .FontSize(5f).FontColor("#FFFFFFBB");
                               });
 
-                             // score — large & right-aligned
-                             h.ConstantItem(36)
+                             // Score
+                             h.ConstantItem(34)
                               .AlignMiddle().AlignRight()
                               .Text($"{v}%")
-                              .FontSize(10f).Bold().FontColor("#FFFFFF");
+                              .FontSize(9.5f).Bold().FontColor("#FFFFFF");
                          });
 
-                    // ── interpretation sub-header ───────────────────────────────
+                    // ── 2. Definition strip ─────────────────────────────────────────
+                    // Shown only when definition exists; wraps gracefully for long text
+                    if (!string.IsNullOrWhiteSpace(kpi.Definition))
+                    {
+                        inner.Item()
+                             .Background("#F2F6F4")                      // very pale green-grey
+                             .BorderTop(0.3f).BorderColor(accent)
+                             .BorderBottom(0.3f).BorderColor("#DDDDDD")
+                             .PaddingHorizontal(5).PaddingVertical(3)
+                             .Row(dr =>
+                             {
+                                 // Small label pill
+                                 dr.ConstantItem(28)
+                                   .AlignTop()
+                                   .PaddingTop(0.5f)
+                                   .Text("DEF")
+                                   .FontSize(4.5f).Bold()
+                                   .FontColor(accent);
+
+                                 // Definition text — italic, wraps, keeps card compact
+                                 dr.RelativeItem()
+                                   .Text(kpi.Definition)
+                                   .FontSize(5.5f).Italic()
+                                   .FontColor("#444444")
+                                   .LineHeight(1.25f);
+                             });
+                    }
+
+                    // ── 3. Interpretation column sub-header ─────────────────────────
                     inner.Item()
-                         .Background("#F0F0F0")
+                         .Background("#EBEBEB")
                          .PaddingHorizontal(4).PaddingVertical(2)
                          .Row(sh =>
                          {
-                             void SubHdr(RowDescriptor r, string txt, bool relative = false)
-                             {
-                                 var cell = relative ? r.RelativeItem() : (IContainer)r.ConstantItem(45);
-                                 cell.Text(txt).FontSize(5.5f).Bold().FontColor("#666666");
-                             }
-                             SubHdr(sh, "Range");
-                             SubHdr(sh, "Condition", relative: true);
+                             sh.ConstantItem(46)
+                               .Text("Range")
+                               .FontSize(5.5f).Bold().FontColor("#666666");
+                             sh.RelativeItem()
+                               .Text("Condition")
+                               .FontSize(5.5f).Bold().FontColor("#666666");
                          });
 
-                    // ── 5 interpretation rows ────────────────────────────────────
+                    // ── 4. Five interpretation rows ─────────────────────────────────
                     for (int i = 0; i < interps.Count; i++)
                     {
                         var interp = interps[i];
                         bool isHit = interp == matched;
 
-                        string rowBg = isHit ? accent
-                                        : i % 2 == 0 ? "#FFFFFF" : "#F7F7F7";
+                        string rowBg = isHit ? accent : (i % 2 == 0 ? "#FFFFFF" : "#F7F7F7");
                         string rangeFg = isHit ? "#FFFFFF" : "#888888";
                         string condFg = isHit ? "#FFFFFF" : "#333333";
 
                         string rangeStr = (interp.MinRange.HasValue && interp.MaxRange.HasValue)
-                             ? $"{Math.Round(interp.MinRange.Value, 0)}–{Math.Round(interp.MaxRange.Value, 0)}"
-                             : "—";
+                            ? $"{Math.Round(interp.MinRange.Value, 0)}–{Math.Round(interp.MaxRange.Value, 0)}"
+                            : "—";
 
                         inner.Item()
                              .BorderBottom(0.3f).BorderColor("#E0E0E0")
@@ -1137,37 +1164,20 @@ namespace AssessmentPlatform.Common.Implementation
                              .PaddingHorizontal(4).PaddingVertical(2)
                              .Row(r =>
                              {
-                                 // range column (fixed width)
                                  r.ConstantItem(46)
                                   .Text(rangeStr)
                                   .FontSize(6f).FontColor(rangeFg);
 
-                                 // condition label — bold + white when matched
-                                 if (isHit)
-                                     r.RelativeItem()
-                                      .Text(interp.Condition ?? "—")
-                                      .FontSize(6.5f).Bold().FontColor(condFg);
-                                 else
-                                     r.RelativeItem()
-                                      .Text(interp.Condition ?? "—")
-                                      .FontSize(6.5f).FontColor(condFg);
+                                 r.RelativeItem()
+                                  .Text(interp.Condition ?? "—")
+                                  .FontSize(6.5f)
+                                  .Bold()
+                                  .FontColor(condFg);
                              });
                     }
                 });
         }
 
-        /// Blends a hex colour toward white by <factor> (0=original, 1=white).
-        static string LightenHex(string hex, float factor)
-        {
-            hex = hex.TrimStart('#');
-            int r = Convert.ToInt32(hex[..2], 16);
-            int g = Convert.ToInt32(hex[2..4], 16);
-            int b = Convert.ToInt32(hex[4..6], 16);
-            r = (int)(r + (255 - r) * factor);
-            g = (int)(g + (255 - g) * factor);
-            b = (int)(b + (255 - b) * factor);
-            return $"#{r:X2}{g:X2}{b:X2}";
-        }
 
         // ── Top tow  kpis ────────────────────────────────
 
@@ -1184,7 +1194,7 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 foreach (var pair in pairs)
                 {
-                    col.Item().Height(102).Row(row =>
+                    col.Item().Height(130).Row(row =>
                     {
                         foreach (var (kpi, idx) in pair)
                             row.RelativeItem().Column(card => DrawKpiCard(card, kpi, idx + 1));

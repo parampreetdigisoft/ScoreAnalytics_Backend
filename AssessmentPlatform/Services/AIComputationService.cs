@@ -7,7 +7,9 @@ using AssessmentPlatform.Dtos.AiDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using DocumentFormat.OpenXml.InkML;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace AssessmentPlatform.Services
 {
@@ -20,16 +22,16 @@ namespace AssessmentPlatform.Services
         private readonly ICommonService _commonService;
         private readonly Download _download;
         private readonly IAIAnalyzeService _iAIAnalayzeService;
-        private readonly IPdfGeneratorService _iPdfGeneratorService;
+        private readonly IDocumentGeneratorService _documentGeneratorService;
         public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService,
-            Download download, IAIAnalyzeService iAIAnalayzeService, IPdfGeneratorService iPdfGeneratorService)
+            Download download, IAIAnalyzeService iAIAnalayzeService, IDocumentGeneratorService documentGeneratorService)
         {
             _context = context;
             _appLogger = appLogger;
             _commonService = commonService;
             _download = download;
             _iAIAnalayzeService = iAIAnalayzeService;
-            _iPdfGeneratorService = iPdfGeneratorService;
+            _documentGeneratorService = documentGeneratorService;
         }
         #endregion
 
@@ -935,6 +937,7 @@ namespace AssessmentPlatform.Services
                 KpiName = x.AnalyticalLayer.LayerName,
                 CityID = x.CityID,
                 RawValue = x.AiCalValue5,
+                Definition=x.AnalyticalLayer.Definition,
                 AnalyticalLayer = x.AnalyticalLayer
             })
             .Select(x => new
@@ -944,6 +947,7 @@ namespace AssessmentPlatform.Services
                 x.CityID,
                 Value = x.RawValue,
                 LayerID = x.AnalyticalLayer.LayerID,
+                Definition = x.Definition,
 
                 Interpretation = x.AnalyticalLayer.FiveLevelInterpretations.Select(i => new FiveLevelInterpretationsDto
                 (
@@ -958,7 +962,7 @@ namespace AssessmentPlatform.Services
             }).OrderBy(x=>x.LayerID);
 
             var kpis = await kpiRaw
-                .Select(k => new KpiChartItem(k.KpiShortName, k.KpiName, k.Value, k.CityID,k.Interpretation))
+                .Select(k => new KpiChartItem(k.KpiShortName, k.KpiName, k.Value, k.Definition, k.CityID,k.Interpretation))
                 .ToListAsync();
 
             return kpis ?? new List<KpiChartItem>();
@@ -968,7 +972,7 @@ namespace AssessmentPlatform.Services
         //  ENTRY POINTS  (GenerateCityDetailsPdf / GeneratePillarDetailsPdf)
         // ─────────────────────────────────────────────────────────────────────────────
 
-        public async Task<byte[]> GenerateCityDetailsPdf(AiCitySummeryDto cityDetails, UserRole userRole, int userID)
+        public async Task<byte[]> GenerateCityDetailsReport(AiCitySummeryDto cityDetails, UserRole userRole, int userID, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf)
         {
             try
             {
@@ -1043,34 +1047,34 @@ namespace AssessmentPlatform.Services
                     .ToListAsync();
 
 
-                var document = await _iPdfGeneratorService.GenerateCityDetailsPdf(cityDetails, pillars.Result.Pillars, kpis, peerCities, userRole);
+                var document = await _documentGeneratorService.GenerateCityDetails(cityDetails, pillars.Result.Pillars, kpis, peerCities, userRole, format);
 
                 return document;
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occured in GenerateCityDetailsPdf", ex);
+                await _appLogger.LogAsync("Error Occured in GenerateCityDetailsReport", ex);
                 return Array.Empty<byte>();
             }
         }
 
-        public async Task<byte[]> GeneratePillarDetailsPdf(AiCityPillarReponse pillarData, UserRole userRole)
+        public async Task<byte[]> GeneratePillarDetailsReport(AiCityPillarReponse pillarData, UserRole userRole, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf)
         {
             try
             {
-                var document = await _iPdfGeneratorService.GeneratePillarDetailsPdf(pillarData, userRole);
+                var document = await _documentGeneratorService.GeneratePillarDetails(pillarData, userRole, format);
 
 
                 return document;
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occured in GeneratePillarDetailsPdf", ex);
+                await _appLogger.LogAsync("Error Occured in GeneratePillarDetailsReport", ex);
                 return Array.Empty<byte>();
             }
         }
 
-        public async Task<byte[]> GenerateAllCityDetailsPdf(List<AiCitySummeryDto> citiesDetails, UserRole userRole, int userID, int year)
+        public async Task<byte[]> GenerateAllCityDetailsReport(List<AiCitySummeryDto> citiesDetails, UserRole userRole, int userID, int year, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf)
         {
             try
             {
@@ -1081,7 +1085,7 @@ namespace AssessmentPlatform.Services
                 var recordAvailable = pillars.Result.Any(x => citiesDetails.Select(x => x.CityID).Contains(x.Key));
                 if (recordAvailable)
                 {
-                    var document = await _iPdfGeneratorService.GenerateAllCitiesDetailsPdf(citiesDetails, pillars.Result, kpis, userRole);
+                    var document = await _documentGeneratorService.GenerateAllCitiesDetails(citiesDetails, pillars.Result, kpis, userRole, format);
 
                     return document;
                 }
@@ -1092,7 +1096,7 @@ namespace AssessmentPlatform.Services
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error Occured in GenerateCityDetailsPdf", ex);
+                await _appLogger.LogAsync("Error Occured in GenerateCityDetailsReport", ex);
                 return Array.Empty<byte>();
             }
         }
@@ -1101,7 +1105,7 @@ namespace AssessmentPlatform.Services
 
     }
     public record PillarChartItem(string ShortName, string Name, decimal? Value);
-    public record KpiChartItem(string ShortName, string Name, decimal? Value, int? CityID, List<FiveLevelInterpretationsDto> InterPretation);
+    public record KpiChartItem(string ShortName, string Name, decimal? Value,string? Definition, int? CityID, List<FiveLevelInterpretationsDto> InterPretation);
     public record FiveLevelInterpretationsDto ( 
          int InterpretationID ,
          int LayerID ,

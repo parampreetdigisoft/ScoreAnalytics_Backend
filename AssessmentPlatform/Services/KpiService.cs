@@ -113,6 +113,7 @@ namespace AssessmentPlatform.Services
             CalText3 = ar.AnalyticalLayer.CalText3,
             CalText4 = ar.AnalyticalLayer.CalText4,
             CalText5 = ar.AnalyticalLayer.CalText5,
+            Definition = ar.AnalyticalLayer.Definition,
             FiveLevelInterpretations = ar.AnalyticalLayer.FiveLevelInterpretations,
 
             City = ar.City
@@ -357,6 +358,7 @@ namespace AssessmentPlatform.Services
                         CalText3 = g.Select(x => x.AnalyticalLayer.CalText3).FirstOrDefault(),
                         CalText4 = g.Select(x => x.AnalyticalLayer.CalText4).FirstOrDefault(),
                         CalText5 = g.Select(x => x.AnalyticalLayer.CalText5).FirstOrDefault(),
+                        Definition = g.Select(x => x.AnalyticalLayer.Definition).FirstOrDefault(),
 
                         FiveLevelInterpretations = g.First().AnalyticalLayer.FiveLevelInterpretations,
 
