@@ -1011,7 +1011,7 @@ namespace AssessmentPlatform.Services
                         x.CityName,
                         x.State,
                         x.Country
-                    )).OrderBy(x=>x.Average(y=>y.PillarProgress));
+                    )).OrderByDescending(x=> x.Average(y=>y.PillarProgress));
 
                 var byteRes = MakeCityPillarSheet(request,result);
 
