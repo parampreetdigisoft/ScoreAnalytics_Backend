@@ -12,7 +12,7 @@ using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
-
+using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 
 namespace AssessmentPlatform.Services
@@ -821,7 +821,7 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, string tierName)
+        public async Task<ResultResponseDto<CompareCityResponseDto>> CompareCities(CompareCityRequestDto c, int userId, string tierName, bool applyPagination = true)
         {
             try
             {
@@ -830,7 +830,7 @@ namespace AssessmentPlatform.Services
                 var endDate = new DateTime(year + 1, 1, 1);
 
                 var validKpiIds = new List<int>();
-                if (c.Kpis.Count == 0)
+                if (c.Kpis !=null && c.Kpis.Count == 0)
                 {
                     var validPillarIds = _context.CityUserPillarMappings
                     .Where(x => x.IsActive && x.UserID == userId)
@@ -841,15 +841,20 @@ namespace AssessmentPlatform.Services
                         .Where(x => validPillarIds.Contains(x.PillarID))
                         .Select(x => x.LayerID)
                         .Distinct();
-
-                    var res = await query.ApplyPaginationAsync(c);
-                    validKpiIds = res.Data.ToList();
+                    if (applyPagination)
+                    {
+                        var res = await query.ApplyPaginationAsync(c);
+                        validKpiIds = res.Data.ToList();
+                    }
+                    else
+                    {
+                        validKpiIds =  query.ToList();
+                    }
                 }
                 else
                 {
                     validKpiIds = c.Kpis;
                 }
-
 
                 if (!validKpiIds.Any())
                 {
@@ -880,6 +885,7 @@ namespace AssessmentPlatform.Services
                         ar.LayerID,
                         ar.AnalyticalLayer.LayerCode,
                         ar.AnalyticalLayer.LayerName,
+                        ar.AnalyticalLayer.Definition,
                         ar.CalValue5,
                         ar.AiCalValue5
                     })
@@ -887,7 +893,7 @@ namespace AssessmentPlatform.Services
 
                 // Step 4: Get all distinct layers
                 var allLayers = analyticalResults
-                    .Select(x => new { x.LayerID, x.LayerCode, x.LayerName })
+                    .Select(x => new { x.LayerID, x.LayerCode, x.LayerName,x.Definition })
                     .Distinct()
                     .OrderBy(x => x.LayerName)
                     .ToList();
@@ -949,6 +955,7 @@ namespace AssessmentPlatform.Services
                         LayerID=layer.LayerID,
                         LayerCode = layer.LayerCode,
                         LayerName = layer.LayerName,
+                        Definition = layer.Definition,
                         CityValues = selectedCities.Select(c => new CityValueDto
                         {
                             CityID = c.CityID,
@@ -1060,6 +1067,213 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("Error Occured in GetAICityPillars", ex);
                 return ResultResponseDto<AiCityPillarReponseDto>.Failure(new[] { "Error in getting pillar details", });
+            }
+        }
+        public async Task<Tuple<string, byte[]>> ExportCompareCities(CompareKpiCityRequest c, int userId, string tierName)
+        {
+            try
+            {
+                var payload = new CompareCityRequestDto
+                {
+                    Cities = c.Cities,
+                    UpdatedAt = c.UpdatedAt
+                };
+
+                var result = await CompareCities(payload, userId, tierName,false);
+                var data = result.Result;
+
+                if (data == null || data.TableData == null || !data.TableData.Any())
+                {
+                    return new Tuple<string, byte[]>("City_Kpis_Comparison.xlsx", Array.Empty<byte>());
+                }
+
+                using (var workbook = new XLWorkbook())
+                {
+                    var ws = workbook.Worksheets.Add("City Comparison");
+
+                    // =========================
+                    // 📊 DYNAMIC HEADER SETUP
+                    // =========================
+                    var cities = data.TableData.First().CityValues;
+                    int totalCols = 2 + (cities.Count * 2);
+
+                    // =========================
+                    // 🎯 REPORT HEADER (TOP)
+                    // =========================
+                    ws.Range(1, 1, 1, totalCols).Merge().Value = "Key Performance Indicator Report";
+                    ws.Range(2, 1, 2, totalCols).Merge().Value = $"Report Year: {DateTime.Now.Year}";
+                    ws.Range(3, 1, 3, totalCols).Merge().Value = $"Generated On: {DateTime.Now:dd-MMM-yyyy HH:mm}";
+
+                    var titleRange = ws.Range(1, 1, 3, totalCols);
+                    titleRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#2F7D6D");
+                    titleRange.Style.Font.FontColor = XLColor.White;
+                    titleRange.Style.Font.Bold = true;
+                    titleRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    titleRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+                    ws.Row(1).Height = 28;
+                    ws.Row(2).Height = 22;
+                    ws.Row(3).Height = 22;
+
+                    // =========================
+                    // 📊 MULTI-ROW TABLE HEADER
+                    // =========================
+                    int row = 5;
+                    int col = 1;
+
+                    // KPI Name
+                    ws.Range(row, col, row + 1, col).Merge().Value = "KPI Name";
+                    col++;
+
+                    // Purpose
+                    ws.Range(row, col, row + 1, col).Merge().Value = "Purpose";
+                    col++;
+
+                    // Dynamic Cities
+                    foreach (var city in cities)
+                    {
+                        int startCol = col;
+
+                        // City Name (merged)
+                        ws.Range(row, startCol, row, startCol + 1).Merge().Value = city.CityName;
+
+                        // Sub headers
+                        ws.Cell(row + 1, startCol).Value = "Evaluation";
+                        ws.Cell(row + 1, startCol + 1).Value = "AI";
+
+                        col += 2;
+                    }
+
+                    // Style header (both rows)
+                    var headerRange = ws.Range(row, 1, row + 1, totalCols);
+                    headerRange.Style.Font.Bold = true;
+                    headerRange.Style.Font.FontColor = XLColor.White;
+                    headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#2F7D6D");
+                    headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                    headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+                    // =========================
+                    // 📄 DATA ROWS
+                    // =========================
+                    row += 2;
+                    int startDataRow = row;
+
+                    foreach (var kpi in data.TableData)
+                    {
+                        col = 1;
+
+                        ws.Cell(row, col++).Value = $"{kpi.LayerName} ({kpi.LayerCode})";
+
+                        var cleanPurpose = kpi.Definition ?? "";
+                        var purposeCell = ws.Cell(row, col++);
+                        purposeCell.Value = string.IsNullOrEmpty(cleanPurpose) ? "NA" : cleanPurpose;
+
+                        if (!string.IsNullOrEmpty(cleanPurpose))
+                        {
+                            var comment = purposeCell.GetComment();
+                            comment.AddText(cleanPurpose);
+                            comment.Visible = false;
+                        }
+
+                        foreach (var city in kpi.CityValues)
+                        {
+                            ws.Cell(row, col++).Value = city.Value;
+                            ws.Cell(row, col++).Value = city.AiValue;
+                        }
+
+                        row++;
+                    }
+
+                    int endDataRow = row - 1;
+
+                    // =========================
+                    // 🎨 STYLING
+                    // =========================
+
+                    // Column widths
+                    ws.Column(1).Width = 70;
+                    ws.Column(2).Width = 55;
+
+                    for (int i = 3; i <= totalCols; i++)
+                    {
+                        ws.Column(i).Width = 18;
+                    }
+
+                    // Wrap text
+                    ws.Column(2).Style.Alignment.WrapText = true;
+                    ws.Column(2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+
+                    // Center numbers
+                    ws.Columns(3, totalCols).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                    // Auto height
+                    ws.Rows().AdjustToContents();
+
+                    // Freeze (after 2 header rows)
+                    ws.SheetView.FreezeRows(6);
+
+                    // Borders
+                    var dataRange = ws.Range(5, 1, endDataRow, totalCols);
+                    dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+                    dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+
+                    // Zebra rows
+                    for (int i = startDataRow; i <= endDataRow; i++)
+                    {
+                        if (i % 2 == 0)
+                        {
+                            ws.Range(i, 1, i, totalCols).Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
+                        }
+                    }
+
+                    // Auto filter (second header row)
+                    ws.Range(6, 1, 6, totalCols).SetAutoFilter();
+
+                    // =========================
+                    // 📄 SHEET 2
+                    // =========================
+                    var ws2 = workbook.Worksheets.Add("KPI Details");
+
+                    int r = 1;
+
+                    ws2.Cell(r, 1).Value = "KPI Name";
+                    ws2.Cell(r, 2).Value = "Full Purpose";
+
+                    var header2 = ws2.Range(r, 1, r, 2);
+                    header2.Style.Font.Bold = true;
+                    header2.Style.Font.FontColor = XLColor.White;
+                    header2.Style.Fill.BackgroundColor = XLColor.FromHtml("#2F7D6D");
+
+                    r++;
+
+                    foreach (var kpi in data.TableData)
+                    {
+                        ws2.Cell(r, 1).Value = $"{kpi.LayerName} ({kpi.LayerCode})";
+                        ws2.Cell(r, 2).Value = kpi.Definition ?? "";
+                        r++;
+                    }
+
+                    ws2.Column(1).Width = 40;
+                    ws2.Column(2).Width = 100;
+                    ws2.Column(2).Style.Alignment.WrapText = true;
+
+                    ws2.Rows().AdjustToContents();
+                    ws2.SheetView.FreezeRows(1);
+
+                    // =========================
+                    // 📤 EXPORT
+                    // =========================
+                    using (var stream = new MemoryStream())
+                    {
+                        workbook.SaveAs(stream);
+                        return new Tuple<string, byte[]>("City_Comparison.xlsx", stream.ToArray());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in ExportCompareCities", ex);
+                return new Tuple<string, byte[]>("", Array.Empty<byte>());
             }
         }
     }

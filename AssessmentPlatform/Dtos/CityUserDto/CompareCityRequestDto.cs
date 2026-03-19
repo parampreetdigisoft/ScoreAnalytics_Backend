@@ -2,6 +2,12 @@
 
 namespace AssessmentPlatform.Dtos.CityUserDto
 {
+    public class CompareKpiCityRequest
+    {
+        public List<int> Cities { get; set; }
+        public DateTime UpdatedAt { get; set; } = new DateTime(DateTime.Now.Year, 1, 1);
+    }
+
     public class CompareCityRequestDto : PaginationRequest
     {
         public List<int> Cities { get; set; }

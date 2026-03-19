@@ -19,6 +19,7 @@
         public int LayerID { get; set; }
         public string LayerCode { get; set; }
         public string LayerName { get; set; }
+        public string? Definition { get; set; }
         public List<CityValueDto> CityValues { get; set; }
         public decimal PeerCityScore { get; set; }
     }

@@ -6,6 +6,7 @@ using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace AssessmentPlatform.Controllers
 {
@@ -32,7 +33,10 @@ namespace AssessmentPlatform.Controllers
         {
             return User.FindFirst("Tier")?.Value;
         }
-
+        private string? GetRoleFromClaims()
+        {
+            return User.FindFirst(ClaimTypes.Role)?.Value;
+        }
         [HttpGet("getCityHistory")]
         public async Task<IActionResult> GetCityHistory()
         {
@@ -202,6 +206,24 @@ namespace AssessmentPlatform.Controllers
                 return Unauthorized("You Don't have access.");
 
             return Ok(await _cityUserService.GetAICityPillars(request, userId.Value, tierName));
+        }
+
+        [HttpGet("ExportCompareCities")]
+        public async Task<IActionResult> ExportCompareCities([FromQuery] CompareKpiCityRequest request)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var tierName = GetTierFromClaims();
+            if (tierName == null)
+                return Unauthorized("You Don't have access.");
+
+            var content = await _cityUserService.ExportCompareCities(request, userId.Value, tierName);
+
+            return File(content.Item2,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                content.Item1);
         }
     }
 }

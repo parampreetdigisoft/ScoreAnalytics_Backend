@@ -76,7 +76,20 @@ namespace AssessmentPlatform.Controllers
         [Route("GetAllKpi")]
         public async Task<IActionResult> GetAllKpi()
         {
-            var result = await _kpiService.GetAllKpi();
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _kpiService.GetAllKpi(userId.GetValueOrDefault(),userRole);
             return Ok(result);
         }
 
@@ -104,6 +117,7 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost]
         [Route("getMutiplekpiLayerResults")]
+        [Authorize(Policy = "StaffOnly")]
         public async Task<IActionResult> GetMutiplekpiLayerResults([FromBody] GetMutiplekpiLayerRequestDto request)
         {
             var userId = GetUserIdFromClaims();
@@ -135,6 +149,28 @@ namespace AssessmentPlatform.Controllers
             }
 
             return Ok(result);
+        }
+
+        [HttpGet("ExportCompareCities")]
+        public async Task<IActionResult> ExportCompareCities([FromQuery] CompareKpiCityRequest request)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+                return Unauthorized("You Don't have access.");
+
+
+            var content = await _kpiService.ExportCompareCities(request, userId.Value, userRole);
+
+            return File(content.Item2,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                content.Item1);
         }
     }
 }
