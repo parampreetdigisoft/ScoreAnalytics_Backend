@@ -255,19 +255,20 @@ namespace AssessmentPlatform.Common.Implementation
         {
             float overall = (float)city.AIProgress.GetValueOrDefault();
             var validPillars = pillars.Where(p => p.Value.HasValue).ToList();
+            // ── Call site ────────────────────────────────────────────────────────────────
+            var donutPng = RenderPng((c, s) => PaintDonut(c, s, overall), 320, 220);
+            var radarPng = RenderPng((c, s) => PaintSpiderChart(c, s, validPillars), 460, 280);
 
-            // Row 1: Donut chart (left) + Radar chart (right)
-            var donutPng  = RenderPng((c, s) => PaintDonut(c, s, overall), 320, 260);
-            var radarPng  = RenderPng((c, s) => PaintSpiderChart(c, s, validPillars), 460, 260);
-            body.AppendChild(CreateSideBySideImages(mainPart, donutPng, radarPng, 260));
-
-            body.AppendChild(Gap(100));
-
-            // Row 2: KPI stats band
-            int green = kpis.Count(k => k.Value >= 70);
-            int amber = kpis.Count(k => k.Value is >= 40 and < 70);
-            int red   = kpis.Count(k => k.Value < 40);
-            body.AppendChild(CreateKpiStatTable(kpis.Count, green, amber, red));
+            var best = validPillars.OrderByDescending(x => x.Value).First();
+            var worst = validPillars.OrderBy(x => x.Value).First();
+            body.AppendChild(
+                CreateScoreAndRadarRow(
+                    mainPart,
+                    donutPng, radarPng,
+                    overall,
+                    14, 109,
+                    best, worst,
+                    validPillars));
 
             // Highlight KPIs (UDRI / PRUPS)
             var topKpis = kpis.Where(x =>
@@ -275,20 +276,278 @@ namespace AssessmentPlatform.Common.Implementation
                 string.Equals(x.ShortName, "PRUPS", StringComparison.OrdinalIgnoreCase)).ToList();
             if (topKpis.Any())
             {
-                body.AppendChild(Gap(100));
+                body.AppendChild(Gap(20));
                 body.AppendChild(CreateKpiCardTable(mainPart, topKpis));
+
             }
 
-            body.AppendChild(Gap(100));
+            body.AppendChild(Gap(20));
 
-            // Row 3: KPI Sparkline
+            // Row 2: KPI stats band
+            int green = kpis.Count(k => k.Value >= 70);
+            int amber = kpis.Count(k => k.Value is >= 40 and < 70);
+            int red   = kpis.Count(k => k.Value < 40);
+            foreach (var el in CreateKpiStatSection(kpis.Count, green, amber, red))
+                body.Append(el);
+
+
+            body.AppendChild(Gap(20));
+
             if (kpis.Any())
             {
+                var avg = (kpis.Average(x => x.Value) ?? 0).ToString("0.0") + "%";
+
+                body.Append(CreateKpiOverviewHeader(avg));
+
                 var sparkPng = RenderPng((c, s) => PaintKpiSparkline(c, s, kpis), 700, 130);
                 body.AppendChild(CreateFullWidthImage(mainPart, sparkPng, 130));
             }
 
+
+        }
+        private static Table CreateKpiOverviewHeader(string avgText)
+        {
+            return new Table(
+                new TableProperties(
+                    new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa }
+                ),
+                new TableRow(
+                    // LEFT: Title
+                    new TableCell(
+                        new TableCellProperties(
+                            new TableCellWidth { Width = (ContentDxa * 3 / 4).ToString(), Type = TableWidthUnitValues.Dxa },
+                            new TableCellBorders(
+                                new TopBorder { Val = BorderValues.None },
+                                new BottomBorder { Val = BorderValues.None },
+                                new LeftBorder { Val = BorderValues.None },
+                                new RightBorder { Val = BorderValues.None }
+                            )
+                        ),
+                        new Paragraph(
+                            new ParagraphProperties(new Justification { Val = JustificationValues.Left }),
+                            new Run(
+                                new RunProperties(new Bold(), new FontSize { Val = "18" }),
+                                new Text("KPI Overview — All Indicators (sorted high → low)")
+                            )
+                        )
+                    ),
+
+                    // RIGHT: Avg
+                    new TableCell(
+                        new TableCellProperties(
+                            new TableCellWidth { Width = (ContentDxa / 4).ToString(), Type = TableWidthUnitValues.Dxa },
+                            new TableCellBorders(
+                                new TopBorder { Val = BorderValues.None },
+                                new BottomBorder { Val = BorderValues.None },
+                                new LeftBorder { Val = BorderValues.None },
+                                new RightBorder { Val = BorderValues.None }
+                            )
+                        ),
+                        new Paragraph(
+                            new ParagraphProperties(new Justification { Val = JustificationValues.Right }),
+                            new Run(
+                                new RunProperties(new Bold(), new FontSize { Val = "18" }),
+                                new Text($"Avg: {avgText}")
+                            )
+                        )
+                    )
+                )
+            );
+        }
+        // ── Master row builder ────────────────────────────────────────────────────────
+
+        private Table CreateScoreAndRadarRow(
+            MainDocumentPart mainPart,
+            byte[] donutPng,
+            byte[] radarPng,
+            float overallScore,
+            int pillarCount,
+            int kpiCount,
+            PillarChartItem? best,
+            PillarChartItem? worst,
+            List<PillarChartItem> pillars)
+        {
+            var leftCell = BuildDonutCell(mainPart, donutPng, overallScore, pillarCount, kpiCount, best, worst);
+            var rightCell = BuildRadarCell(mainPart, radarPng, pillars);
+
+            return new Table(
+                new TableProperties(
+                    new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa },
+                    new TableBorders(
+                        new TopBorder { Val = BorderValues.None },
+                        new BottomBorder { Val = BorderValues.None },
+                        new LeftBorder { Val = BorderValues.None },
+                        new RightBorder { Val = BorderValues.None },
+                        new InsideHorizontalBorder { Val = BorderValues.None },
+                        new InsideVerticalBorder { Val = BorderValues.None })),
+                new TableRow(leftCell, rightCell));
+        }
+
+        // ── LEFT: Donut card (40 % width) ────────────────────────────────────────────
+        private TableCell BuildDonutCell(
+            MainDocumentPart mainPart,
+            byte[] donutPng,
+            float score,
+            int pillarCount,
+            int kpiCount,
+            PillarChartItem? best,
+            PillarChartItem? worst)
+        {
+            int leftDxa = (int)(ContentDxa * 0.30);   // 40 % of page content width
+            long imgEmuW = (long)leftDxa * 914400L / 1440L;
+            long imgEmuH = imgEmuW * 220 / 320;        // keep aspect of 320×220 render
+
+            var cell = new TableCell();
+
+            // ── Cell properties ──
+            cell.Append(new TableCellProperties(
+                new TableCellWidth { Width = leftDxa.ToString(), Type = TableWidthUnitValues.Dxa },
+                CellNoBorder(),
+                new TableCellMargin(
+                    new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }),
+                new Shading { Val = ShadingPatternValues.Clear, Color = "auto", Fill = "FFFFFF" }));
+
+            // ── Heading ──
+            cell.Append(CenteredBoldPara("Overall City Score", "12352f", "20"));
+
+            // ── Donut image ──
+            cell.Append(EmbedImage(mainPart, donutPng, imgEmuW, imgEmuH));
+
             
+            // ── Pillars | KPIs row ──
+            cell.Append(BuildPillarKpiTable(pillarCount, kpiCount, leftDxa));
+
+            // ── Best / Worst badges ──
+            if (best != null)
+                cell.Append(BadgePara($"▲  {Shorten(best.Name, 22)}  ({best.Value:F0}%)",
+                                      "E8F5E9", "2E7D32", "1B5E20"));
+            if (worst != null)
+                cell.Append(BadgePara($"▼  {Shorten(worst.Name, 22)}  ({worst.Value:F0}%)",
+                                      "FDECEA", "C62828", "B71C1C"));
+
+            return cell;
+        }
+
+        // ── RIGHT: Radar card (60 % width) ───────────────────────────────────────────
+        private TableCell BuildRadarCell(
+            MainDocumentPart mainPart,
+            byte[] radarPng,
+            List<PillarChartItem> pillars)
+        {
+            int rightDxa = (int)(ContentDxa * 0.60);   // 60 % of page content width
+            long imgEmuW = (long)rightDxa * 914400L / 1440L;
+            long imgEmuH = imgEmuW * 280 / 460;        // keep aspect of 460×280 render
+
+            var cell = new TableCell();
+
+            cell.Append(new TableCellProperties(
+                new TableCellWidth { Width = rightDxa.ToString(), Type = TableWidthUnitValues.Dxa },
+                CellNoBorder(),
+                new TableCellMargin(
+                    new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                    new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }),
+                new Shading { Val = ShadingPatternValues.Clear, Color = "auto", Fill = "FFFFFF" }));
+
+            // ── Heading ──
+            cell.Append(CenteredBoldPara("Pillar Performance Radar", "12352f", "20"));
+
+            // ── Radar image ──
+            cell.Append(EmbedImage(mainPart, radarPng, imgEmuW, imgEmuH));
+
+            return cell;
+        }
+
+        // ── Helpers ──────────────────────────────────────────────────────────────────
+
+        /// Pillars | KPIs two-column mini-table
+        private Table BuildPillarKpiTable(int pillarCount, int kpiCount, int parentDxa)
+        {
+            int half = parentDxa / 2;
+
+            TableCell CountCell(string number, string label) =>
+                new TableCell(
+                    new TableCellProperties(
+                        new TableCellWidth { Width = half.ToString(), Type = TableWidthUnitValues.Dxa },
+                        CellNoBorder(),
+                        new TableCellMargin(new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa })),
+                    new Paragraph(new ParagraphProperties(
+                            new Justification { Val = JustificationValues.Center }),
+                        new Run(new RunProperties(
+                                new Bold(), new Color { Val = "336b58" }, new FontSize { Val = "36" }),
+                            new Text(number))),
+                    new Paragraph(new ParagraphProperties(
+                            new Justification { Val = JustificationValues.Center }),
+                        new Run(new RunProperties(
+                                new Color { Val = "757575" }, new FontSize { Val = "16" }),
+                            new Text(label))));
+
+            return new Table(
+                new TableProperties(
+                    new TableWidth { Width = parentDxa.ToString(), Type = TableWidthUnitValues.Dxa },
+                    new TableBorders(
+                        new TopBorder { Val = BorderValues.None },
+                        new BottomBorder { Val = BorderValues.None },
+                        new LeftBorder { Val = BorderValues.None },
+                        new RightBorder { Val = BorderValues.None },
+                        new InsideHorizontalBorder { Val = BorderValues.None },
+                        new InsideVerticalBorder { Val = BorderValues.Single, Color = "E0E0E0", Size = 4 })),
+                new TableRow(
+                    CountCell(pillarCount.ToString(), "Pillars"),
+                    CountCell(kpiCount.ToString(), "KPIs")));
+        }
+
+        /// Centered bold paragraph (headings)
+        private static Paragraph CenteredBoldPara(string text, string hexColor, string halfPtSize) =>
+            new Paragraph(
+                new ParagraphProperties(
+                    new Justification { Val = JustificationValues.Center },
+                    new SpacingBetweenLines { After = "40" }),
+                new Run(new RunProperties(
+                        new Bold(),
+                        new Color { Val = hexColor },
+                        new FontSize { Val = halfPtSize }),
+                    new Text(text)));
+
+
+        /// Colored badge paragraph (best / worst pillars)
+        private static Paragraph BadgePara(
+            string text, string bgHex, string arrowHex, string textHex)
+        {
+            var shading = new Shading
+            {
+                Val = ShadingPatternValues.Clear,
+                Color = "auto",
+                Fill = bgHex
+            };
+            return new Paragraph(
+                new ParagraphProperties(
+                    new SpacingBetweenLines { Before = "40", After = "0" },
+                    new Indentation { Left = "80", Right = "80" },
+                    shading),
+                new Run(new RunProperties(
+                        new Color { Val = arrowHex },
+                        new FontSize { Val = "16" }),
+                    new Text(text.Substring(0, 2))),
+                new Run(new RunProperties(
+                        new Color { Val = textHex },
+                        new FontSize { Val = "16" }),
+                    new Text(text.Substring(2)) { Space = SpaceProcessingModeValues.Preserve }));
+        }
+
+        /// TableCellBorders — all None
+        private static TableCellBorders CellNoBorder()
+        {
+            var n = new EnumValue<BorderValues>(BorderValues.None);
+            return new TableCellBorders(
+                new TopBorder { Val = n },
+                new BottomBorder { Val = n },
+                new LeftBorder { Val = n },
+                new RightBorder { Val = n });
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -346,7 +605,7 @@ namespace AssessmentPlatform.Common.Implementation
 
             AppendContentSection(body, "Evidence Summary",      data.EvidenceSummary,      "163329");
             body.AppendChild(PageBreak());
-            AppendContentSection(body, "Red Flags",             data.RedFlags,             "ED561A");
+            AppendContentSection(body, "Red Flags",             data.RedFlags,             "ED561A", "ED561A");
             AppendContentSection(body, "Geographic Equity Note", data.GeographicEquityNote, "0D8057");
             body.AppendChild(PageBreak());
             AppendContentSection(body, "Institutional Assessment", data.InstitutionalAssessment, "2E9975");
@@ -974,8 +1233,7 @@ namespace AssessmentPlatform.Common.Implementation
 
         /// <summary>Two-column content block: accent bar on left, title + body text on right.</summary>
         /// 
-        private static void AppendContentSection(
-    Body body, string title, string? content, string accentHex)
+        private static void AppendContentSection(Body body, string title, string? content, string accentHex, string bgColor = "444444")
         {
             if (string.IsNullOrWhiteSpace(content)) return;
 
@@ -1052,16 +1310,24 @@ namespace AssessmentPlatform.Common.Implementation
                 contentCell.AppendChild(new Paragraph(
                     new ParagraphProperties(
                         new Justification { Val = JustificationValues.Both },
+
+                        // ✅ Force white background
+                        new Shading
+                        {
+                            Val = ShadingPatternValues.Clear,
+                            Fill = "FFFFFF"
+                        },
+
                         new SpacingBetweenLines
                         {
-                            Line = "276", // ✅ 1.15
+                            Line = "276", // 1.15
                             LineRule = LineSpacingRuleValues.Auto,
                             After = "120"
                         }
                     ),
                     new Run(
                         new RunProperties(
-                            new Color { Val = "444444" },
+                            new Color { Val = bgColor },
                             new FontSize { Val = "22" }
                         ),
                         new Text(para) { Space = SpaceProcessingModeValues.Preserve }
@@ -1074,46 +1340,102 @@ namespace AssessmentPlatform.Common.Implementation
             body.AppendChild(table);
 
             body.AppendChild(Gap(140));
-        }        
+        }
 
         // ── KPI stat band (4 colored boxes) ─────────────────────────────────
 
+        private static IEnumerable<OpenXmlElement> CreateKpiStatSection(int total, int green, int amber, int red)
+        {
+            // Heading (Top - Left aligned)
+            var heading = new Paragraph(
+                new ParagraphProperties(
+                    new Justification { Val = JustificationValues.Left },
+                    new SpacingBetweenLines { After = "20" } // space below heading
+                ),
+                new Run(
+                    new RunProperties(
+                        new Bold(),
+                        new FontSize { Val = "18" } // adjust if needed
+                    ),
+                    new Text("KPI Performance Distribution")
+                )
+            );
+
+            // Existing table (UNCHANGED)
+            var table = CreateKpiStatTable(total, green, amber, red);
+
+            return new List<OpenXmlElement>
+            {
+                heading,
+                table
+            };
+        }
         private static Table CreateKpiStatTable(int total, int green, int amber, int red)
         {
             int cellW = ContentDxa / 4;
+
             TableCell Stat(string val, string label, string bg, string fg)
             {
                 var noBorder = new EnumValue<BorderValues>(BorderValues.None);
+
                 return new TableCell(
                     new TableCellProperties(
                         new TableCellWidth { Width = cellW.ToString(), Type = TableWidthUnitValues.Dxa },
                         new Shading { Val = ShadingPatternValues.Clear, Fill = bg },
                         new TableCellMargin(
-                            new TopMargin    { Width = "80",  Type = TableWidthUnitValues.Dxa },
-                            new BottomMargin { Width = "80",  Type = TableWidthUnitValues.Dxa },
-                            new LeftMargin   { Width = "120", Type = TableWidthUnitValues.Dxa },
-                            new RightMargin  { Width = "120", Type = TableWidthUnitValues.Dxa }),
+                            new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                            new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                            new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                            new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }),
                         new TableCellBorders(
-                            new TopBorder    { Val = noBorder }, new BottomBorder { Val = noBorder },
-                            new LeftBorder   { Val = noBorder }, new RightBorder  { Val = noBorder })),
+                            new TopBorder { Val = noBorder }, new BottomBorder { Val = noBorder },
+                            new LeftBorder { Val = noBorder }, new RightBorder { Val = noBorder })
+                    ),
+
+                    // VALUE (Reduced size)
                     new Paragraph(
-                        new ParagraphProperties(new Justification { Val = JustificationValues.Center }),
-                        new Run(new RunProperties(new Bold(), new Color { Val = fg }, new FontSize { Val = "40" }),
-                            new Text(val))),
+                        new ParagraphProperties(
+                            new Justification { Val = JustificationValues.Center },
+                            new SpacingBetweenLines { Before = "0", After = "0", Line = "200", LineRule = LineSpacingRuleValues.Auto }
+                        ),
+                        new Run(
+                            new RunProperties(
+                                new Bold(),
+                                new Color { Val = fg },
+                                new FontSize { Val = "28" } // ↓ from 40
+                            ),
+                            new Text(val)
+                        )
+                    ),
+
+                    // LABEL (Compact)
                     new Paragraph(
-                        new ParagraphProperties(new Justification { Val = JustificationValues.Center }),
-                        new Run(new RunProperties(new Color { Val = fg }, new FontSize { Val = "14" }),
-                            new Text(label))));
+                        new ParagraphProperties(
+                            new Justification { Val = JustificationValues.Center },
+                            new SpacingBetweenLines { Before = "0", After = "0", Line = "180", LineRule = LineSpacingRuleValues.Auto }
+                        ),
+                        new Run(
+                            new RunProperties(
+                                new Color { Val = fg },
+                                new FontSize { Val = "18" } // ↑ slightly from 12 for readability
+                            ),
+                            new Text(label)
+                        )
+                    )
+                );
             }
 
             return new Table(
                 new TableProperties(
-                    new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa }),
+                    new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa }
+                ),
                 new TableRow(
-                    Stat(green.ToString(),  "Performing ≥70%",    "E8F5E9", "2E7D32"),
-                    Stat(amber.ToString(),  "Developing 40–69%",  "FFF8E1", "E65100"),
-                    Stat(red.ToString(),    "Needs Improvement",  "FDECEA", "C62828"),
-                    Stat(total.ToString(),  "Total KPIs",         "EEF5F1", "12352F")));
+                    Stat(green.ToString(), "Performing ≥70%", "E8F5E9", "2E7D32"),
+                    Stat(amber.ToString(), "Developing 40–69%", "FFF8E1", "E65100"),
+                    Stat(red.ToString(), "Needs Improvement", "FDECEA", "C62828"),
+                    Stat(total.ToString(), "Total KPIs", "EEF5F1", "12352F")
+                )
+            );
         }
 
         // ── KPI summary band (dark green strip) ──────────────────────────────
