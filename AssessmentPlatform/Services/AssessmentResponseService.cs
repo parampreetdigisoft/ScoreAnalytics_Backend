@@ -701,7 +701,7 @@ namespace AssessmentPlatform.Services
             return ResultResponseDto<string>.Failure(new[] { "Failed to Changed assessment status" });
         }
 
-        public async Task<ResultResponseDto<string>> TransferAssessment(TransferAssessmentRequestDto r)
+        public async Task<ResultResponseDto<string>> TransferAssessment(TransferAssessmentRequestDto r, int userID, UserRole userRole)
         {
             try
             {
@@ -744,6 +744,10 @@ namespace AssessmentPlatform.Services
 
                     _context.Assessments.Add(existingAssessment);
                 }
+                else if (existingAssessment.AssessmentPhase == AssessmentPhase.Completed && userRole != UserRole.Admin)
+                {
+                    return ResultResponseDto<string>.Failure(new[] { "Need approval for this assessment , Please send request to admin to edit" });
+                }
                 else
                 {
                     existingAssessment.UpdatedAt = currentDate;
@@ -779,7 +783,8 @@ namespace AssessmentPlatform.Services
                                 QuestionID = response.QuestionID,
                                 QuestionOptionID = response.QuestionOptionID,
                                 Justification = response.Justification,
-                                Score = response.Score
+                                Score = response.Score,
+                                Source =response.Source
                             });
                         }
                         else

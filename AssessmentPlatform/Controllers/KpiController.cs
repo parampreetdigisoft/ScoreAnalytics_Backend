@@ -117,7 +117,6 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost]
         [Route("getMutiplekpiLayerResults")]
-        [Authorize(Policy = "StaffOnly")]
         public async Task<IActionResult> GetMutiplekpiLayerResults([FromBody] GetMutiplekpiLayerRequestDto request)
         {
             var userId = GetUserIdFromClaims();
@@ -152,6 +151,7 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("ExportCompareCities")]
+        [Authorize(Policy = "StaffOnly")]
         public async Task<IActionResult> ExportCompareCities([FromQuery] CompareKpiCityRequest request)
         {
             var userId = GetUserIdFromClaims();

@@ -162,10 +162,23 @@ namespace AssessmentPlatform.Controllers
 
         [HttpPost]
         [Route("transferAssessment")]
-        [Authorize]
+        [Authorize(Policy = "StaffOnly")]
         public async Task<IActionResult> TransferAssessment([FromBody] TransferAssessmentRequestDto requestDto)
         {
-            var result = await _responseService.TransferAssessment(requestDto);
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _responseService.TransferAssessment(requestDto, userId.GetValueOrDefault(), userRole);
             return Ok(result);
         }
 

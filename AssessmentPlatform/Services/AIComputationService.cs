@@ -4,6 +4,7 @@ using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AiDto;
+using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
@@ -1102,6 +1103,168 @@ namespace AssessmentPlatform.Services
         }
 
         #endregion pdf pillars and city report
+
+        #region TransferAssessment
+        public async Task<ResultResponseDto<string>> AITransferAssessment(AITransferAssessmentRequestDto r, int userID, UserRole userRole)
+        {
+            try
+            {
+                var currentDate = DateTime.Now;
+                var year = currentDate.Year;
+
+                if (userRole == UserRole.CityUser || userRole == UserRole.Evaluator)
+                {
+                    return ResultResponseDto<string>.Failure(new[] { "Failed to transfer assessment, You don't have access." });
+                }
+
+                if(userRole == UserRole.Analyst)
+                {
+                    r.TransferToUserID = userID;
+
+                    var validCity = _context.UserCityMappings.Any(x => !x.IsDeleted && x.CityID == r.CityID && x.UserID == userID);
+
+                    if (!validCity)
+                    {
+                        return ResultResponseDto<string>.Failure(new[] { "This assessment can’t be imported because the selected user hasn’t been assigned to this city yet." });
+                    }
+                }
+
+                var aiAssessmentData = await _context.AIEstimatedQuestionScores
+                                    .Where(x => x.CityID == r.CityID && x.Year == year)
+                                    .ToListAsync();
+
+                var aiAssessmentQuestions = aiAssessmentData
+                    .GroupBy(x => x.PillarID)
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                if (aiAssessmentQuestions == null || aiAssessmentQuestions.Count==0)
+                    return ResultResponseDto<string>.Failure(new[] { "There is no ai assessment is available for this city" });
+
+
+                var userCityMapping = await _context.UserCityMappings.FirstOrDefaultAsync(x => !x.IsDeleted && x.CityID == r.CityID && x.UserID == r.TransferToUserID);
+
+                if(userCityMapping == null)
+                    return ResultResponseDto<string>.Failure(new[] { "This assessment can’t be imported because the selected user hasn’t been assigned to this city yet." });
+
+
+                // Load existing assessment for that user/city/year (with pillars/responses)
+                var existingAssessment = await _context.Assessments
+                    .Include(a => a.PillarAssessments)
+                        .ThenInclude(p => p.Responses)
+                    .FirstOrDefaultAsync(a => a.UserCityMappingID == userCityMapping.UserCityMappingID &&
+                                              a.UpdatedAt.Year == year);
+
+                if (existingAssessment == null)
+                {
+                    existingAssessment = new Assessment
+                    {
+                        UserCityMappingID = userCityMapping.UserCityMappingID,
+                        CreatedAt = currentDate,
+                        UpdatedAt = currentDate,
+                        IsActive = true,
+                        AssessmentPhase = AssessmentPhase.InProgress,
+                        PillarAssessments = new List<PillarAssessment>()
+                    };
+
+                    _context.Assessments.Add(existingAssessment);
+                }
+                else
+                {
+                    existingAssessment.UpdatedAt = currentDate;
+                    existingAssessment.AssessmentPhase =  AssessmentPhase.InProgress;
+                }
+
+                var questions = await _context.Questions.Include(x=>x.QuestionOptions).ToDictionaryAsync(q => q.QuestionID, q => q);
+
+                // Transfer pillar data
+                foreach (var pillar in aiAssessmentQuestions)
+                {
+                    var existingPillar = existingAssessment.PillarAssessments
+                        .FirstOrDefault(x => x.PillarID == pillar.Key);
+
+                    if (existingPillar == null)
+                    {
+                        existingPillar = new PillarAssessment
+                        {
+                            PillarID = pillar.Key,
+                            Responses = new List<AssessmentResponse>()
+                        };
+                        existingAssessment.PillarAssessments.Add(existingPillar);
+                    }
+
+                    // Add/Update responses
+                    foreach (var response in pillar.Value)
+                    {
+                        var existingResponse = existingPillar.Responses
+                            .FirstOrDefault(rp => rp.QuestionID == response.QuestionID);
+
+                        var qustion = questions.ContainsKey(response.QuestionID) ? questions[response.QuestionID] : null;
+                        if (qustion == null)
+                            continue;
+
+                        int? score = response.AIScore != null ? (int?)Math.Round(response.AIScore.Value, 0) : null;
+
+                        var option = qustion.QuestionOptions.FirstOrDefault(x => x.ScoreValue == score);
+                        if (option == null)
+                            continue;
+
+                        if (existingResponse == null)
+                        {                           
+
+                            existingPillar.Responses.Add(new AssessmentResponse
+                            {
+                                QuestionID = response.QuestionID,
+                                QuestionOptionID = option.OptionID,
+                                Justification = response.EvidenceSummary,
+                                Source = response.SourceDataExtract + "SourceURL : " + response.SourceURL,
+                                Score = (ScoreValue?)score
+                            });
+                        }
+                        else
+                        {
+                            existingResponse.QuestionOptionID = option.OptionID;
+                            existingResponse.Justification = response.EvidenceSummary;
+                            existingResponse.Score = (ScoreValue?)score;
+                            existingResponse.Source = response.SourceDataExtract + " SourceURL : " + response.SourceURL;
+                        }
+                    }
+
+                    // Delete responses not present in transferAssessment
+                    var transferQuestionIds = pillar.Value.Select(x => x.QuestionID).ToHashSet();
+                    var toDeleteResponses = existingPillar.Responses
+                        .Where(x => !transferQuestionIds.Contains(x.QuestionID))
+                        .ToList();
+
+                    foreach (var resp in toDeleteResponses)
+                    {
+                        //existingPillar.Responses.Remove(resp);
+                        _context.AssessmentResponses.Remove(resp);
+                    }
+                }
+
+                // Delete pillars not present in transferAssessment
+                var transferPillarIds = aiAssessmentQuestions.Select(x => x.Key).ToHashSet();
+                var toDeletePillars = existingAssessment.PillarAssessments
+                    .Where(x => !transferPillarIds.Contains(x.PillarID))
+                    .ToList();
+
+                foreach (var pillar in toDeletePillars)
+                {
+                    //existingAssessment.PillarAssessments.Remove(pillar);
+                    _context.PillarAssessments.Remove(pillar);
+                }
+                _download.InsertAnalyticalLayerResults(r.CityID);
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<string>.Success("", new[] { "Assessment transferred successfully." });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in TransferAssessment", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Failed to transfer assessment, please try again later." });
+            }
+        }
+        #endregion TransferAssessment
 
     }
     public record PillarChartItem(string ShortName, string Name, decimal? Value);

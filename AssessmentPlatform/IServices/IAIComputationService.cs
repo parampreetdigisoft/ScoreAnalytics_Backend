@@ -1,6 +1,5 @@
 ﻿using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Dtos.AiDto;
-using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Models;
 
@@ -24,6 +23,7 @@ namespace AssessmentPlatform.IServices
         Task<List<AiCitySummeryDto>> GetAllCityAiSummeryDetail(int userID, UserRole userRole, int year);
         Task<byte[]> GenerateAllCityDetailsReport(List<AiCitySummeryDto> cityDetails, UserRole userRole, int userID, int year, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf);
         public Task<ResultResponseDto<Dictionary<int, List<AiCityPillarReponse>>>> GetAllCitiesAIPillars(int userID, UserRole userRole, int currentYear = 0);
+        Task<ResultResponseDto<string>> AITransferAssessment(AITransferAssessmentRequestDto r, int userID, UserRole userRole);
 
     }
 }
