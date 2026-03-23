@@ -1069,7 +1069,8 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<AiCityPillarReponseDto>.Failure(new[] { "Error in getting pillar details", });
             }
         }
-        public async Task<Tuple<string, byte[]>> ExportCompareCities(CompareKpiCityRequest c, int userId, string tierName)
+        public async Task<Tuple<string, byte[]>> ExportCompareCities(
+            CompareKpiCityRequest c, int userId, string tierName)
         {
             try
             {
@@ -1079,27 +1080,24 @@ namespace AssessmentPlatform.Services
                     UpdatedAt = c.UpdatedAt
                 };
 
-                var result = await CompareCities(payload, userId, tierName,false);
+                var result = await CompareCities(payload, userId, tierName, false);
                 var data = result.Result;
 
                 if (data == null || data.TableData == null || !data.TableData.Any())
                 {
-                    return new Tuple<string, byte[]>("City_Kpis_Comparison.xlsx", Array.Empty<byte>());
+                    return new Tuple<string, byte[]>("City_Comparison.xlsx", Array.Empty<byte>());
                 }
 
                 using (var workbook = new XLWorkbook())
                 {
                     var ws = workbook.Worksheets.Add("City Comparison");
 
-                    // =========================
-                    // 📊 DYNAMIC HEADER SETUP
-                    // =========================
                     var cities = data.TableData.First().CityValues;
-                    int totalCols = 2 + (cities.Count * 2);
 
-                    // =========================
-                    // 🎯 REPORT HEADER (TOP)
-                    // =========================
+                    // ✅ FIX: Only 1 column per city
+                    int totalCols = 2 + cities.Count;
+
+                    // ================= HEADER =================
                     ws.Range(1, 1, 1, totalCols).Merge().Value = "Key Performance Indicator Report";
                     ws.Range(2, 1, 2, totalCols).Merge().Value = $"Report Year: {DateTime.Now.Year}";
                     ws.Range(3, 1, 3, totalCols).Merge().Value = $"Generated On: {DateTime.Now:dd-MMM-yyyy HH:mm}";
@@ -1109,53 +1107,31 @@ namespace AssessmentPlatform.Services
                     titleRange.Style.Font.FontColor = XLColor.White;
                     titleRange.Style.Font.Bold = true;
                     titleRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    titleRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
-                    ws.Row(1).Height = 28;
-                    ws.Row(2).Height = 22;
-                    ws.Row(3).Height = 22;
-
-                    // =========================
-                    // 📊 MULTI-ROW TABLE HEADER
-                    // =========================
                     int row = 5;
                     int col = 1;
 
                     // KPI Name
-                    ws.Range(row, col, row + 1, col).Merge().Value = "KPI Name";
-                    col++;
+                    ws.Cell(row, col++).Value = "KPI Name";
 
                     // Purpose
-                    ws.Range(row, col, row + 1, col).Merge().Value = "Purpose";
-                    col++;
+                    ws.Cell(row, col++).Value = "Purpose";
 
-                    // Dynamic Cities
+                    // ================= CITY HEADERS =================
                     foreach (var city in cities)
                     {
-                        int startCol = col;
-
-                        // City Name (merged)
-                        ws.Range(row, startCol, row, startCol + 1).Merge().Value = city.CityName;
-
-                        // Sub headers
-                        ws.Cell(row + 1, startCol).Value = "Evaluation";
-                        ws.Cell(row + 1, startCol + 1).Value = "AI";
-
-                        col += 2;
+                        ws.Cell(row, col++).Value = city.CityName; // ✅ FIX: increment column
                     }
 
-                    // Style header (both rows)
-                    var headerRange = ws.Range(row, 1, row + 1, totalCols);
+                    // Style header
+                    var headerRange = ws.Range(row, 1, row, totalCols);
                     headerRange.Style.Font.Bold = true;
                     headerRange.Style.Font.FontColor = XLColor.White;
                     headerRange.Style.Fill.BackgroundColor = XLColor.FromHtml("#2F7D6D");
                     headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
-                    headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
 
-                    // =========================
-                    // 📄 DATA ROWS
-                    // =========================
-                    row += 2;
+                    // ================= DATA =================
+                    row++;
                     int startDataRow = row;
 
                     foreach (var kpi in data.TableData)
@@ -1164,20 +1140,20 @@ namespace AssessmentPlatform.Services
 
                         ws.Cell(row, col++).Value = $"{kpi.LayerName} ({kpi.LayerCode})";
 
-                        var cleanPurpose = kpi.Definition ?? "";
                         var purposeCell = ws.Cell(row, col++);
-                        purposeCell.Value = string.IsNullOrEmpty(cleanPurpose) ? "NA" : cleanPurpose;
+                        var purpose = kpi.Definition ?? "NA";
+                        purposeCell.Value = purpose;
 
-                        if (!string.IsNullOrEmpty(cleanPurpose))
+                        if (!string.IsNullOrEmpty(kpi.Definition))
                         {
                             var comment = purposeCell.GetComment();
-                            comment.AddText(cleanPurpose);
+                            comment.AddText(kpi.Definition);
                             comment.Visible = false;
                         }
 
                         foreach (var city in kpi.CityValues)
                         {
-                            ws.Cell(row, col++).Value = city.Value;
+                            // ✅ Only ONE value per city
                             ws.Cell(row, col++).Value = city.AiValue;
                         }
 
@@ -1186,33 +1162,21 @@ namespace AssessmentPlatform.Services
 
                     int endDataRow = row - 1;
 
-                    // =========================
-                    // 🎨 STYLING
-                    // =========================
-
-                    // Column widths
-                    ws.Column(1).Width = 70;
-                    ws.Column(2).Width = 55;
+                    // ================= STYLING =================
+                    ws.Column(1).Width = 60;
+                    ws.Column(2).Width = 50;
 
                     for (int i = 3; i <= totalCols; i++)
                     {
                         ws.Column(i).Width = 18;
                     }
 
-                    // Wrap text
                     ws.Column(2).Style.Alignment.WrapText = true;
-                    ws.Column(2).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-
-                    // Center numbers
                     ws.Columns(3, totalCols).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-                    // Auto height
                     ws.Rows().AdjustToContents();
-
-                    // Freeze (after 2 header rows)
                     ws.SheetView.FreezeRows(6);
 
-                    // Borders
                     var dataRange = ws.Range(5, 1, endDataRow, totalCols);
                     dataRange.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
                     dataRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
@@ -1222,47 +1186,14 @@ namespace AssessmentPlatform.Services
                     {
                         if (i % 2 == 0)
                         {
-                            ws.Range(i, 1, i, totalCols).Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
+                            ws.Range(i, 1, i, totalCols)
+                              .Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
                         }
                     }
 
-                    // Auto filter (second header row)
-                    ws.Range(6, 1, 6, totalCols).SetAutoFilter();
+                    ws.Range(5, 1, 5, totalCols).SetAutoFilter();
 
-                    // =========================
-                    // 📄 SHEET 2
-                    // =========================
-                    var ws2 = workbook.Worksheets.Add("KPI Details");
-
-                    int r = 1;
-
-                    ws2.Cell(r, 1).Value = "KPI Name";
-                    ws2.Cell(r, 2).Value = "Full Purpose";
-
-                    var header2 = ws2.Range(r, 1, r, 2);
-                    header2.Style.Font.Bold = true;
-                    header2.Style.Font.FontColor = XLColor.White;
-                    header2.Style.Fill.BackgroundColor = XLColor.FromHtml("#2F7D6D");
-
-                    r++;
-
-                    foreach (var kpi in data.TableData)
-                    {
-                        ws2.Cell(r, 1).Value = $"{kpi.LayerName} ({kpi.LayerCode})";
-                        ws2.Cell(r, 2).Value = kpi.Definition ?? "";
-                        r++;
-                    }
-
-                    ws2.Column(1).Width = 40;
-                    ws2.Column(2).Width = 100;
-                    ws2.Column(2).Style.Alignment.WrapText = true;
-
-                    ws2.Rows().AdjustToContents();
-                    ws2.SheetView.FreezeRows(1);
-
-                    // =========================
-                    // 📤 EXPORT
-                    // =========================
+                    // ================= EXPORT =================
                     using (var stream = new MemoryStream())
                     {
                         workbook.SaveAs(stream);

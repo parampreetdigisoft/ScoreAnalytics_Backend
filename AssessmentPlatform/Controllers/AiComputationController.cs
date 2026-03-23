@@ -112,7 +112,10 @@ namespace AssessmentPlatform.Controllers
 
                 var role = GetRoleFromClaims();
                 if (!Enum.TryParse<UserRole>(role, true, out var userRole))
-                    return Unauthorized("You Don't have access.");
+                    //return Unauthorized("You Don't have access.");
+
+                 if (userRole != UserRole.Admin && userRole != UserRole.CityUser)
+                     return Unauthorized("You don't have access.");
 
                 var cityDetails = await _aIComputationService
                     .GetCityAiSummeryDetail(userId.Value, userRole, request.CityID, request.Year);
@@ -163,6 +166,9 @@ namespace AssessmentPlatform.Controllers
                 {
                     return Unauthorized("You Don't have access.");
                 }
+                if (userRole != UserRole.Admin && userRole != UserRole.CityUser)
+                    return Unauthorized("You Don't have access.");
+
                 var year = DateTime.Now.Year;
                 var cityDetails = await _aIComputationService.GetAllCityAiSummeryDetail(userId ?? 0, userRole, year);
 
@@ -221,6 +227,9 @@ namespace AssessmentPlatform.Controllers
                 {
                     return Unauthorized("You Don't have access.");
                 }
+                if (userRole != UserRole.Admin && userRole != UserRole.CityUser)
+                    return Unauthorized("You Don't have access.");
+
 
                 var pillars = await _aIComputationService.GetAICityPillars(request.CityID, userId.Value, userRole, request.Year);
 

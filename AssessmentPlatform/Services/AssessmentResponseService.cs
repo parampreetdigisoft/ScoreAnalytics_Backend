@@ -714,7 +714,7 @@ namespace AssessmentPlatform.Services
             try
             {
                 var assessment = await _context.Assessments.FirstOrDefaultAsync(x=>x.AssessmentID == r.AssessmentID);
-                if(assessment != null)
+                if(assessment != null && assessment.UpdatedAt.Year==DateTime.UtcNow.Year)
                 {
                     assessment.AssessmentPhase = r.AssessmentPhase;
 
@@ -723,6 +723,10 @@ namespace AssessmentPlatform.Services
 
                     return ResultResponseDto<string>.Success("", new[] { "Assessment Status Changed successfully" });
                 }
+                else
+                {
+                    return ResultResponseDto<string>.Failure(new[] { "Failed: Assessment must be from the current year." });
+                }
             }
             catch (Exception ex)
             {
@@ -730,7 +734,6 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "Failed to Changed assessment status" });
 
             }
-            return ResultResponseDto<string>.Failure(new[] { "Failed to Changed assessment status" });
         }
 
         public async Task<ResultResponseDto<string>> TransferAssessment(TransferAssessmentRequestDto r, int userID, UserRole userRole)
