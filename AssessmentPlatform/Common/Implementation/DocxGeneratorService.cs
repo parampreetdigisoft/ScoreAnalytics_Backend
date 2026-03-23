@@ -854,145 +854,6 @@ namespace AssessmentPlatform.Common.Implementation
         private void ResetSectionState() => _pendingHeaderRelId = null;
 
         /// <summary>
-        /// Creates a header for the upcoming section.
-        /// Automatically closes the PREVIOUS section with a next-page section break
-        /// (which replaces the manual PageBreak() call between sections).
-        /// </summary>
-        private void AppendCityHeader(
-            MainDocumentPart mainPart,
-            AiCitySummeryDto data,
-            string? sectionTitle = null)
-        {
-            var body = mainPart.Document.Body!;
-
-            // ── STEP 1: Finalize the PREVIOUS section ─────────────────────────────────
-            // On every call except the first, seal the prior section by embedding
-            // its sectPr inside a paragraph. This is how Word creates per-section
-            // headers — the sectPr lives in the last paragraph of each section.
-            if (_pendingHeaderRelId != null)
-            {
-                var closingSectPr = BuildSectionProperties(_pendingHeaderRelId);
-                // This paragraph is the section divider — it forces a new page AND
-                // carries the header reference for the section just finished.
-                body.AppendChild(new Paragraph(new ParagraphProperties(closingSectPr)));
-            }
-
-            // ── STEP 2: Build the new header part ────────────────────────────────────
-            var headerPart = mainPart.AddNewPart<HeaderPart>();
-            var header = new Header();
-
-            string title = string.IsNullOrEmpty(sectionTitle) ? data.CityName : sectionTitle;
-            string logoPath = Path.Combine(
-                Directory.GetCurrentDirectory(),
-                "wwwroot/assets/images/veridian-urban-index.png");
-
-            int logoColW = 1200;
-            int leftColW = ContentDxa - logoColW;
-
-            // FIX – Logo EMU calculation
-            // Column:   1200 DXA
-            // Padding:  58 DXA each side → 116 DXA total
-            // Drawable: 1084 DXA  →  1084 × 635 EMU/DXA = 688 340 EMU
-            // Use 635 000 EMU (~1000 DXA) to leave a small visual margin
-            const long logoEmu = 635_000L;
-
-            var layoutTable = new Table(
-                new TableProperties(
-                    new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa },
-                    // Fixed layout prevents Word from expanding columns past the page
-                    new TableLayout { Type = TableLayoutValues.Fixed },
-                    // FIX – Only border elements belong inside TableBorders.
-                    // Margin elements were incorrectly nested here before.
-                    new TableBorders(
-                        new TopBorder { Val = BorderValues.None },
-                        new BottomBorder { Val = BorderValues.None },
-                        new LeftBorder { Val = BorderValues.None },
-                        new RightBorder { Val = BorderValues.None },
-                        new InsideHorizontalBorder { Val = BorderValues.None },
-                        new InsideVerticalBorder { Val = BorderValues.None })));
-
-            var row = new TableRow();
-
-            // ── LEFT CELL ─────────────────────────────────────────────────────────────
-            var leftCell = new TableCell(
-                new TableCellProperties(
-                    new TableCellWidth { Width = leftColW.ToString(), Type = TableWidthUnitValues.Dxa },
-                    HeaderCellNoBorders(),
-                    new Shading { Val = ShadingPatternValues.Clear, Fill = "134534" },
-                    new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
-                    new TableCellMargin(
-                        new TopMargin { Width = "172", Type = TableWidthUnitValues.Dxa },
-                        new BottomMargin { Width = "172", Type = TableWidthUnitValues.Dxa },
-                        new LeftMargin { Width = "172", Type = TableWidthUnitValues.Dxa },
-                        new RightMargin { Width = "120", Type = TableWidthUnitValues.Dxa })));
-
-            leftCell.AppendChild(HeaderParagraph(title, "42", "FFFFFF", bold: true, spacingAfter: "40"));
-            leftCell.AppendChild(HeaderParagraph(
-                $"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.ScoringYear}",
-                "20", "E8F3F0", bold: false, spacingAfter: "20"));
-            leftCell.AppendChild(HeaderParagraph(
-                $"Generated: {DateTime.Now:MMM dd, yyyy}",
-                "16", "CFE3DD", bold: false, spacingAfter: "0"));
-
-            row.AppendChild(leftCell);
-
-            // ── RIGHT CELL (white logo box) ───────────────────────────────────────────
-            var rightCell = new TableCell(
-                new TableCellProperties(
-                    new TableCellWidth { Width = logoColW.ToString(), Type = TableWidthUnitValues.Dxa },
-                    HeaderCellNoBorders(),
-                    new Shading { Val = ShadingPatternValues.Clear, Fill = "FFFFFF" },
-                    new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
-                    new TableCellMargin(
-                        new TopMargin { Width = "58", Type = TableWidthUnitValues.Dxa },
-                        new BottomMargin { Width = "58", Type = TableWidthUnitValues.Dxa },
-                        new LeftMargin { Width = "58", Type = TableWidthUnitValues.Dxa },
-                        new RightMargin { Width = "58", Type = TableWidthUnitValues.Dxa })));
-
-            if (File.Exists(logoPath))
-            {
-                byte[] logoBytes = File.ReadAllBytes(logoPath);
-                var logoPara = EmbedImageInPart(headerPart, logoBytes, logoEmu, logoEmu);
-
-                logoPara.ParagraphProperties ??= new ParagraphProperties();
-                logoPara.ParagraphProperties.Justification =
-                    new Justification { Val = JustificationValues.Center };
-                logoPara.ParagraphProperties.SpacingBetweenLines =
-                    new SpacingBetweenLines { Before = "0", After = "0" };
-
-                rightCell.AppendChild(logoPara);
-            }
-            else
-            {
-                rightCell.AppendChild(new Paragraph());
-            }
-
-            row.AppendChild(rightCell);
-            layoutTable.AppendChild(row);
-
-            var divider = new Paragraph(
-                new ParagraphProperties(
-                    new SpacingBetweenLines { Before = "0", After = "0" },
-                    new ParagraphBorders(
-                        new BottomBorder
-                        {
-                            Val = BorderValues.Single,
-                            Size = 6,
-                            Color = "d9e2df",
-                            Space = 1
-                        })));
-
-            header.AppendChild(layoutTable);
-            header.AppendChild(divider);
-            headerPart.Header = header;
-            header.Save();
-
-            // ── STEP 3: Remember this relId — it will close the section when the
-            //           NEXT AppendCityHeader call is made (or FinalizeLastSection). ──
-            _pendingHeaderRelId = mainPart.GetIdOfPart(headerPart);
-        }
-
-        /// <summary>
         /// Must be called AFTER the last section's content has been appended.
         /// Attaches the last pending header to the document's final sectPr.
         /// </summary>
@@ -1010,6 +871,162 @@ namespace AssessmentPlatform.Common.Implementation
             sectPr.PrependChild(new HeaderReference { Type = HeaderFooterValues.Default, Id = _pendingHeaderRelId });
 
             _pendingHeaderRelId = null;
+        }
+
+
+        /// <summary>
+        /// Creates a header for the upcoming section.
+        /// Automatically closes the PREVIOUS section with a next-page section break
+        /// (which replaces the manual PageBreak() call between sections).
+        /// </summary>
+        private void AppendCityHeader(
+            MainDocumentPart mainPart,
+            AiCitySummeryDto data,
+            string? sectionTitle = null)
+        {
+            var body = mainPart.Document.Body!;
+
+            if (_pendingHeaderRelId != null)
+            {
+                var closingSectPr = BuildSectionProperties(_pendingHeaderRelId);
+                body.AppendChild(new Paragraph(new ParagraphProperties(closingSectPr)));
+            }
+
+            var headerPart = mainPart.AddNewPart<HeaderPart>();
+            var header = new Header();
+
+            string title = string.IsNullOrEmpty(sectionTitle) ? data.CityName : sectionTitle;
+
+            string logoPath = Path.Combine(
+                Directory.GetCurrentDirectory(),
+                "wwwroot/assets/images/veridian-urban-index.png");
+
+            int logoColW = 2600;   // ⬆️ from 2000
+            int leftColW = ContentDxa - logoColW;
+
+            const long logoWidthEmu = 900_000L;   // ⬆️ from 600k
+            const long logoHeightEmu = 420_000L;  // maintain ratio
+
+            // ✅ MAIN TABLE
+            var layoutTable = new Table(
+                new TableProperties(
+                    new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
+                    new TableLayout { Type = TableLayoutValues.Fixed },
+                    new TableCellSpacing() { Width = "0", Type = TableWidthUnitValues.Dxa }
+                )
+            );
+
+            var mainRow = new TableRow(
+                new TableRowProperties(
+                    new TableRowHeight {
+                        Val = 0,
+                        HeightType = HeightRuleValues.Auto
+                    }
+                )
+            );
+
+            // ✅ LEFT CELL
+            var leftCell = new TableCell(
+                new TableCellProperties(
+                new TableCellWidth { Width = leftColW.ToString(), Type = TableWidthUnitValues.Dxa },
+                new Shading { Fill = "134534" },
+                new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
+                new TableCellMargin(
+                        new TopMargin { Width = "200", Type = TableWidthUnitValues.Dxa },
+                        new BottomMargin { Width = "200", Type = TableWidthUnitValues.Dxa },
+                        new LeftMargin { Width = "250", Type = TableWidthUnitValues.Dxa },
+                        new RightMargin { Width = "150", Type = TableWidthUnitValues.Dxa }
+                    )
+                )
+            );
+
+            leftCell.Append(
+                HeaderParagraph(title, "42", "FFFFFF", true, "40"),
+                HeaderParagraph($"{data.CityName}, {data.State}, {data.Country} | Data Year: {data.ScoringYear}", "20", "E8F3F0", false, "20"),
+                HeaderParagraph($"Generated: {DateTime.Now:MMM dd, yyyy}", "16", "CFE3DD", false, "0")
+            );
+
+            mainRow.Append(leftCell);
+
+            // ✅ RIGHT CELL (GREEN BACKGROUND)
+            var rightCell = new TableCell(
+                new TableCellProperties(
+                    new TableCellWidth { Width = logoColW.ToString(), Type = TableWidthUnitValues.Dxa },
+                    new Shading { Fill = "134534" },
+                    new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center }
+                ),
+                new TableCellMargin(
+                new TopMargin { Width = "200", Type = TableWidthUnitValues.Dxa },
+                new BottomMargin { Width = "200", Type = TableWidthUnitValues.Dxa },
+                new LeftMargin { Width = "200", Type = TableWidthUnitValues.Dxa },
+                new RightMargin { Width = "200", Type = TableWidthUnitValues.Dxa }
+            )
+            );
+
+            // ✅ INNER TABLE (WHITE BOX)
+            var innerTable = new Table(
+                new TableProperties(
+                    new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct }
+                )
+            );
+
+            var innerRow = new TableRow();
+            var innerCell = new TableCell(
+                new TableCellProperties(
+                    new Shading { Fill = "FFFFFF" },
+                    new TableCellVerticalAlignment { Val = TableVerticalAlignmentValues.Center },
+                    new TableCellMargin(
+                        new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                        new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                        new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
+                        new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }
+                    )
+                )
+            );
+
+            if (File.Exists(logoPath))
+            {
+                var logoPara = EmbedImageInPart(
+                    headerPart,
+                    File.ReadAllBytes(logoPath),
+                    logoWidthEmu,
+                    logoHeightEmu
+                );
+
+                logoPara.ParagraphProperties = new ParagraphProperties(
+                    new Justification { Val = JustificationValues.Center }
+                );
+
+                innerCell.Append(logoPara);
+            }
+            else
+            {
+                innerCell.Append(new Paragraph());
+            }
+
+            innerRow.Append(innerCell);
+            innerTable.Append(innerRow);
+
+            rightCell.Append(innerTable);
+            mainRow.Append(rightCell);
+
+            layoutTable.Append(mainRow);
+
+            // ✅ DIVIDER
+            var divider = new Paragraph(
+                new ParagraphProperties(
+                    new ParagraphBorders(
+                        new BottomBorder { Val = BorderValues.Single, Size = 6, Color = "d9e2df" }
+                    )
+                )
+            );
+
+            header.Append(layoutTable, divider);
+
+            headerPart.Header = header;
+            header.Save();
+
+            _pendingHeaderRelId = mainPart.GetIdOfPart(headerPart);
         }
 
         /// <summary>
@@ -1044,32 +1061,24 @@ namespace AssessmentPlatform.Common.Implementation
                 new Run(rp, new Text(text) { Space = SpaceProcessingModeValues.Preserve }));
         }
 
-        // ── Helper: all-none TableCellBorders ─────────────────────────────────────────
-        private static TableCellBorders HeaderCellNoBorders() =>
-            new TableCellBorders(
-                new TopBorder { Val = BorderValues.None },
-                new BottomBorder { Val = BorderValues.None },
-                new LeftBorder { Val = BorderValues.None },
-                new RightBorder { Val = BorderValues.None });
-
-        // ── Helper: builds an inline image Drawing element ────────────────────────────
-
-        
 
         /// <summary>
         /// Mirrors EmbedImage() exactly, but targets a <see cref="HeaderPart"/> instead of
         /// <see cref="MainDocumentPart"/> so the relationship is resolved inside the header.
         /// </summary>
         private Paragraph EmbedImageInPart(HeaderPart headerPart, byte[] pngBytes,
-            long widthEmu, long heightEmu)
+      long widthEmu, long heightEmu)
         {
-            // Add image to the HeaderPart (not MainDocumentPart)
             var imgPart = headerPart.AddImagePart(ImagePartType.Png);
             using (var ms = new MemoryStream(pngBytes))
                 imgPart.FeedData(ms);
 
-            string relId = headerPart.GetIdOfPart(imgPart);   // relationship scoped to header.xml
+            string relId = headerPart.GetIdOfPart(imgPart);
             uint id = _imgId++;
+
+            // ✅ Build blip with white luminance recolor
+            var blip = new A.Blip { Embed = relId };
+            //blip.AppendChild(new A.LuminanceEffect { Brightness = 100000, Contrast = 0 });
 
             var drawing = new Drawing(
                 new DW.Inline(
@@ -1084,8 +1093,8 @@ namespace AssessmentPlatform.Common.Implementation
                                 new PIC.NonVisualPictureProperties(
                                     new PIC.NonVisualDrawingProperties { Id = 0U, Name = $"img{id}.png" },
                                     new PIC.NonVisualPictureDrawingProperties()),
-                                new PIC.BlipFill(
-                                    new A.Blip { Embed = relId },
+                                new PIC.BlipFill(           // ✅ uses the white-recolored blip
+                                    blip,
                                     new A.Stretch(new A.FillRectangle())),
                                 new PIC.ShapeProperties(
                                     new A.Transform2D(
@@ -1094,14 +1103,19 @@ namespace AssessmentPlatform.Common.Implementation
                                     new A.PresetGeometry(new A.AdjustValueList())
                                     { Preset = A.ShapeTypeValues.Rectangle })))
                         { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" }))
-                {
-                    DistanceFromTop = 0U,
-                    DistanceFromBottom = 0U,
-                    DistanceFromLeft = 0U,
-                    DistanceFromRight = 0U
-                });
+                    {
+                        DistanceFromTop = 0U,
+                        DistanceFromBottom = 0U,
+                        DistanceFromLeft = 0U,
+                        DistanceFromRight = 0U
+                    });
 
-            return new Paragraph(new Run(drawing));
+            return new Paragraph(
+                 new ParagraphProperties(
+                     new Justification { Val = JustificationValues.Center },
+                     new SpacingBetweenLines { Before = "0", After = "0" }
+                 ),new Run(drawing)
+             );
         }
         /// <summary>Coloured section heading with accent left-border effect.</summary>
         private static Paragraph SectionHeading(string title, string hexColor)
