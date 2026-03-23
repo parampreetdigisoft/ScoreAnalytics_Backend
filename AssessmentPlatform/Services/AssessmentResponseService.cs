@@ -380,109 +380,140 @@ namespace AssessmentPlatform.Services
                 };
             }
         }
+
+        // ────────────────────────────────────────────────────────────
+        //  IMPORT
+        // ────────────────────────────────────────────────────────────
+        private const int FIRST_Q_ROW = 9;
+        private const int ROWS_PER_Q = 4;
+        // ────────────────────────────────────────────────────────────
+        //  IMPORT
+        // ────────────────────────────────────────────────────────────
         public async Task<ResultResponseDto<string>> ImportAssessmentAsync(IFormFile file, int userID)
         {
             try
             {
-                var optionList = _context.QuestionOptions.ToHashSet();
+                // Load all options once
+                var allOptions = _context.QuestionOptions.ToList();
                 int recordSaved = 0;
 
-                using (var stream = new MemoryStream())
+                using var stream = new MemoryStream();
+                await file.CopyToAsync(stream);
+
+                using var workbook = new XLWorkbook(stream);
+
+                foreach (var ws in workbook.Worksheets)
                 {
-                    await file.CopyToAsync(stream);
-                    using (var workbook = new XLWorkbook(stream))
+                    // Skip the hidden options data sheet
+                    if (ws.Name.StartsWith("__")) continue;
+
+                    // ── Read meta from first question's source row ────
+                    // First question: ansRow=9, sourceRow=9+2=11
+                    int userCityMappingID = ws.Cell(11, 11).GetValue<int>();
+                    int pillarID = ws.Cell(11, 12).GetValue<int>();
+
+                    if (userCityMappingID == 0 || pillarID == 0)
+                        continue; // empty or corrupt sheet — skip
+
+                    // Validate that the file belongs to the uploading user
+                    if (!_context.UserCityMappings.Any(x =>
+                            !x.IsDeleted &&
+                            x.UserID == userID &&
+                            x.UserCityMappingID == userCityMappingID))
                     {
-                        foreach (var ws in workbook.Worksheets)
+                        return ResultResponseDto<string>.Failure(new[] { "Invalid file uploaded" });
+                    }
+
+                    int lastRow = ws.LastRowUsed()?.RowNumber() ?? 0;
+                    var assessmentResponses = new List<AddAssesmentResponseDto>();
+
+                    // ── Walk question blocks (4 rows each, starting row 9) ──
+                    for (int row = FIRST_Q_ROW; row <= lastRow - 2; row += ROWS_PER_Q)
+                    {
+                        int sourceRow = row + 2;
+
+                        int questionID = ws.Cell(sourceRow, 13).GetValue<int?>() ?? 0;
+                        int responseID = ws.Cell(sourceRow, 15).GetValue<int?>() ?? 0;
+
+                        // Once we reach rows without question IDs we're past the questions
+                        if (questionID == 0) break;
+
+                        string answerText = ws.Cell(row, 4).GetString().Trim(); // dropdown value
+                        string comment = ws.Cell(row + 1, 4).GetString().Trim(); // comment
+                        string source = ws.Cell(row + 2, 4).GetString().Trim(); // source
+
+                        int? score = null;
+                        int matchedOptionID = 0;
+
+                        var qOptions = allOptions.Where(x => x.QuestionID == questionID).ToList();
+
+                        if (!string.IsNullOrWhiteSpace(answerText))
                         {
-                            var assessmentResponses = new List<AddAssesmentResponseDto>();
-
-                            // Get hidden values from first question section
-                            int userCityMappingID = ws.Cell(10, 10).GetValue<int>(); // after header and description
-                            int pillarID = ws.Cell(10, 11).GetValue<int>();
-
-                            int lastRow = ws.LastRowUsed().RowNumber();
-
-                            // Start from first question block (approx row 8)
-                            for (int row = 8; row <= lastRow; row += 4)
+                            // 1. Exact full-text match against "N - Option text" or plain option text
+                            foreach (var opt in qOptions)
                             {
-                                int questionID = ws.Cell(row+2, 12).GetValue<int?>() ?? 0;
-                                int questionOptionID = ws.Cell(row + 2, 13).GetValue<int?>() ?? 0;
-                                int responseID = ws.Cell(row + 2, 14).GetValue<int?>() ?? 0;
+                                string prefix = opt.ScoreValue.HasValue ? $"{opt.ScoreValue} - " : "";
+                                string fullText = (prefix + opt.OptionText.Trim()).Trim();
 
-                                if (questionID == 0)
-                                    continue;
-
-                                // Validate city-user mapping
-                                if (!_context.UserCityMappings.Any(x => !x.IsDeleted && x.UserID == userID && x.UserCityMappingID == userCityMappingID))
+                                if (fullText.Equals(answerText, StringComparison.OrdinalIgnoreCase) ||
+                                    opt.OptionText.Trim().Equals(answerText, StringComparison.OrdinalIgnoreCase))
                                 {
-                                    return ResultResponseDto<string>.Failure(new[] { "Invalid file uploaded" });
-                                }
-
-                                // ===== Read from Sheet =====
-                                string scoreText = ws.Cell(row, 4).GetString().Trim();          // Row 1 - Score
-                                string naText = ws.Cell(row + 1, 4).GetString().Trim();          // Row 2 - N/A or Unknown
-                                string comment = ws.Cell(row + 2, 4).GetString().Trim();         // Row 3 - Comment
-                                string source = ws.Cell(row + 3, 4).GetString().Trim();          // Row 4 - Source (optional)
-
-                                int? score = null;
-                                var options = optionList.Where(x => x.QuestionID == questionID).ToList();
-
-                                // Try to map numeric score
-                                if (int.TryParse(scoreText, out int parsedScore))
-                                {
-                                    if (parsedScore >= 0 && parsedScore <= 4)
-                                    {
-                                        score = parsedScore;
-                                        questionOptionID = options.FirstOrDefault(x => x.ScoreValue == score)?.OptionID ?? 0;
-                                    }
-                                }
-                                else if (!string.IsNullOrWhiteSpace(naText))
-                                {
-                                    // Check N/A or Unknown option
-                                    questionOptionID = options
-                                        .FirstOrDefault(x => naText.Equals(x.OptionText, StringComparison.OrdinalIgnoreCase))?.OptionID ?? 0;
-                                }
-
-                                // Only save if a valid option was selected
-                                if (questionOptionID > 0)
-                                {
-                                    assessmentResponses.Add(new AddAssesmentResponseDto
-                                    {
-                                        AssessmentID = 0,
-                                        QuestionID = questionID,
-                                        ResponseID = responseID,
-                                        QuestionOptionID = questionOptionID,
-                                        Score = score.HasValue ? (ScoreValue)score.Value : null,
-                                        Justification =  comment,
-                                        Source = string.IsNullOrWhiteSpace(source) ? null : source
-                                    });
+                                    matchedOptionID = opt.OptionID;
+                                    score = opt.ScoreValue.HasValue ? (int?)opt.ScoreValue.Value : null;
+                                    break;
                                 }
                             }
 
-                            // Save assessment for each pillar
-                            
-                            var assessment = new AddAssessmentDto
+                            // 2. Fallback: first character is a digit 0-4
+                            if (matchedOptionID == 0 &&
+                                answerText.Length >= 1 &&
+                                int.TryParse(answerText[0].ToString(), out int parsedScore) &&
+                                parsedScore >= 0 && parsedScore <= 4)
+                            {
+                                var fallbackOpt = qOptions.FirstOrDefault(x => x.ScoreValue == parsedScore);
+                                if (fallbackOpt != null)
+                                {
+                                    matchedOptionID = fallbackOpt.OptionID;
+                                    score = parsedScore;
+                                }
+                            }
+                        }
+
+                        if (matchedOptionID > 0)
+                        {
+                            assessmentResponses.Add(new AddAssesmentResponseDto
                             {
                                 AssessmentID = 0,
-                                UserCityMappingID = userCityMappingID,
-                                PillarID = pillarID,
-                                Responses = assessmentResponses
-                            };
-
-                            var response = await SaveAssessment(assessment);
-                            if (!response.Succeeded)
-                                return response;
-
-                            recordSaved++;
-                            
+                                QuestionID = questionID,
+                                ResponseID = responseID,
+                                QuestionOptionID = matchedOptionID,
+                                Score = score.HasValue ? (ScoreValue)score.Value : null,
+                                Justification = comment,
+                                Source = string.IsNullOrWhiteSpace(source) ? null : source
+                            });
                         }
                     }
+
+                    // ── Save this pillar's responses ──────────────────
+                    var assessment = new AddAssessmentDto
+                    {
+                        AssessmentID = 0,
+                        UserCityMappingID = userCityMappingID,
+                        PillarID = pillarID,
+                        Responses = assessmentResponses
+                    };
+
+                    var saveResult = await SaveAssessment(assessment);
+                    if (!saveResult.Succeeded)
+                        return saveResult;
+
+                    recordSaved++;
                 }
 
                 return ResultResponseDto<string>.Success("", new[]
                 {
                     recordSaved > 0
-                        ? $"{recordSaved} Pillars Assessment saved successfully"
+                    ? $"{recordSaved} Pillar(s) Assessment saved successfully"
                         : "Please fill the sheet properly before submitting"
                 });
             }
@@ -492,6 +523,7 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "Failed to save assessment" });
             }
         }
+
         public async Task<GetCityQuestionHistoryReponseDto> GetCityQuestionHistory(UserCityRequstDto userCityRequstDto)
         {
             try

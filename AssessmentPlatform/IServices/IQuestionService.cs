@@ -20,5 +20,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityIdAsync(CityPillerRequestDto request, int userId);
         Task<Tuple<string,byte[]>> ExportAssessment(int userCityMappingID);
         Task<ResultResponseDto<List<QuestionsByUserPillarsResponsetDto>>> GetQuestionsHistoryByPillar(GetCityPillarHistoryRequestDto requestDto);
+        Task<ResultResponseDto<GetPillarQuestionByCityRespones>> GetQuestionsByCityMappingIdForAnalyst(CityPillerRequestDto request, int userId);
     }
 } 
