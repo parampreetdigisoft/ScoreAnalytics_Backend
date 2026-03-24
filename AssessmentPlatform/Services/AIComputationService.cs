@@ -171,7 +171,7 @@ namespace AssessmentPlatform.Services
 
             var query =
                 from c in _context.Cities
-                where allowedCityIds.Contains(c.CityID) || (userRole == UserRole.Admin && !cityID.HasValue)
+                where allowedCityIds.Contains(c.CityID) || (userRole == UserRole.Admin && !cityID.HasValue) && c.IsActive && !c.IsDeleted
 
                 join score in baseQuery
                     on c.CityID equals score.CityID
