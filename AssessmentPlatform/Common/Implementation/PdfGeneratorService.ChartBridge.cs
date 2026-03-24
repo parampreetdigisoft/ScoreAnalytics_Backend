@@ -344,5 +344,189 @@ namespace AssessmentPlatform.Common.Implementation
 
         //private static string Shorten(string text, int max)
         //    => string.IsNullOrWhiteSpace(text) ? "" : text.Length <= max ? text : text[..max] + "…";
+
+        
+        // ── Scatter plot (population or income vs score) ─────────────────────
+        internal static void DrawScatterPlotCanvas(
+            SKCanvas c, QPDF.Size s,
+            List<PeerCityHistoryReportDto> cities,
+            AiCitySummeryDto cityDetails,
+            Func<PeerCityHistoryReportDto, float> xVal,
+            Func<PeerCityHistoryReportDto, float> yVal,
+            string xLabel, string yLabel)
+        {
+            if (!cities.Any()) return;
+
+            string[] palette = { "#F0B429", "#4CAF8A", "#1E88E5", "#FB8C00", "#7B61FF", "#E05252" };
+
+            const float padL = 42f, padR = 14f, padT = 12f, padB = 28f;
+            float w = s.Width - padL - padR;
+            float h = s.Height - padT - padB;
+
+            float xMin = cities.Min(xVal);
+            float xMax = cities.Max(xVal);
+            if (xMax <= xMin) xMax = xMin + 1;
+
+            float Xp(float v) => padL + (v - xMin) / (xMax - xMin) * w;
+            float Yp(float v) => padT + h - Math.Clamp(v, 0, 100) / 100f * h;
+
+            // Grid + axes
+            using var axis = new SKPaint { Color = SKColor.Parse("#AAAAAA"), StrokeWidth = 0.8f };
+            using var grid = new SKPaint { Color = SKColor.Parse("#EEEEEE"), StrokeWidth = 0.5f };
+            using var glbl = new SKPaint { Color = SKColor.Parse("#999999"), TextSize = 7f, IsAntialias = true };
+            c.DrawLine(padL, padT, padL, padT + h, axis);
+            c.DrawLine(padL, padT + h, padL + w, padT + h, axis);
+            foreach (int sc in new[] { 0, 25, 50, 75, 100 })
+            {
+                float y = Yp(sc);
+                c.DrawLine(padL, y, padL + w, y, grid);
+                c.DrawText(sc.ToString(), 2, y - 2, glbl);
+            }
+
+            // Dots
+            for (int i = 0; i < cities.Count; i++)
+            {
+                bool isMain = IsSameCityStatic(cities[i].CityName, cityDetails.CityName);
+                float x = Xp(xVal(cities[i]));
+                float y = Yp(yVal(cities[i]));
+                string clr = isMain ? palette[0] : palette[1 + (i % (palette.Length - 1))];
+
+                using var dot = new SKPaint { Color = SKColor.Parse(clr), IsAntialias = true };
+                c.DrawCircle(x, y, isMain ? 6.5f : 4.5f, dot);
+
+                if (isMain)
+                {
+                    using var ring = new SKPaint
+                    {
+                        Color = SKColor.Parse("#12352F"),
+                        Style = SKPaintStyle.Stroke,
+                        StrokeWidth = 1.8f,
+                        IsAntialias = true
+                    };
+                    c.DrawCircle(x, y, 7.5f, ring);
+                }
+            }
+
+            // Axis labels
+            using var xlbl = new SKPaint { Color = SKColor.Parse("#666666"), TextSize = 8f, IsAntialias = true, TextAlign = SKTextAlign.Center };
+            using var ylbl = new SKPaint { Color = SKColor.Parse("#666666"), TextSize = 8f, IsAntialias = true };
+            c.DrawText(xLabel, padL + w / 2f, padT + h + 20, xlbl);
+            c.DrawText(yLabel, 2, padT + h / 2f, ylbl);
+        }
+
+        // ── Income quartile vertical bars ─────────────────────────────────────
+        internal static void DrawIncomeQuartileBarsCanvas(
+            SKCanvas c, QPDF.Size s,
+            List<PeerCityHistoryReportDto> all)
+        {
+            string[] categoryOrder = { "Low Income", "Lower-Middle Income", "Upper-Middle Income", "High Income" };
+            string[] segColors = { "#D9534F", "#F0AD4E", "#5BC0DE", "#2E7D32" };
+
+            var segments = all
+                .GroupBy(x => PdfGeneratorService.GetIncomeCategory(x.Income ?? 0))
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            float totalW = s.Width - 40f;
+            float slotW = totalW / 4f;
+            float barW = slotW * 0.62f;
+            float baseY = s.Height - 32f;
+            float maxBarH = baseY - 10f;
+
+            using var valPaint = new SKPaint { TextSize = 9f, IsAntialias = true, FakeBoldText = true, TextAlign = SKTextAlign.Center };
+            using var catPaint = new SKPaint { Color = SKColor.Parse("#555555"), TextSize = 7f, IsAntialias = true };
+            using var nPaint = new SKPaint { Color = SKColor.Parse("#888888"), TextSize = 7f, IsAntialias = true };
+
+            for (int i = 0; i < categoryOrder.Length; i++)
+            {
+                string label = categoryOrder[i];
+                float slotX = 20f + i * slotW;
+                float barX = slotX + (slotW - barW) / 2f;
+
+                if (!segments.TryGetValue(label, out var cities) || !cities.Any())
+                {
+                    using var noData = new SKPaint { Color = SKColor.Parse("#DDDDDD"), IsAntialias = true };
+                    c.DrawRoundRect(new SKRoundRect(new SKRect(barX, baseY - 4, barX + barW, baseY), 4), noData);
+                    c.DrawText(label.Length > 14 ? label[..14] + "…" : label, slotX, baseY + 12, catPaint);
+                    continue;
+                }
+
+                float avg = cities.Average(city => { float sc = GetLatestScoreOrZeroStatic(city); return sc < 0 ? 0 : sc; });
+                float barH = avg / 100f * maxBarH;
+
+                using var barPaint = new SKPaint { Color = SKColor.Parse(segColors[i]), IsAntialias = true };
+                c.DrawRoundRect(new SKRoundRect(new SKRect(barX, baseY - barH, barX + barW, baseY), 6), barPaint);
+
+                valPaint.Color = SKColor.Parse("#12352F");
+                c.DrawText($"{avg:F1}", barX + barW / 2f, baseY - barH - 5, valPaint);
+
+                string shortLabel = label.Length > 14 ? label[..14] + "…" : label;
+                c.DrawText(shortLabel, slotX, baseY + 12, catPaint);
+                c.DrawText($"n={cities.Count}", slotX, baseY + 22, nPaint);
+            }
+        }
+
+        // Add this alongside the other internal helpers at the bottom of the partial class
+        /// <summary>Exposed so DocxGeneratorService can pass it as a Func delegate.</summary>
+        internal static float GetLatestScoreOrZeroForDocx(PeerCityHistoryReportDto city)
+            => GetLatestScoreOrZeroStatic(city);
+
+        // ── Score distribution histogram ──────────────────────────────────────
+        internal static void DrawHistogramCanvas(
+            SKCanvas c, QPDF.Size s,
+            List<float> scores, float markerValue, int bins = 10)
+        {
+            if (!scores.Any()) return;
+
+            const float padL = 32f, padR = 10f, padT = 14f, padB = 22f;
+            float w = s.Width - padL - padR;
+            float h = s.Height - padT - padB;
+            float binW = w / bins;
+            float bucket = 100f / bins;
+
+            int[] counts = new int[bins];
+            foreach (float sc in scores)
+                counts[Math.Clamp((int)(sc / bucket), 0, bins - 1)]++;
+            int maxCnt = counts.Max() == 0 ? 1 : counts.Max();
+
+            using var axisLbl = new SKPaint { Color = SKColor.Parse("#888888"), TextSize = 7f, IsAntialias = true };
+            using var cntLbl = new SKPaint { Color = SKColor.Parse("#555555"), TextSize = 7f, IsAntialias = true, TextAlign = SKTextAlign.Center };
+
+            for (int b = 0; b < bins; b++)
+            {
+                float bH = (float)counts[b] / maxCnt * h;
+                float x = padL + b * binW;
+                float midSc = b * bucket + bucket / 2f;
+
+                using var bar = new SKPaint { Color = GetColorStatic(midSc), IsAntialias = true };
+                c.DrawRoundRect(new SKRoundRect(new SKRect(x + 2, padT + h - bH, x + binW - 2, padT + h), 3), bar);
+
+                if (counts[b] > 0)
+                    c.DrawText(counts[b].ToString(), x + binW / 2f, padT + h - bH - 3, cntLbl);
+            }
+
+            // X-axis labels every 2 bins
+            for (int b = 0; b <= bins; b += 2)
+                c.DrawText((b * bucket).ToString("F0"), padL + b * binW - 5, padT + h + 14, axisLbl);
+
+            // Selected-city marker (dashed gold line)
+            float mx = padL + Math.Clamp(markerValue, 0, 100) / 100f * w;
+            using var marker = new SKPaint
+            {
+                Color = SKColor.Parse("#F0B429"),
+                StrokeWidth = 2f,
+                PathEffect = SKPathEffect.CreateDash(new[] { 5f, 3f }, 0)
+            };
+            c.DrawLine(mx, padT, mx, padT + h, marker);
+
+            using var mLbl = new SKPaint
+            {
+                Color = SKColor.Parse("#F0B429"),
+                TextSize = 7.5f,
+                IsAntialias = true,
+                FakeBoldText = true,
+                TextAlign = SKTextAlign.Center
+            };
+            c.DrawText($"▲{markerValue:F1}", mx, padT - 2, mLbl);
+        }
     }
 }

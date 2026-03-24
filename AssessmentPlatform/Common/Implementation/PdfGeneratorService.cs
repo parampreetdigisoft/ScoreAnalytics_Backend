@@ -2159,6 +2159,24 @@ namespace AssessmentPlatform.Common.Implementation
         // ══════════════════════════════════════════════════════════════════════════
         //  5.3  INCOME-LEVEL PEER COMPARISON
         // ══════════════════════════════════════════════════════════════════════════
+        public static string GetIncomeCategory(decimal income)
+        {
+            if (income < 5000) return "Low Income";
+            if (income <= 15000) return "Lower-Middle Income";
+            if (income <= 40000) return "Upper-Middle Income";
+            return "High Income";
+        }
+        private static string GetSegmentColor(string category)
+        {
+            return category switch
+            {
+                "Low Income" => "#D9534F",          // softer red
+                "Lower-Middle Income" => "#F0AD4E", // amber
+                "Upper-Middle Income" => "#5BC0DE", // blue-green
+                "High Income" => "#2E7D32",         // strong green
+                _ => "#999999"
+            };
+        }
 
         void IncomePeerPage(
             IContainer container,
@@ -2166,19 +2184,24 @@ namespace AssessmentPlatform.Common.Implementation
             PeerCityHistoryReportDto? main,
             AiCitySummeryDto cityDetails)
         {
+            var categoryOrder = new[]
+            {
+                "Low Income",
+                "Lower-Middle Income",
+                "Upper-Middle Income",
+                "High Income"
+            };
+
             var all = BuildAllCities(main, peers);
             var withIncome = all.Where(p => p.Income.HasValue).OrderBy(p => p.Income).ToList();
 
             if (!withIncome.Any()) { DrawNoDataPage(container); return; }
 
-            int q = Math.Max(1, withIncome.Count / 4);
-            var segments = new[]
-            {
-                ("Low Income",    withIncome.Take(q).ToList()),
-                ("Lower-Middle",  withIncome.Skip(q).Take(q).ToList()),
-                ("Upper-Middle",  withIncome.Skip(2 * q).Take(q).ToList()),
-                ("High Income",   withIncome.Skip(3 * q).ToList())
-            };
+            var segments = all
+                //.Where(x => x.Income.HasValue)
+                .GroupBy(x => GetIncomeCategory(x.Income ?? 0))
+                .ToDictionary(g => g.Key, g => g.ToList());
+
             string[] segColors = { "#E05252", "#F5A623", "#4CAF8A", "#12352F" };
 
             container.Padding(16).Column(col =>
@@ -2196,22 +2219,27 @@ namespace AssessmentPlatform.Common.Implementation
                 col.Item().Height(130).Canvas((canvas, size) =>
                 {
                     float barAreaW = (size.Width - 40f) / 4f - 8f;
-                    for (int i = 0; i < segments.Length; i++)
-                    {
-                        var (label, cities) = segments[i];
-                        if (!cities.Any()) continue;
 
-                        // count 0 scores: use GetLatestScoreOrZero
+                    for (int i = 0; i < categoryOrder.Length; i++)
+                    {
+                        var label = categoryOrder[i];
+
+                        if (!segments.TryGetValue(label, out var cities) || !cities.Any())
+                            continue;
+
                         float avg = cities.Average(c => GetLatestScoreOrZero(c));
                         float barH = avg / 100f * 90f;
                         float x = 20 + i * ((size.Width - 40f) / 4f);
 
                         canvas.DrawRoundRect(
-                            new SKRoundRect(new SKRect(x, 100 - barH, x + barAreaW, 100), 4),
-                            new SKPaint { Color = SKColor.Parse(segColors[i]), IsAntialias = true });
+                            new SKRoundRect(new SKRect(x, 100 - barH, x + barAreaW, 100), 6),
+                            new SKPaint
+                            {
+                                Color = SKColor.Parse(GetSegmentColor(label)),
+                                IsAntialias = true
+                            });
 
-                        DrawCanvasText(canvas, $"{avg:F1}", x + barAreaW / 2 - 10, 100 - barH - 14, 9,
-                            "#12352f", bold: true);
+                        DrawCanvasText(canvas, $"{avg:F1}", x + barAreaW / 2 - 10, 100 - barH - 14, 9, "#12352f", true);
                         DrawCanvasText(canvas, label, x, 108, 8, "#555555");
                         DrawCanvasText(canvas, $"n={cities.Count}", x, 118, 8, "#888888");
                     }
@@ -2247,7 +2275,7 @@ namespace AssessmentPlatform.Common.Implementation
 
                     foreach (var (label, cities) in segments)
                     {
-                        foreach (var city in cities.OrderByDescending(c => GetLatestScoreOrZero(c)).Take(2))
+                        foreach (var city in cities.OrderByDescending(c => GetLatestScoreOrZero(c)))
                         {
                             bool isMain = IsSameCity(city.CityName, cityDetails.CityName);
                             string rowBg = isMain ? "#fff9e6" : Colors.White;

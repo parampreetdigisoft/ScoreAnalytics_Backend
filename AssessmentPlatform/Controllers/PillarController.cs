@@ -85,9 +85,19 @@ namespace AssessmentPlatform.Controllers
 
             var content = await _pillarService.ExportPillarsHistoryByUserId(requestDto);
 
-            return File(content.Item2 ?? new byte[1],
-               "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-               content.Item1);
+            string fileName = content.Item1;
+            string contentType;
+
+            if (requestDto.ExportType == "pdf")
+            {
+                contentType = "application/pdf";            
+            }
+            else
+            {
+                contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";               
+            }
+
+            return File(content.Item2 ?? new byte[1], contentType, fileName);
         }
         [HttpPost("GetResponsesByUserId")]
         public async Task<IActionResult> GetResponsesByUserId([FromBody] GetPillarResponseHistoryRequestNewDto requestDto)

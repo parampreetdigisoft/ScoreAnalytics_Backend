@@ -584,8 +584,8 @@ namespace AssessmentPlatform.Common.Implementation
             var data = pillars.Where(p => p.Value.HasValue).Take(14).ToList();
             if (!data.Any()) return;
 
-            var radialPng = RenderPng((c, s) => PaintPillarRadialChart(c, s, data), 360, 340);
-            var barPng    = RenderPng((c, s) => PaintPillarHorizontalBars(c, s, data), 440, 340);
+            var radialPng = RenderPng((c, s) => PaintPillarRadialChart(c, s, data), 340, 340);
+            var barPng    = RenderPng((c, s) => PaintPillarHorizontalBars(c, s, data), 400, 340);
             body.AppendChild(CreateSideBySideImages(mainPart, radialPng, barPng, 340));
             body.AppendChild(Gap(160));
             body.AppendChild(CreatePillarFooterTable(data));
@@ -615,6 +615,27 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 body.AppendChild(PageBreak());
                 AppendDataSourcesSection(body, data.DataSourceCitations.ToList());
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        //  DATA SOURCES SECTION
+        // ════════════════════════════════════════════════════════════════════
+
+        private void AppendDataSourcesSection(Body body, List<AIDataSourceCitation> sources)
+        {
+            body.AppendChild(SectionHeading("Data Source Citations", "396154"));
+            foreach (var src in sources.Take(10))
+            {
+                body.AppendChild(BoldParagraph(src.SourceName ?? "", "2C423B", 22));
+                body.AppendChild(NormalParagraph(
+                    $"Trust Level: {src.TrustLevel}/7  |  Year: {src.DataYear}  |  Type: {src.SourceType ?? "—"}",
+                    "757575", 18));
+                if (!string.IsNullOrEmpty(src.DataExtract))
+                    body.AppendChild(NormalParagraph(TruncateText(src.DataExtract, 200), "616161", 18, italic: true));
+                if (!string.IsNullOrEmpty(src.SourceURL))
+                    body.AppendChild(NormalParagraph(src.SourceURL, "305246", 16));
+                body.AppendChild(Gap(120));
             }
         }
 
@@ -670,167 +691,7 @@ namespace AssessmentPlatform.Common.Implementation
             }
         }
 
-        // ════════════════════════════════════════════════════════════════════
-        //  PEER COMPARISON SECTIONS  (Population, Regional, Income, Ranking)
-        // ════════════════════════════════════════════════════════════════════
-
-        private void AddPeerComparisonSections(
-            Body body, MainDocumentPart mainPart,
-            List<PeerCityHistoryReportDto> peerCities,
-            AiCitySummeryDto cityDetails, UserRole userRole)
-        {
-            if (!peerCities.Any()) return;
-
-            var main  = FindMainCity(peerCities, cityDetails);
-            var peers = peerCities.Where(p => !IsSameCity(p.CityName, cityDetails.CityName)).ToList();
-            var all   = BuildAllCities(main, peers);
-
-            // Population comparison
-            AppendCityHeader(mainPart, cityDetails, "Population-Based Peer Comparison");
-            var popPng = RenderPng((c, s) => PaintPopulationBars(c, s, all, cityDetails), 700, all.Count * 34);
-            body.AppendChild(CreateFullWidthImage(mainPart, popPng, all.Count * 34));
-            body.AppendChild(Gap(100));
-            body.AppendChild(CreateCityLegendTable(all, cityDetails));
-            body.AppendChild(PageBreak());
-
-            // Regional comparison
-            AppendCityHeader(mainPart, cityDetails, "Regional Peer Group Comparison");
-            var regionPng = RenderPng((c, s) => PaintRegionalBars(c, s, all), 700, 220);
-            body.AppendChild(CreateFullWidthImage(mainPart, regionPng, 220));
-            body.AppendChild(PageBreak());
-
-            // Relative ranking
-            AppendCityHeader(mainPart, cityDetails, "Relative Ranking Among Peer Cities");
-            AddRankingSection(body, all, cityDetails);
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        //  PERFORMANCE TREND SECTIONS
-        // ════════════════════════════════════════════════════════════════════
-
-        private void AddPerformanceTrendSections(
-            Body body, MainDocumentPart mainPart,
-            List<PeerCityHistoryReportDto> peerCities,
-            AiCitySummeryDto cityDetails, UserRole userRole)
-        {
-            if (!peerCities.Any()) return;
-
-            var main  = FindMainCity(peerCities, cityDetails);
-            var peers = peerCities.Where(p => !IsSameCity(p.CityName, cityDetails.CityName)).ToList();
-            var all   = BuildAllCities(main, peers);
-
-            var allYears = all
-                .SelectMany(c => c.CityHistory ?? Enumerable.Empty<PeerCityYearHistoryDto>())
-                .Select(h => h.Year).Distinct().OrderBy(y => y).ToList();
-
-            if (!allYears.Any()) return;
-
-            // Historical trend
-            AppendCityHeader(mainPart, cityDetails, "Performance Trends Over Time");
-            var peerAvg = allYears.Select(yr =>
-            {
-                var scores = peers.Select(p => p.CityHistory?.FirstOrDefault(h => h.Year == yr))
-                    .Where(h => h != null).Select(h => (float)h!.ScoreProgress).ToList();
-                return (Year: yr, Avg: scores.Any() ? scores.Average() : 0f, HasData: scores.Any());
-            }).ToList();
-
-            var trendPng = RenderPng(
-                (c, s) => PaintMultiLineTrend(c, s, allYears, peers, main, cityDetails, peerAvg),
-                700, 200);
-            body.AppendChild(CreateFullWidthImage(mainPart, trendPng, 200));
-            body.AppendChild(Gap(100));
-
-            if (main != null)
-                body.AppendChild(CreateYoYTable(allYears.TakeLast(5).ToList(),
-                    (main.CityHistory ?? new()).OrderBy(h => h.Year).ToList(),
-                    peerAvg.Select(p => (p.Year, p.Avg)).ToList()));
-
-            body.AppendChild(PageBreak());
-
-            // Pillar trend
-            AppendCityHeader(mainPart, cityDetails, "Pillar-Level Trend Analysis");
-            if (main != null)
-            {
-                var pillars = (main.CityHistory ?? new())
-                    .SelectMany(h => h.Pillars ?? Enumerable.Empty<PeerCityPillarHistoryReportDto>())
-                    .GroupBy(p => p.PillarID)
-                    .Select(g => g.OrderBy(p => p.DisplayOrder).First())
-                    .OrderBy(p => p.DisplayOrder).Take(14).ToList();
-
-                if (pillars.Any())
-                {
-                    var pillarTrendPng = RenderPng(
-                        (c, s) => PaintPillarLineChart(c, s, allYears, main.CityHistory ?? new(), pillars),
-                        700, 200);
-                    body.AppendChild(CreateFullWidthImage(mainPart, pillarTrendPng, 200));
-                    body.AppendChild(Gap(100));
-                    body.AppendChild(CreatePillarHeatmapTable(allYears, main.CityHistory ?? new(), pillars));
-                }
-            }
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        //  RANKING SECTION  (inline, no new page needed)
-        // ════════════════════════════════════════════════════════════════════
-
-        private void AddRankingSection(
-            Body body,
-            List<PeerCityHistoryReportDto> all,
-            AiCitySummeryDto cityDetails)
-        {
-            var ranked = all
-                .Select(c => (City: c, Score: GetLatestScoreOrZero(c)))
-                .OrderByDescending(x => x.Score)
-                .ToList();
-
-            int mainRank = ranked.FindIndex(r => IsSameCity(r.City.CityName, cityDetails.CityName)) + 1;
-            float mainScore = mainRank > 0 ? ranked[mainRank - 1].Score : 0f;
-
-            // Hero banner
-            body.AppendChild(CreateHeroBanner(cityDetails.CityName, mainRank, ranked.Count, mainScore));
-            body.AppendChild(Gap(120));
-
-            // Full ranking table
-            body.AppendChild(SectionHeading("Full City Ranking", DarkGreen));
-            var rows = ranked.Select((r, i) => new[]
-            {
-                (i + 1).ToString(),
-                r.City.CityName,
-                r.City.Country ?? "—",
-                r.City.Region ?? "—",
-                FormatPop(r.City.Population),
-                $"{r.Score:F1}"
-            }).ToArray();
-
-            body.AppendChild(CreateStyledTable(
-                new[] { "#", "City", "Country", "Region", "Pop.", "Score" },
-                new[] { 360, 2000, 1300, 1400, 1000, 900 },
-                rows,
-                highlightRow: i => IsSameCity(ranked[i].City.CityName, cityDetails.CityName)));
-            body.AppendChild(PageBreak());
-        }
-
-        // ════════════════════════════════════════════════════════════════════
-        //  DATA SOURCES SECTION
-        // ════════════════════════════════════════════════════════════════════
-
-        private void AppendDataSourcesSection(Body body, List<AIDataSourceCitation> sources)
-        {
-            body.AppendChild(SectionHeading("Data Source Citations", "396154"));
-            foreach (var src in sources.Take(10))
-            {
-                body.AppendChild(BoldParagraph(src.SourceName ?? "", "2C423B", 22));
-                body.AppendChild(NormalParagraph(
-                    $"Trust Level: {src.TrustLevel}/7  |  Year: {src.DataYear}  |  Type: {src.SourceType ?? "—"}",
-                    "757575", 18));
-                if (!string.IsNullOrEmpty(src.DataExtract))
-                    body.AppendChild(NormalParagraph(TruncateText(src.DataExtract, 200), "616161", 18, italic: true));
-                if (!string.IsNullOrEmpty(src.SourceURL))
-                    body.AppendChild(NormalParagraph(src.SourceURL, "305246", 16));
-                body.AppendChild(Gap(120));
-            }
-        }
-
+       
 
         /// <summary>
         /// Registers a repeating page header (appears on every page) that mirrors
@@ -1118,56 +979,7 @@ namespace AssessmentPlatform.Common.Implementation
              );
         }
         /// <summary>Coloured section heading with accent left-border effect.</summary>
-        private static Paragraph SectionHeading(string title, string hexColor)
-        {
-            return new Paragraph(
-                new ParagraphProperties(
 
-                    // ✅ Background
-                    new Shading
-                    {
-                        Val = ShadingPatternValues.Clear,
-                        Fill = "EAEAEA"
-                    },
-
-                    // ✅ Accent line (left)
-                    new ParagraphBorders(
-                        new LeftBorder
-                        {
-                            Val = BorderValues.Single,
-                            Size = 24,
-                            Color = hexColor
-                        }
-                    ),
-
-                    // ✅ Proper spacing (top/bottom padding feel)
-                    new SpacingBetweenLines
-                    {
-                        Before = "120",
-                        After = "120"
-                    },
-                    new Tabs(
-                    new TabStop
-                    {
-                        Val = TabStopValues.Left,
-                        Position = 200
-                    }
-                )
-                ),
-
-                // ✅ Add manual left padding using tab
-                new Run(
-                    new TabChar(),
-                    new RunProperties(
-                        new Bold(),
-                        new Color { Val = "2E2E2E" },
-                        new FontSize { Val = "28" },
-                        new RunFonts { Ascii = "Arial" }
-                    ),
-                    new Text(title)
-                )
-            );
-        }
 
         /// <summary>Horizontal progress bar implemented as a two-cell table.</summary>
         private static Table CreateProgressBar(string label, float percentage, string hexColor)
@@ -1887,51 +1699,365 @@ namespace AssessmentPlatform.Common.Implementation
                          new[] { "B71C1C", "C62828" }, "FDECEA")));
         }
 
-        // ── Hero ranking banner ───────────────────────────────────────────────
+        // ════════════════════════════════════════════════════════════════════
+        //  PERFORMANCE TREND SECTIONS
+        // ════════════════════════════════════════════════════════════════════
 
+
+        private void AddPerformanceTrendSections(
+           Body body, MainDocumentPart mainPart,
+           List<PeerCityHistoryReportDto> peerCities,
+           AiCitySummeryDto cityDetails, UserRole userRole)
+        {
+            if (!peerCities.Any()) return;
+
+            var main = FindMainCity(peerCities, cityDetails);
+            var peers = peerCities.Where(p => !IsSameCity(p.CityName, cityDetails.CityName)).ToList();
+            var all = BuildAllCities(main, peers);
+
+            var allYears = all
+                .SelectMany(c => c.CityHistory ?? Enumerable.Empty<PeerCityYearHistoryDto>())
+                .Select(h => h.Year).Distinct().OrderBy(y => y).ToList();
+
+            if (!allYears.Any()) return;
+
+            // Historical trend
+            AppendCityHeader(mainPart, cityDetails, "Performance Trends Over Time");
+            var peerAvg = allYears.Select(yr =>
+            {
+                var scores = peers.Select(p => p.CityHistory?.FirstOrDefault(h => h.Year == yr))
+                    .Where(h => h != null).Select(h => (float)h!.ScoreProgress).ToList();
+                return (Year: yr, Avg: scores.Any() ? scores.Average() : 0f, HasData: scores.Any());
+            }).ToList();
+
+            var trendPng = RenderPng(
+                (c, s) => PaintMultiLineTrend(c, s, allYears, peers, main, cityDetails, peerAvg),
+                700, 200);
+            body.AppendChild(CreateFullWidthImage(mainPart, trendPng, 200));
+            body.AppendChild(Gap(100));
+
+            if (main != null)
+                body.AppendChild(CreateYoYTable(allYears.TakeLast(5).ToList(),
+                    (main.CityHistory ?? new()).OrderBy(h => h.Year).ToList(),
+                    peerAvg.Select(p => (p.Year, p.Avg)).ToList()));
+
+            body.AppendChild(PageBreak());
+
+            // Pillar trend
+            AppendCityHeader(mainPart, cityDetails, "Pillar-Level Trend Analysis");
+            if (main != null)
+            {
+                var pillars = (main.CityHistory ?? new())
+                    .SelectMany(h => h.Pillars ?? Enumerable.Empty<PeerCityPillarHistoryReportDto>())
+                    .GroupBy(p => p.PillarID)
+                    .Select(g => g.OrderBy(p => p.DisplayOrder).First())
+                    .OrderBy(p => p.DisplayOrder).Take(14).ToList();
+
+                if (pillars.Any())
+                {
+                    var pillarTrendPng = RenderPng(
+                        (c, s) => PaintPillarLineChart(c, s, allYears, main.CityHistory ?? new(), pillars),
+                        700, 200);
+                    body.AppendChild(CreateFullWidthImage(mainPart, pillarTrendPng, 200));
+                    body.AppendChild(Gap(100));
+                    body.AppendChild(CreatePillarHeatmapTable(allYears, main.CityHistory ?? new(), pillars));
+                }
+            }
+        }
+
+
+
+        // ════════════════════════════════════════════════════════════════════════
+        //  PEER COMPARISON SECTIONS  –  mirrors PDF layout exactly
+        // ════════════════════════════════════════════════════════════════════════
+
+        private void AddPeerComparisonSections(
+            Body body, MainDocumentPart mainPart,
+            List<PeerCityHistoryReportDto> peerCities,
+            AiCitySummeryDto cityDetails, UserRole userRole)
+        {
+            if (!peerCities.Any()) return;
+
+            var main = FindMainCity(peerCities, cityDetails);
+            var peers = peerCities.Where(p => !IsSameCity(p.CityName, cityDetails.CityName)).ToList();
+            var all = BuildAllCities(main, peers);
+
+            // ── 5.1  Population-Based ────────────────────────────────────────────
+            AppendCityHeader(mainPart, cityDetails, "Population-Based Peer Comparison");
+
+            var popSorted = all
+                .Where(c => c.Population.HasValue)
+                .OrderByDescending(c => c.Population)
+                .ToList();
+
+            if (popSorted.Any())
+            {
+                body.AppendChild(CreateInsightBand(
+                    $"{popSorted.Count} cities compared  |  " +
+                    $"Largest: {popSorted.First().CityName} ({FormatPop(popSorted.First().Population)})  |  " +
+                    $"Smallest: {popSorted.Last().CityName} ({FormatPop(popSorted.Last().Population)})"));
+
+                body.AppendChild(SectionHeading("Population Size by City", DarkGreen));
+                int popH = Math.Max(popSorted.Count * 40, 80);
+                var popPng = RenderPng(
+                    (c, s) => PdfGeneratorService.DrawPopulationBarsCanvas(c, s, popSorted, cityDetails),
+                    700, popH);
+                body.AppendChild(CreateFullWidthImage(mainPart, popPng, popH));
+                body.AppendChild(Gap(80));
+                body.AppendChild(CreateCityLegendTable(popSorted, cityDetails));
+                body.AppendChild(Gap(120));
+
+                body.AppendChild(SectionHeading("Score vs Population  (each dot = one city)", DarkGreen));
+                int scatterH = Math.Max(popSorted.Count * 30, 160);
+                var scatterPng = RenderPng(
+                    (c, s) => PdfGeneratorService.DrawScatterPlotCanvas(
+                        c, s, popSorted, cityDetails,
+                        city => (float)(city.Population ?? 0),
+                        city => PdfGeneratorService.GetLatestScoreOrZeroForDocx(city),
+                        "Population", "Score"),
+                    700, scatterH);
+                body.AppendChild(CreateFullWidthImage(mainPart, scatterPng, scatterH));
+            }
+            body.AppendChild(PageBreak());
+
+            // ── 5.2  Regional ────────────────────────────────────────────────────
+            AppendCityHeader(mainPart, cityDetails, "Regional Peer Group Comparison");
+            var regionPng = RenderPng((c, s) => PaintRegionalBars(c, s, all), 700, 220);
+            body.AppendChild(CreateFullWidthImage(mainPart, regionPng, 220));
+            body.AppendChild(PageBreak());
+
+            // ── 5.3  Income-Level ────────────────────────────────────────────────
+            AppendCityHeader(mainPart, cityDetails, "Income-Level Peer Comparison");
+
+            var withIncome = all.Where(p => p.Income.HasValue).OrderBy(p => p.Income).ToList();
+            if (withIncome.Any())
+            {
+                body.AppendChild(CreateInsightBand(
+                    $"Income quartile analysis  |  {withIncome.Count} cities  |  " +
+                    $"Range: {withIncome.Min(p => p.Income):C0} – {withIncome.Max(p => p.Income):C0}"));
+
+                // Quartile bars
+                body.AppendChild(SectionHeading("Average Score by Income Quartile", DarkGreen));
+                var quartilePng = RenderPng(
+                    (c, s) => PdfGeneratorService.DrawIncomeQuartileBarsCanvas(c, s, all),
+                    700, 145);
+                body.AppendChild(CreateFullWidthImage(mainPart, quartilePng, 145));
+                body.AppendChild(Gap(80));
+
+                // Income vs Score scatter
+                body.AppendChild(SectionHeading("Income vs Composite Score  (each dot = one city)", DarkGreen));
+                var incScatterPng = RenderPng(
+                    (c, s) => PdfGeneratorService.DrawScatterPlotCanvas(
+                        c, s, withIncome, cityDetails,
+                        city => (float)(city.Income ?? 0),
+                        city => PdfGeneratorService.GetLatestScoreOrZeroForDocx(city),
+                        "Income (USD)", "Score"),
+                    700, 180);
+                body.AppendChild(CreateFullWidthImage(mainPart, incScatterPng, 180));
+                body.AppendChild(Gap(80));
+
+                // Top performers by income group
+                body.AppendChild(SectionHeading("Top Performers by Income Group", DarkGreen));
+                body.AppendChild(CreateIncomeGroupTable(all, cityDetails));
+            }
+            body.AppendChild(PageBreak());
+
+            // ── 5.5  Relative Ranking ────────────────────────────────────────────
+            AppendCityHeader(mainPart, cityDetails, "Relative Ranking Among Peer Cities");
+            AddRankingSection(body, mainPart, all, cityDetails);
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        //  RANKING SECTION  –  hero banner + histogram + full table
+        // ════════════════════════════════════════════════════════════════════════
+
+        private void AddRankingSection(
+            Body body, MainDocumentPart mainPart,
+            List<PeerCityHistoryReportDto> all,
+            AiCitySummeryDto cityDetails)
+        {
+            var ranked = all
+                .Select(c => (City: c, Score: GetLatestScoreOrZero(c)))
+                .OrderByDescending(x => x.Score)
+                .ToList();
+
+            int mainRank = ranked.FindIndex(r => IsSameCity(r.City.CityName, cityDetails.CityName)) + 1;
+            float mainScore = mainRank > 0 ? ranked[mainRank - 1].Score : 0f;
+            float pctile = mainRank > 0 ? (1f - (float)mainRank / ranked.Count) * 100f : 0f;
+
+            // Hero banner
+            body.AppendChild(CreateHeroBanner(cityDetails, mainRank, ranked.Count, mainScore, pctile));
+            body.AppendChild(Gap(120));
+
+            // Score distribution histogram
+            body.AppendChild(SectionHeading("Score Distribution Among All Cities", DarkGreen));
+            var histPng = RenderPng(
+                (c, s) => PdfGeneratorService.DrawHistogramCanvas(
+                    c, s, ranked.Select(r => r.Score).ToList(), mainScore, 10),
+                700, 160);
+            body.AppendChild(CreateFullWidthImage(mainPart, histPng, 160));
+            body.AppendChild(Gap(100));
+
+            // Full ranking table
+            body.AppendChild(SectionHeading("Full City Ranking", DarkGreen));
+            var rows = ranked.Select((r, i) => new[]
+            {
+        (i + 1).ToString(),
+        r.City.CityName,
+        r.City.Country    ?? "—",
+        r.City.Region     ?? "—",
+        FormatPop(r.City.Population),
+        $"{r.Score:F1}"
+    }).ToArray();
+
+            body.AppendChild(CreateStyledTable(
+                new[] { "#", "City", "Country", "Region", "Pop.", "Score" },
+                new[] { 360, 2000, 1300, 1400, 1000, 900 },
+                rows,
+                highlightRow: i => IsSameCity(ranked[i].City.CityName, cityDetails.CityName)));
+            body.AppendChild(PageBreak());
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        //  NEW ELEMENT BUILDERS
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>Green insight band matching the PDF DrawInsightBand strip.</summary>
+        private static Paragraph CreateInsightBand(string text) =>
+            new(new ParagraphProperties(
+                    new Shading { Val = ShadingPatternValues.Clear, Fill = "E8F5E9" },
+                    new SpacingBetweenLines { Before = "60", After = "80" }),
+                new Run(
+                    new RunProperties(
+                        new Color { Val = "12352F" },
+                        new FontSize { Val = "17" },
+                        new RunFonts { Ascii = "Arial" }),
+                    new Text(text) { Space = SpaceProcessingModeValues.Preserve }));
+
+        /// <summary>Bold section heading (matches PDF FontSize 11 Bold).</summary>
+        private static Paragraph SectionHeading(string text, string hexColor) =>
+            new(new ParagraphProperties(new SpacingBetweenLines { Before = "80", After = "60" }),
+                new Run(
+                    new RunProperties(
+                        new Bold(),
+                        new Color { Val = hexColor.TrimStart('#') },
+                        new FontSize { Val = "22" },
+                        new RunFonts { Ascii = "Arial" }),
+                    new Text(text)));
+
+        /// <summary>
+        /// Dark-green hero banner: rank left, score right — mirrors the PDF RelativeRankingPage banner.
+        /// </summary>
         private static Table CreateHeroBanner(
-            string cityName, int rank, int total, float score)
+            AiCitySummeryDto cityDetails,
+            int rank, int total, float score, float pctile)
         {
             var noBorder = new EnumValue<BorderValues>(BorderValues.None);
-            var noBorders = new TableCellBorders(
-                new TopBorder    { Val = noBorder }, new BottomBorder { Val = noBorder },
-                new LeftBorder   { Val = noBorder }, new RightBorder  { Val = noBorder });
+            TableCellBorders NoBorders() => new(
+                new TopBorder { Val = noBorder }, new BottomBorder { Val = noBorder },
+                new LeftBorder { Val = noBorder }, new RightBorder { Val = noBorder },
+                new InsideHorizontalBorder { Val = noBorder }, new InsideVerticalBorder { Val = noBorder });
 
-            var leftCell = new TableCell(
+            var table = new Table(new TableProperties(
+                new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa }));
+
+            var row = new TableRow();
+
+            // Left cell – rank + city line
+            int leftW = ContentDxa - 1900;
+            row.AppendChild(new TableCell(
                 new TableCellProperties(
-                    new TableCellWidth { Width = (ContentDxa - 1800).ToString(), Type = TableWidthUnitValues.Dxa },
+                    new TableCellWidth { Width = leftW.ToString(), Type = TableWidthUnitValues.Dxa },
                     new Shading { Val = ShadingPatternValues.Clear, Fill = "12352F" },
-                    noBorders.CloneNode(true)),
+                    NoBorders()),
                 new Paragraph(
-                    new ParagraphProperties(
-                        new Shading { Val = ShadingPatternValues.Clear, Fill = "12352F" }),
-                    new Run(new RunProperties(new Bold(), new Color { Val = "F0B429" }, new FontSize { Val = "64" }),
+                    new ParagraphProperties(new SpacingBetweenLines { Before = "60", After = "20" }),
+                    new Run(
+                        new RunProperties(
+                            new Bold(), new Color { Val = "F0B429" },
+                            new FontSize { Val = "64" }, new RunFonts { Ascii = "Arial" }),
                         new Text($"#{rank} of {total}"))),
                 new Paragraph(
-                    new ParagraphProperties(
-                        new Shading { Val = ShadingPatternValues.Clear, Fill = "12352F" }),
-                    new Run(new RunProperties(new Color { Val = "A5D6C2" }, new FontSize { Val = "22" }),
-                        new Text(cityName))));
+                    new ParagraphProperties(new SpacingBetweenLines { Before = "0", After = "80" }),
+                    new Run(
+                        new RunProperties(
+                            new Color { Val = "A5D6C2" },
+                            new FontSize { Val = "22" }, new RunFonts { Ascii = "Arial" }),
+                        new Text($"{cityDetails.CityName}  ·  {cityDetails.Country}")))));
 
-            var rightCell = new TableCell(
+            // Right cell – score + percentile
+            row.AppendChild(new TableCell(
                 new TableCellProperties(
-                    new TableCellWidth { Width = "1800", Type = TableWidthUnitValues.Dxa },
+                    new TableCellWidth { Width = "1900", Type = TableWidthUnitValues.Dxa },
                     new Shading { Val = ShadingPatternValues.Clear, Fill = "12352F" },
-                    noBorders.CloneNode(true)),
+                    NoBorders()),
                 new Paragraph(
                     new ParagraphProperties(
                         new Justification { Val = JustificationValues.Right },
-                        new Shading { Val = ShadingPatternValues.Clear, Fill = "12352F" }),
-                    new Run(new RunProperties(new Bold(), new Color { Val = White }, new FontSize { Val = "56" }),
-                        new Text($"{score:F1}"))));
+                        new SpacingBetweenLines { Before = "60", After = "20" }),
+                    new Run(
+                        new RunProperties(
+                            new Color { Val = "A5A8AD" },
+                            new FontSize { Val = "18" }, new RunFonts { Ascii = "Arial" }),
+                        new Text("Score"))),
+                new Paragraph(
+                    new ParagraphProperties(
+                        new Justification { Val = JustificationValues.Right },
+                        new SpacingBetweenLines { Before = "0", After = "20" }),
+                    new Run(
+                        new RunProperties(
+                            new Bold(), new Color { Val = "FFFFFF" },
+                            new FontSize { Val = "56" }, new RunFonts { Ascii = "Arial" }),
+                        new Text($"{score:F1}"))),
+                new Paragraph(
+                    new ParagraphProperties(
+                        new Justification { Val = JustificationValues.Right },
+                        new SpacingBetweenLines { Before = "0", After = "80" }),
+                    new Run(
+                        new RunProperties(
+                            new Color { Val = "4CAF8A" },
+                            new FontSize { Val = "18" }, new RunFonts { Ascii = "Arial" }),
+                        new Text($"Top {100 - pctile:F0}% of peers")))));
 
-            return new Table(
-                new TableProperties(
-                    new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa }),
-                new TableRow(leftCell, rightCell));
+            table.AppendChild(row);
+            return table;
         }
 
-        // ── City legend table ────────────────────────────────────────────────
+        /// <summary>Income group table matching PDF IncomePeerPage top-performers table.</summary>
+        private static Table CreateIncomeGroupTable(
+            List<PeerCityHistoryReportDto> all,
+            AiCitySummeryDto cityDetails)
+        {
+            string[] categoryOrder = { "Low Income", "Lower-Middle Income", "Upper-Middle Income", "High Income" };
+            var segments = all
+                .GroupBy(x => PdfGeneratorService.GetIncomeCategory(x.Income ?? 0))
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            // Build ordered row list so highlight index works correctly
+            var orderedCities = new List<PeerCityHistoryReportDto>();
+            foreach (var label in categoryOrder)
+                if (segments.TryGetValue(label, out var cities))
+                    orderedCities.AddRange(cities.OrderByDescending(c => GetLatestScoreOrZero(c)));
+
+            var rows = orderedCities.Select(city =>
+            {
+                float sc = GetLatestScoreOrZero(city);
+                return new[]
+                {
+            city.CityName,
+            city.Country ?? "—",
+            sc < 0 ? "—" : $"{sc:F1}",
+            PdfGeneratorService.GetIncomeCategory(city.Income ?? 0),
+            FormatPop(city.Income)
+        };
+            }).ToArray();
+
+            return CreateStyledTable(
+                new[] { "City", "Country", "Score", "Income Group", "Income" },
+                new[] { 2000, 1200, 800, 2100, 1300 },
+                rows,
+                highlightRow: i => IsSameCity(orderedCities[i].CityName, cityDetails.CityName));
+        }
 
         private static Table CreateCityLegendTable(
             List<PeerCityHistoryReportDto> allCities, AiCitySummeryDto cityDetails)
@@ -2283,12 +2409,6 @@ namespace AssessmentPlatform.Common.Implementation
         private static void PaintPillarHorizontalBars(
             SKCanvas c, QPDF.Size s, List<PillarChartItem> pillars) =>
             PdfGeneratorService.DrawPillarHorizontalBarsCanvas(c, s, pillars);
-
-        private static void PaintPopulationBars(
-            SKCanvas c, QPDF.Size s,
-            List<PeerCityHistoryReportDto> cities, AiCitySummeryDto cityDetails) =>
-            PdfGeneratorService.DrawPopulationBarsCanvas(c, s, cities, cityDetails);
-
         private static void PaintRegionalBars(
             SKCanvas c, QPDF.Size s, List<PeerCityHistoryReportDto> all) =>
             PdfGeneratorService.DrawRegionalBarsCanvas(c, s, all);
