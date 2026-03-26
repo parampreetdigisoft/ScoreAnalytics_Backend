@@ -17,6 +17,7 @@ namespace AssessmentPlatform.Dtos.AiDto
     {
         public int? PillarID { get; set; }
         public Common.Interface.DocumentFormat Format { get; set; } = Common.Interface.DocumentFormat.Pdf;
+        public string ReportType { get; set; } = "ai";
     }
     public class AiCityPillarRequestDto
     {

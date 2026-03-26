@@ -126,6 +126,17 @@ namespace AssessmentPlatform.Backgroundjob
                 await ExecuteWithRetry(
                     async () =>
                     {
+                        await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_AiRecalculateCityScore @CityID", cityIdParam);
+                    },
+                    onFinalFailure: ex =>
+                    {
+
+                        _appLogger.LogAsync("ChannelWorker", ex);
+                    });
+
+                await ExecuteWithRetry(
+                    async () =>
+                    {
                         await dbContext.Database.ExecuteSqlRawAsync("EXEC sp_AiInsertAnalyticalLayerResults @CityID",cityIdParam);
                     },
                     onFinalFailure: ex =>

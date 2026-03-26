@@ -31,6 +31,7 @@ namespace AssessmentPlatform.Data
         public DbSet<AITrustLevel> AITrustLevels { get; set; } = default!;
         public DbSet<AnalyticalLayerPillarMapping> AnalyticalLayerPillarMappings { get; set; } = default!;
         public DbSet<EvaluationCityProgressResultDto> CityProgressResults { get; set; }
+        public DbSet<EvaluationCityProgressHistoryResultDto> CityProgressHistoryResults { get; set; }
         public DbSet<GetCitiesProgressAdminDto> GetCitiesProgressAdminDto { get; set; }
         public DbSet<AIUserCityMapping> AIUserCityMappings { get; set; }
         public DbSet<Blog> Blogs { get; set; }
@@ -117,6 +118,7 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<AnalyticalLayerPillarMapping>().HasKey(ur => ur.AnalyticalLayerPillarMappingID);
             modelBuilder.Entity<AIUserCityMapping>().HasKey(ur => ur.AIUserCityMappingID);
             modelBuilder.Entity<EvaluationCityProgressResultDto>().HasNoKey().ToView(null); 
+            modelBuilder.Entity<EvaluationCityProgressHistoryResultDto>().HasNoKey().ToView(null); 
             modelBuilder.Entity<GetCitiesProgressAdminDto>().HasNoKey().ToView(null); 
             modelBuilder.Entity<Blog>().HasKey(b => b.BlogID);
             modelBuilder.Entity<CityPeer>().HasKey(b => b.CityPeerID);

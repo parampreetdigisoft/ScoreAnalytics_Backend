@@ -124,7 +124,7 @@ namespace AssessmentPlatform.Controllers
                 byte[] fileBytes;
                 string contentType;
 
-                fileBytes = await _aIComputationService.GenerateCityDetailsReport(cityDetails, userRole, userId.Value, request.Format);
+                fileBytes = await _aIComputationService.GenerateCityDetailsReport(cityDetails, userRole, userId.Value, request.Format,request.ReportType);
 
                 if (request.Format == Common.Interface.DocumentFormat.Docx)
                 {

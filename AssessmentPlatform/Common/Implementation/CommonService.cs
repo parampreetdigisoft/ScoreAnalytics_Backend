@@ -42,6 +42,27 @@ namespace AssessmentPlatform.Common.Implementation
                 return new List<EvaluationCityProgressResultDto>();
             }
         }
+        public async Task<List<EvaluationCityProgressHistoryResultDto>> GetCitiesProgressHistoryAsync(int userId, int role, int fromYear, int toYear)
+        {
+            try
+            {
+                return await _context.CityProgressHistoryResults
+                 .FromSqlRaw(
+                     "EXEC usp_getCitiesProgressByUserIdHistory @userID, @role, @fromYear, @toYear",
+                     new SqlParameter("@userID", userId),
+                     new SqlParameter("@role", role),
+                     new SqlParameter("@fromYear", fromYear),
+                     new SqlParameter("@toYear", toYear)
+                 )
+                 .AsNoTracking()
+                 .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in Executing usp_getCitiesProgressByUserId", ex);
+                return new List<EvaluationCityProgressHistoryResultDto>();
+            }
+        }
         public async Task<List<GetCitiesProgressAdminDto>> GetCitiesProgressForAdmin(int userId, int role, int year)
         {
             try

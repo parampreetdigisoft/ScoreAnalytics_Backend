@@ -12,7 +12,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(int cityID, int userID, UserRole userRole,int year=0);
         Task<PaginationResponse<AIEstimatedQuestionScoreDto>> GetAIPillarsQuestion(AiCityPillarSummeryRequestDto r, int userID, UserRole userRole);
         Task<IQueryable<AiCitySummeryDto>> GetCityAiSummeryDetails(int userID, UserRole userRole, int? cityID, int year=0);
-        Task<byte[]> GenerateCityDetailsReport(AiCitySummeryDto cityDetails, UserRole userRole, int userID, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf);
+        Task<byte[]> GenerateCityDetailsReport(AiCitySummeryDto cityDetails, UserRole userRole, int userID, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf, string reportType = "AI");
         Task<byte[]> GeneratePillarDetailsReport(AiCityPillarReponse cityDetails, UserRole userRole, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf);
         Task<ResultResponseDto<AiCrossCityResponseDto>> GetAICrossCityPillars(AiCityIdsDto ids, int userID, UserRole userRole);
         Task<ResultResponseDto<bool>> ChangedAiCityEvaluationStatus(ChangedAiCityEvaluationStatusDto aiCityIdsDto, int userID, UserRole userRole);
