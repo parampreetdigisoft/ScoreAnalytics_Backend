@@ -1001,8 +1001,8 @@ namespace AssessmentPlatform.Services
                     Latitude = c.Latitude,
                     Longitude = c.Longitude,
                     Population = c.Population,
-                    Income = c.Income
-                    
+                    Income = c.Income,
+                    PPP = c.PPP                    
                 }).ToListAsync();
 
             if (isAiScore)

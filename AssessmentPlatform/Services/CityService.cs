@@ -92,6 +92,7 @@ namespace AssessmentPlatform.Services
                     existing.Longitude = q.Longitude;
                     existing.Population = q.Population;
                     existing.Income = q.Income;
+                    existing.PPP = q.PPP;
                     existing.CityAliasName = q.CityAliasName;
 
                     _context.Cities.Update(existing);
@@ -184,6 +185,7 @@ namespace AssessmentPlatform.Services
                         Longitude = c.Longitude,
                         Latitude = c.Latitude,
                         Income = c.Income,
+                        PPP = c.PPP,
                         Population = c.Population,
                         CityAliasName = c.CityAliasName,
                         PeerCities = c.PeerCities
@@ -231,6 +233,7 @@ namespace AssessmentPlatform.Services
                     Longitude = cityDto.Longitude,
                     Latitude = cityDto.Latitude,
                     Income = cityDto.Income,
+                    PPP = cityDto.PPP,
                     Population = cityDto.Population,
                     CityAliasName = cityDto.CityAliasName
                 }).ToList();
@@ -428,6 +431,7 @@ namespace AssessmentPlatform.Services
                     CityPeers = c.CityPeers,
                     Population = c.Population,
                     Income = c.Income,
+                    PPP = c.PPP,
                     CityAliasName = c.CityAliasName
                 };
         }

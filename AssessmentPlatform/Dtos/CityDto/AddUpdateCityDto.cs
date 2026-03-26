@@ -15,6 +15,7 @@
         public double Longitude { get; set; }
         public int? Population { get; set; }
         public decimal? Income { get; set; }
+        public decimal? PPP { get; set; }
         public List<int>? PeerCities { get; set; }
     }
     public class BulkAddCityDto
