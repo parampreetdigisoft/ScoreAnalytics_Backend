@@ -1299,7 +1299,7 @@ namespace AssessmentPlatform.Common.Implementation
                     Pill(total.ToString(),  "Total KPIs",        "4CAF50"),
                     Pill(green.ToString(),  "Performing ≥70%",   "4CAF50"),
                     Pill(amber.ToString(),  "Developing 40–69%", "FFC107"),
-                    Pill(red.ToString(),    "Needs Improvement", "EF5350"),
+                    Pill(red.ToString(), "Needs Improvement < 40 %", "EF5350"),
                     Pill($"{avg:F1}%",      "Average Score",     avgColor)));
         }
 

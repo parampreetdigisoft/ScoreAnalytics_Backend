@@ -632,7 +632,7 @@ namespace AssessmentPlatform.Common.Implementation
                             amber.ToString(), "Developing 40–69%", "#FFF8E1", "#E65100");
                         row.ConstantItem(8);
                         DashboardStatCard(row.RelativeItem(),
-                            red.ToString(), "Needs Improvement", "#FDECEA", "#C62828");
+                            red.ToString(), "Needs Improvement < 40 %", "#FDECEA", "#C62828");
                         row.ConstantItem(8);
                         DashboardStatCard(row.RelativeItem(),
                             total.ToString(), "Total KPIs", "#EEF5F1", "#12352f");
