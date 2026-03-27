@@ -84,9 +84,7 @@ namespace AssessmentPlatform.Services
                     {
                         var pillars = cities.Where(x => x.CityID == c.CityID);
 
-                        var cityScore = pillars.Select(x => x.ScoreProgress)
-                            .DefaultIfEmpty(0)
-                            .Average();
+                        var cityScore = Math.Round(pillars.Sum(x => x.ScoreProgress) / 14.0m,2);
 
                         c.EvaluatorProgress = cityScore;
                         c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
@@ -314,11 +312,11 @@ namespace AssessmentPlatform.Services
                     var totalQuestions = pillars.FirstOrDefault(x => x.PillarID == c.PillarID)?.TotalQuestions ?? 1;
                     var answeredQuestion = answeredQuestions.FirstOrDefault(x => x.PillarID == c.PillarID)?.AnsweredQuestions ?? 0;
 
-                    var cityScore = cities
+                    var cityScore = Math.Round(cities
                         .Where(x => x.PillarID == c.PillarID)
                         .Select(x => x.ScoreProgress)
                         .DefaultIfEmpty(0)
-                        .Average();
+                        .Sum() / 14.0m, 2);
 
 
                     c.EvaluatorProgress = cityScore;
@@ -633,7 +631,9 @@ namespace AssessmentPlatform.Services
                             .Where(x => x.CityID == city.Key && x.PillarID == c.PillarID)
                             .Select(x => x.ScoreProgress)
                             .DefaultIfEmpty(0)
-                            .Average();
+                            .Sum();
+
+                        cityScore = Math.Round(cityScore / 14.0m, 2);
 
                         c.EvaluatorProgress = cityScore;
                         c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
@@ -854,7 +854,9 @@ namespace AssessmentPlatform.Services
                     var cityScore = cities
                         .Select(x => x.ScoreProgress)
                         .DefaultIfEmpty(0)
-                        .Average();
+                        .Sum();
+                    cityScore = Math.Round(cityScore / 14.0m, 2);
+
 
                     cityDetails.EvaluatorProgress = Math.Round(cityScore,2);
                     cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));
@@ -881,7 +883,8 @@ namespace AssessmentPlatform.Services
                         var cityScore = cities
                             .Select(x => x.ScoreProgress)
                             .DefaultIfEmpty(0)
-                            .Average();
+                            .Sum();
+                        cityScore = Math.Round(cityScore / 14.0m, 2);
 
                         cityDetails.EvaluatorProgress = Math.Round(cityScore, 2);
                         cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));
@@ -1078,7 +1081,7 @@ namespace AssessmentPlatform.Services
                             ScoreProgress = Math.Round(
                                 yearGroup.Select(x => x.ScoreProgress)
                                          .DefaultIfEmpty(0)
-                                         .Average(), 2),
+                                         .Sum()/14.0m, 2),
 
                             // Pillar level score
                             Pillars = pillars

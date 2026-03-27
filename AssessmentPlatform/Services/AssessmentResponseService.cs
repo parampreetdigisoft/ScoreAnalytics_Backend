@@ -941,7 +941,7 @@ namespace AssessmentPlatform.Services
                     CityID = request.CityID,
                     CityName = city?.CityName ?? string.Empty,
                     AiValue = aiCityProgress,
-                    EvaluationValue = Math.Round(pillarEvaluations.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Average(),2),
+                    EvaluationValue = Math.Round(pillarEvaluations.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Sum()/14.0m,2),
                     Pillars = pillarResults
                 };
 

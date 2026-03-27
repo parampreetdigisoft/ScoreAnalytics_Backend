@@ -480,7 +480,7 @@ namespace AssessmentPlatform.Services
                 .GroupBy(x => x.CityID)
                 .ToDictionary(
                     g => g.Key,
-                    g => g.Average(x => (decimal?)x.ScoreProgress) ?? 0);
+                    g => Math.Round(g.Sum(x => (decimal?)x.ScoreProgress) ?? 0 / 14.0m, 2));
 
             foreach (var city in response.Data)
             {
@@ -527,7 +527,7 @@ namespace AssessmentPlatform.Services
                         .GroupBy(x => x.CityID)
                         .ToDictionary(
                             g => g.Key,
-                            g => g.Average(x => (decimal?)x.ScoreProgress) ?? 0);
+                            g => Math.Round(g.Sum(x => (decimal?)x.ScoreProgress) ?? 0 / 14.0m, 2));
 
                     foreach (var city in result)
                     {
@@ -833,7 +833,7 @@ namespace AssessmentPlatform.Services
                     {
                         var allPillars = manualAssessmentList.Where(x => x.CityID == g.CityID);
 
-                        var manualScore = allPillars.Any()? allPillars.Average(x => x?.ScoreProgress ?? 0): 0;
+                        var manualScore = allPillars.Any()? allPillars.Sum(x => x?.ScoreProgress ?? 0)/14.0m: 0;
 
                         return new GetCitiesSubmitionHistoryReponseDto
                         {
@@ -1015,7 +1015,7 @@ namespace AssessmentPlatform.Services
                         x.CityName,
                         x.State,
                         x.Country
-                    )).OrderByDescending(x=> x.Average(y=>y.PillarProgress));
+                    )).OrderByDescending(x=> x.Sum(y=>y.PillarProgress)/14.0m);
 
                 var byteRes = MakeCityPillarSheet(request,result);
 
@@ -1086,7 +1086,7 @@ namespace AssessmentPlatform.Services
                 var cityData = cityGroup.First();
                 var pillars = cityGroup.OrderBy(x => x.DisplayOrder).ToList();
 
-                var cityProgress = pillars.Average(x => x.PillarProgress);
+                var cityProgress = Math.Round(pillars.Sum(x => x.PillarProgress) / 14.0m,2);
 
                 // ========================
                 // ✅ RANK-WISE (1 ROW ONLY)
