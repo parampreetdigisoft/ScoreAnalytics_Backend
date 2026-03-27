@@ -312,15 +312,15 @@ namespace AssessmentPlatform.Services
                     var totalQuestions = pillars.FirstOrDefault(x => x.PillarID == c.PillarID)?.TotalQuestions ?? 1;
                     var answeredQuestion = answeredQuestions.FirstOrDefault(x => x.PillarID == c.PillarID)?.AnsweredQuestions ?? 0;
 
-                    var cityScore = Math.Round(cities
+                    var pillarScore = cities
                         .Where(x => x.PillarID == c.PillarID)
                         .Select(x => x.ScoreProgress)
                         .DefaultIfEmpty(0)
-                        .Sum() / 14.0m, 2);
+                        .Sum();
 
 
-                    c.EvaluatorProgress = cityScore;
-                    c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
+                    c.EvaluatorProgress = pillarScore;
+                    c.Discrepancy = Math.Abs(pillarScore - (c.AIProgress ?? 0));
                     c.AICompletionRate = answeredQuestion * 100.0M / totalQuestions;
                 }
 
@@ -633,7 +633,6 @@ namespace AssessmentPlatform.Services
                             .DefaultIfEmpty(0)
                             .Sum();
 
-                        cityScore = Math.Round(cityScore / 14.0m, 2);
 
                         c.EvaluatorProgress = cityScore;
                         c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
