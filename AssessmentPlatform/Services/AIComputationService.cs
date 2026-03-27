@@ -1355,6 +1355,30 @@ namespace AssessmentPlatform.Services
         }
         #endregion TransferAssessment
 
+
+        public async Task<ResultResponseDto<string>> ReCalculateKpis(int userID, UserRole userRole)
+        {
+            try
+            {
+                if (userRole != UserRole.Admin)
+                {
+                    return ResultResponseDto<string>.Failure(new[] { "Failed to recalculate KPIs, You don't have access." });
+                }
+
+                await _context.Database.ExecuteSqlRawAsync("EXEC sp_AiRecalculateCityScore");
+
+                await _context.Database.ExecuteSqlRawAsync("EXEC sp_InsertAnalyticalLayerResults");
+
+                await _context.Database.ExecuteSqlRawAsync("EXEC sp_AiInsertAnalyticalLayerResults");
+
+                return ResultResponseDto<string>.Success("", new[] { "KPI recalculation has been initiated successfully." } );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in ReCalculateKpis", ex);
+                return ResultResponseDto<string>.Failure(new[] { "Failed to recalculate KPIs, please try again later." });
+            }
+        }
     }
     public record PillarChartItem(string ShortName, string Name, decimal? Value);
     public record KpiChartItem(string ShortName, string Name, decimal? Value,string? Definition, int? CityID, List<FiveLevelInterpretationsDto> InterPretation);

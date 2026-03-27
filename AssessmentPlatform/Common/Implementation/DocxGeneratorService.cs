@@ -1258,7 +1258,7 @@ namespace AssessmentPlatform.Common.Implementation
                 new TableRow(
                     Stat(green.ToString(), "Performing ≥70%", "E8F5E9", "2E7D32"),
                     Stat(amber.ToString(), "Developing 40–69%", "FFF8E1", "E65100"),
-                    Stat(red.ToString(), "Needs Improvement", "FDECEA", "C62828"),
+                    Stat(red.ToString(), "Needs Improvement < 40 %", "FDECEA", "C62828"),
                     Stat(total.ToString(), "Total KPIs", "EEF5F1", "12352F")
                 )
             );

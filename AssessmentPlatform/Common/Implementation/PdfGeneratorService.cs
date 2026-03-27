@@ -260,7 +260,7 @@ namespace AssessmentPlatform.Common.Implementation
             float overall = (float)city.AIProgress.GetValueOrDefault();
             int kpiGreen = kpis.Count(k => k.Value >= 70);
             int kpiAmber = kpis.Count(k => k.Value >= 40 && k.Value < 70);
-            int kpiRed = kpis.Count(k => k.Value < 40);
+            int kpiRed = kpis.Count(k => k.Value == null || k.Value < 40);
             var best = pillars.OrderByDescending(p => p.Value).FirstOrDefault();
             var worst = pillars.OrderBy(p => p.Value).FirstOrDefault();
 
@@ -786,7 +786,7 @@ namespace AssessmentPlatform.Common.Implementation
             int total = kpis.Count;
             int green = kpis.Count(x => x.Value >= 70);
             int amber = kpis.Count(x => x.Value is >= 40 and < 70);
-            int red = kpis.Count(x => x.Value < 40);
+            int red = kpis.Count(x => x.Value == null || x.Value < 40);
             float avg = (float)kpis.Average(x => x.Value ?? 0);
 
             // 18 bars per chart row — compact but legible
@@ -844,7 +844,7 @@ namespace AssessmentPlatform.Common.Implementation
                     row.ConstantItem(6);
                     KpiStatPill(row.RelativeItem(), amber.ToString(), "Developing 40–69 %", "#FFC107", "#FFC10725");
                     row.ConstantItem(6);
-                    KpiStatPill(row.RelativeItem(), red.ToString(), "Needs Improvement", "#EF5350", "#EF535025");
+                    KpiStatPill(row.RelativeItem(), red.ToString(), "Needs Improvement < 40 %", "#EF5350", "#EF535025");
                     row.ConstantItem(6);
                     KpiStatPill(row.RelativeItem(), $"{avg:F1}%", "Average Score",
                         avg >= 70 ? "#4CAF50" : avg >= 40 ? "#FFC107" : "#EF5350",
@@ -1500,7 +1500,7 @@ namespace AssessmentPlatform.Common.Implementation
                         TextAlign = SKTextAlign.Center,
                         FakeBoldText = true
                     };
-                    canvas.DrawText($"{avg:F0}", cx, cy + avgNumPaint.TextSize * 0.36f, avgNumPaint);
+                    canvas.DrawText($"{avg:F1}", cx, cy + avgNumPaint.TextSize * 0.36f, avgNumPaint);
 
                     using var avgLblPaint = new SKPaint
                     {
