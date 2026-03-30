@@ -59,7 +59,7 @@ namespace AssessmentPlatform.Common.Implementation
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error in Executing usp_getCitiesProgressByUserId", ex);
+                await _appLogger.LogAsync("Error in Executing usp_getCitiesProgressByUserIdHistory", ex);
                 return new List<EvaluationCityProgressHistoryResultDto>();
             }
         }
@@ -74,7 +74,7 @@ namespace AssessmentPlatform.Common.Implementation
             }
             catch (Exception ex)
             {
-                await _appLogger.LogAsync("Error in Executing usp_getCitiesProgressByUserId", ex);
+                await _appLogger.LogAsync("Error in Executing usp_getCitiesProgress_Admin", ex);
                 return new List<GetCitiesProgressAdminDto>();
             }
         }
