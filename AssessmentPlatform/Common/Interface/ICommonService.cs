@@ -14,5 +14,6 @@ namespace AssessmentPlatform.Common.Interface
         public Task<List<EvaluationCityProgressResultDto>> GetCitiesProgressAsync(int userId,int role, int year);
         public Task<List<EvaluationCityProgressHistoryResultDto>> GetCitiesProgressHistoryAsync(int userId,int role, int fromYear, int toYear);
         public Task<List<GetCitiesProgressAdminDto>> GetCitiesProgressForAdmin(int userId, int role, int year);
+        public string ReplacePercentAcross(string input, int score);
     }
 }

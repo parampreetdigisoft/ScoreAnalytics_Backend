@@ -78,5 +78,31 @@ namespace AssessmentPlatform.Common.Implementation
                 return new List<GetCitiesProgressAdminDto>();
             }
         }
+        public string ReplacePercentAcross(string input, int score)
+        {
+            const string target = " percent across";
+
+            int idx = input.IndexOf(target, StringComparison.OrdinalIgnoreCase);
+            if (idx == -1)
+                return input;
+
+            // Walk backward to find start of number
+            int start = idx - 1;
+            while (start >= 0 && char.IsDigit(input[start]))
+                start--;
+
+            start++; // move to first digit
+
+            // If no digits found, return original
+            if (start >= idx)
+                return input;
+
+            return string.Concat(
+                input.AsSpan(0, start),
+                score.ToString(),
+                input.AsSpan(idx)
+            );
+        }
+
     }
 }

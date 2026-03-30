@@ -439,7 +439,7 @@ namespace AssessmentPlatform.Common.Implementation
                 IsAntialias = true,
                 TextAlign = SKTextAlign.Center
             };
-            canvas.DrawText("city progress", cx, cy + 21, subTxt);
+            canvas.DrawText("total score", cx, cy + 21, subTxt);
         }
 
         // ─────────────────────────────────────────────────────────────────────────────
@@ -1646,7 +1646,7 @@ namespace AssessmentPlatform.Common.Implementation
                     AIDataYear = data.ScoringYear,
                     AIProgress = data.AIProgress
                 };
-                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, random, userRole));
+                column.Item().PaddingTop(10).Element(c => PillarProgressSection(c, random, userRole, true));
 
                 column.Item().PaddingTop(10).Element(c =>
                     PillarContentSection(c, "Executive Summary", data.EvidenceSummary, "#163329"));
@@ -1703,7 +1703,7 @@ namespace AssessmentPlatform.Common.Implementation
         }
 
         void PillarProgressSection(
-            IContainer container, AiCityPillarReponse data, UserRole userRole)
+            IContainer container, AiCityPillarReponse data, UserRole userRole, bool isCity = false)
         {
             container
                 .Background(Colors.White)
@@ -1711,7 +1711,7 @@ namespace AssessmentPlatform.Common.Implementation
                 .Padding(15)
                 .Column(column =>
                 {
-                    column.Item().Text("Progress Metrics")
+                    column.Item().Text(isCity ? "Total":"Pillar")
                         .FontSize(16).Bold().FontColor("#203d33");
 
                     column.Item().PaddingTop(12).Column(col =>
@@ -2543,7 +2543,7 @@ namespace AssessmentPlatform.Common.Implementation
                         table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e8e8e8")
                             .Padding(4).AlignRight()
                             .Text(FormatPop(entry.City.Population)).FontSize(8).FontColor("#555555");
-
+                       
                         table.Cell()
                         .Background(bg)
                         .BorderBottom(0.5f)
@@ -2551,19 +2551,20 @@ namespace AssessmentPlatform.Common.Implementation
                         .Padding(4)
                         .Row(r =>
                         {
-                            var percent = entry.Score / 100f;
+                            var percent = Math.Max(0, Math.Min(1, entry.Score / 100f));
 
-                            r.RelativeItem().Height(10).Background("#eeeeee").Layers(layer =>
+                            // Bar container
+                            r.RelativeItem().Height(10).Row(bar =>
                             {
-                                layer.PrimaryLayer().Background("#eeeeee");
-
-                                layer.Layer().Width((float)percent * 100)
-                                    .Background(ScoreColor(entry.Score));
+                                bar.RelativeItem(percent).Background(ScoreColor(entry.Score));   // filled
+                                bar.RelativeItem(1 - percent).Background("#eeeeee");              // remaining
                             });
-
-                            r.ConstantItem(24).AlignRight().Text($"{entry.Score:F1}")
-                                .FontSize(8)
-                                .FontColor("#333333");
+                            // Score text
+                            r.ConstantItem(24)
+                             .AlignRight()
+                             .Text($"{entry.Score:F1}")
+                             .FontSize(8)
+                             .FontColor("#333333");
                         });
                     }
                 });
@@ -2623,7 +2624,7 @@ namespace AssessmentPlatform.Common.Implementation
                     col.Item().Element(x => DrawInsightBand(x,
                         $"Period: {allYears.First()} – {allYears.Last()}  |  " +
                         $"{mainCity.CityName}: {(delta >= 0 ? "+" : "")}{delta:F1} pts  |  " +
-                        $"Latest score: {last:F1}  |  " +
+                        $"score: {last:F1}  |  " +
                         $"{peers.Count} peer city(ies)"));
                 }
 
@@ -3252,66 +3253,6 @@ namespace AssessmentPlatform.Common.Implementation
             DrawCanvasText(canvas, $"^{markerValue:F1}", mx - 12, padT - 1, 7, CityPalette[0], bold: true);
         }
 
-        void DrawRolePillarHeatmap(
-            IContainer container,
-            List<(string Role, List<PeerCityHistoryReportDto> Cities)> roles)
-        {
-            var pillars = roles
-                .SelectMany(r => r.Cities)
-                .SelectMany(c => c.CityHistory ?? new())
-                .SelectMany(h => h.Pillars ?? new())
-                .GroupBy(p => p.PillarID)
-                .Select(g => g.First())
-                .OrderBy(p => p.DisplayOrder)
-                .Take(MaxPillars)
-                .ToList();
-
-            if (!pillars.Any()) return;
-
-            container.Table(table =>
-            {
-                table.ColumnsDefinition(cols =>
-                {
-                    cols.ConstantColumn(90);
-                    foreach (var _ in pillars) cols.RelativeColumn();
-                });
-
-                table.Cell().Background("#12352f").Padding(5)
-                    .Text("Role / Pillar").FontSize(7).Bold().FontColor(Colors.White);
-                foreach (var p in pillars)
-                    table.Cell().Background("#12352f").Padding(4).AlignCenter()
-                        .Text(Shorten(p.PillarName, 8))
-                        .FontSize(7).Bold().FontColor(Colors.White);
-
-                foreach (var (role, cities) in roles)
-                {
-                    table.Cell().Background("#f4f7f5").BorderBottom(0.5f).BorderColor("#e0e0e0")
-                        .Padding(5).Text(role).FontSize(7).FontColor("#333333");
-
-                    foreach (var pillar in pillars)
-                    {
-                        // include 0-score entries
-                        var validScores = cities
-                            .SelectMany(c => c.CityHistory ?? new())
-                            .SelectMany(h => h.Pillars ?? new())
-                            .Where(p => p.PillarID == pillar.PillarID)
-                            .Select(p => (float)p.ScoreProgress)
-                            .ToList();
-
-                        bool hasData = validScores.Any();
-                        float avg = hasData ? validScores.Average() : -1f;
-
-                        string bg = !hasData ? "#f0f0f0"
-                            : InterpolateColor("#ffffff", "#12352f", avg / 100f);
-
-                        table.Cell().Background(bg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                            .Padding(3).AlignCenter()
-                            .Text(!hasData ? "—" : $"{avg:F0}")
-                            .FontSize(7).FontColor(avg >= 50 ? Colors.White : "#333333");
-                    }
-                }
-            });
-        }
 
         // ══════════════════════════════════════════════════════════════════════════
         //  SHARED LAYOUT HELPERS

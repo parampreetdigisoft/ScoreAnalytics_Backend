@@ -559,7 +559,7 @@ namespace AssessmentPlatform.Common.Implementation
             AiCitySummeryDto data, UserRole userRole)
         {
             // Progress metric
-            body.AppendChild(SectionHeading("Progress Metrics", DarkGreen));
+            body.AppendChild(SectionHeading("City", DarkGreen));
             body.AppendChild(CreateProgressBar("Score", (float)(data.AIProgress ?? 0), MedGreen));
             body.AppendChild(Gap(160));
 
@@ -599,7 +599,7 @@ namespace AssessmentPlatform.Common.Implementation
             Body body, MainDocumentPart mainPart,
             AiCityPillarReponse data, UserRole userRole)
         {
-            body.AppendChild(SectionHeading("Progress Metrics", DarkGreen));
+            body.AppendChild(SectionHeading("Pillar", DarkGreen));
             body.AppendChild(CreateProgressBar("Score", (float)(data.AIProgress ?? 0), MedGreen));
             body.AppendChild(Gap(160));
 

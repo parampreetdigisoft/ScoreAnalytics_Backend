@@ -1117,23 +1117,25 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-                var isManual = reportType != "ai" && userRole == UserRole.Admin ? true : false;
+                var isAi = !(reportType != "ai" && userRole == UserRole.Admin);
 
                 var pillars = await GetAICityPillars(cityDetails.CityID, userID, userRole, cityDetails.ScoringYear);
 
-                var kpis = await GetAccessKpis(userID, userRole, cityDetails.CityID, cityDetails.ScoringYear, !isManual);
+                var kpis = await GetAccessKpis(userID, userRole, cityDetails.CityID, cityDetails.ScoringYear, isAi);
 
-                if (isManual)
+                if (!isAi)
                 {
                     cityDetails.AIProgress = cityDetails.EvaluatorProgress;
 
-                    foreach(var pillar in pillars.Result.Pillars)
+                    cityDetails.EvidenceSummary = _commonService.ReplacePercentAcross(cityDetails.EvidenceSummary, (int)(cityDetails.EvaluatorProgress ?? 0));
+
+                    foreach (var pillar in pillars.Result.Pillars)
                     {
                         pillar.AIProgress = pillar.EvaluatorProgress;
                     }
                 }
 
-                var peerCities = await GetPeerCities(userID, userRole, cityDetails.CityID, cityDetails.ScoringYear, !isManual);
+                var peerCities = await GetPeerCities(userID, userRole, cityDetails.CityID, cityDetails.ScoringYear, isAi);
 
 
                 var document = await _documentGeneratorService.GenerateCityDetails(cityDetails, pillars.Result.Pillars, kpis, peerCities, userRole, format);
