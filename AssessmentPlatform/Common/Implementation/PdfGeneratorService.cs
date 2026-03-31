@@ -37,7 +37,6 @@ namespace AssessmentPlatform.Common.Implementation
                         {
                             var kpiChartItems = kpis?
                             .Where(x => x.CityID == cityDetails.CityID)
-                            .Take(109)
                             .ToList() ?? new List<KpiChartItem>();
 
                             AddCityDetailsPdf(container, cityDetails, pillars, kpiChartItems,new(), userRole, true);
@@ -107,7 +106,7 @@ namespace AssessmentPlatform.Common.Implementation
         public void AddCityDetailsPdf(IDocumentContainer container, AiCitySummeryDto cityDetails, List<AiCityPillarReponse> pillars, List<KpiChartItem> kpis,
             List<PeerCityHistoryReportDto> peerCities, UserRole userRole, bool isAllCities = false)
         {
-            var kpiChartItems = kpis.Take(109).ToList(); 
+            var kpiChartItems = kpis.ToList(); 
 
             // Build pillar chart items (max 14)
             var pillarChartItems = pillars
@@ -288,7 +287,7 @@ namespace AssessmentPlatform.Common.Implementation
                     .ToList();
 
                 if (topKpis.Any())
-                    col.Item().Height(130).Element(x =>
+                    col.Item().Height(145).Element(x =>
                     DrawTopKpiBand(x, topKpis));
 
                 col.Item().Height(100).Element(x =>
@@ -1194,7 +1193,7 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 foreach (var pair in pairs)
                 {
-                    col.Item().Height(130).Row(row =>
+                    col.Item().Height(145).Row(row =>
                     {
                         foreach (var (kpi, idx) in pair)
                             row.RelativeItem().Column(card => DrawKpiCard(card, kpi, idx + 1));
@@ -2244,156 +2243,7 @@ namespace AssessmentPlatform.Common.Implementation
                         c => GetLatestScoreOrZero(c),
                         "Income (USD)", "Score"));
 
-                // ════════════════════════════════════════════════════════════
-                // NEW ── PPP Analytical Section
-                // ════════════════════════════════════════════════════════════
-                var withPpp = all.Where(p => p.PPP.HasValue && p.PPP > 0).ToList();
-
-                if (withPpp.Any())
-                {
-                    col.Item().PaddingTop(8)
-                        .BorderTop(1f).BorderColor("#12352f")
-                        .PaddingTop(6)
-                        .Text("Purchasing Power Parity (PPP) Analysis")
-                        .FontSize(12).Bold().FontColor("#12352f");
-
-                    col.Item().Text(
-                        "PPP-adjusted income reflects real purchasing power in International Dollars, " +
-                        "correcting for local price differences. A higher PPP vs Nominal income " +
-                        "indicates a more affordable city; a lower PPP suggests high cost of living " +
-                        "that erodes nominal earnings. Use this alongside structural factors " +
-                        "(inequality, informal markets) for a complete welfare picture.")
-                        .FontSize(8).Italic().FontColor("#555555");
-
-                    // ── PPP vs Nominal scatter ────────────────────────────────
-                    col.Item().PaddingTop(6)
-                        .Text("Nominal Income vs PPP-Adjusted Income  (each dot = one city)")
-                        .FontSize(11).Bold().FontColor("#12352f");
-
-                    col.Item().Height(160).Canvas((canvas, size) =>
-                        DrawScatterPlot(canvas, size, withPpp, cityDetails,
-                            c => (float)(c.Income ?? 0),
-                            c => (float)(c.PPP ?? 0),
-                            "Nominal Income (USD)", "PPP Income (Int'l $)"));
-
-                    // ── PPP Comparison Table ──────────────────────────────────
-                    col.Item().PaddingTop(6)
-                        .Text("Nominal vs PPP-Adjusted Income Comparison")
-                        .FontSize(11).Bold().FontColor("#12352f");
-
-                    col.Item().Table(table =>
-                    {
-                        table.ColumnsDefinition(cols =>
-                        {
-                            cols.RelativeColumn(2f);   // City
-                            cols.ConstantColumn(55);   // Country
-                            cols.ConstantColumn(45);   // Score
-                            cols.ConstantColumn(70);   // Nominal Income
-                            cols.ConstantColumn(70);   // PPP Income
-                            cols.ConstantColumn(55);   // Difference
-                            cols.RelativeColumn(1.5f); // PPP Signal
-                        });
-
-                        DrawTableHeader(table, new[]
-                        {
-                            "City", "Country", "Score",
-                            "Nominal (USD)", "PPP (Int'l $)", "Δ Difference", "Signal"
-                        });
-
-                        foreach (var city in withPpp.OrderByDescending(c => c.PPP))
-                        {
-                            bool isMain = IsSameCity(city.CityName, cityDetails.CityName);
-                            string rowBg = isMain ? "#fff9e6" : Colors.White;
-                            float score = GetLatestScoreOrZero(city);
-                            decimal nominal = city.Income ?? 0;
-                            decimal ppp = city.PPP ?? 0;
-                            decimal diff = ppp - nominal;
-
-                            // Signal logic based on user-entered PPP vs Nominal
-                            string nomCat = GetIncomeCategory(nominal);
-                            string pppCat = GetIncomeCategory(ppp);
-                            bool upgraded = pppCat != nomCat && ppp > nominal;
-                            bool downgraded = pppCat != nomCat && ppp < nominal;
-                            decimal ratio = nominal > 0 ? Math.Round(ppp / nominal, 2) : 1m;
-
-                            string signalLabel = ratio switch
-                            {
-                                >= 2.0m => "Strong PPP Advantage",
-                                >= 1.3m => "Moderate PPP Advantage",
-                                >= 0.9m => "Near-Parity",
-                                >= 0.7m => "Cost Pressure",
-                                _ => "High Cost Penalty"
-                            };
-                            string signalColor = ratio switch
-                            {
-                                >= 2.0m => "#2E7D32",
-                                >= 1.3m => "#5BC0DE",
-                                >= 0.9m => "#888888",
-                                >= 0.7m => "#F0AD4E",
-                                _ => "#D9534F"
-                            };
-
-                            string diffStr = diff >= 0
-                                ? $"+{FormatPop(diff)}"
-                                : $"-{FormatPop(Math.Abs(diff))}";
-                            string diffColor = diff >= 0 ? "#2E7D32" : "#D9534F";
-
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text(city.CityName).FontSize(8)
-                                .FontColor(isMain ? "#12352f" : "#333333").Bold();
-
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text(city.Country ?? "—").FontSize(8).FontColor("#555555");
-
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text($"{score:F1}").FontSize(8).Bold().FontColor(ScoreColor(score));
-
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text(FormatPop(nominal).ToString()).FontSize(8).FontColor("#555555");
-
-                            // PPP cell — green if upgraded category, red if downgraded
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text(
-                                    FormatPop(ppp) + (upgraded ? " ▲" : downgraded ? " ▼" : ""))
-                                .FontSize(8).Bold()
-                                .FontColor(upgraded ? "#2E7D32" : downgraded ? "#D9534F" : "#333333");
-
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text(diffStr).FontSize(8).Bold().FontColor(diffColor);
-
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(4).Background(signalColor + "22")
-                                .Text(signalLabel).FontSize(7).FontColor(signalColor).Bold();
-                        }
-                    });
-
-                    // ── Legend + footnote ─────────────────────────────────────
-                    col.Item().PaddingTop(4).Row(r =>
-                    {
-                        foreach (var (sig, clr) in new[]
-                        {
-                            ("Strong PPP Advantage ≥2×",  "#2E7D32"),
-                            ("Moderate ≥1.3×",             "#5BC0DE"),
-                            ("Near-Parity 0.9–1.3×",       "#888888"),
-                            ("Cost Pressure 0.7–0.9×",     "#F0AD4E"),
-                            ("High Cost Penalty <0.7×",    "#D9534F"),
-                        })
-                        {
-                            r.AutoItem().PaddingRight(8).Row(inner =>
-                            {
-                                inner.ConstantItem(8).Height(8).Background(clr);
-                                inner.AutoItem().PaddingLeft(2).Text(sig).FontSize(7).FontColor("#555555");
-                            });
-                        }
-                    });
-
-                    col.Item().PaddingTop(3)
-                        .Text("▲ PPP adjustment moves city to a higher income category.  " +
-                              "▼ PPP adjustment moves city to a lower income category.  " +
-                              "Ratio = PPP ÷ Nominal Income.")
-                        .FontSize(7).Italic().FontColor("#999999");
-                }
-
+                
                 // ── Top performers table (UPDATED — PPP column added) ────────
                 col.Item().PaddingTop(8)
                     .Text("Top Performers by Income Group")
@@ -2408,12 +2258,12 @@ namespace AssessmentPlatform.Common.Implementation
                         cols.ConstantColumn(40);   // Score
                         cols.RelativeColumn();     // Income Group
                         cols.ConstantColumn(55);   // Income
-                        cols.ConstantColumn(60);   // PPP  ← NEW
+                        //cols.ConstantColumn(60);   // PPP  ← NEW
                     });
 
                     DrawTableHeader(table, new[]
                     {
-                        "City", "Country", "Score", "Income Group", "Income", "PPP (Int'l $)"
+                        "City", "Country", "Score", "Income Group", "Income"
                     });
 
                     foreach (var (label, cities) in segments)
@@ -2436,15 +2286,7 @@ namespace AssessmentPlatform.Common.Implementation
                             table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
                                 .Padding(5).Text(FormatPop(city.Income).ToString()).FontSize(8).FontColor("#555555");
 
-                            // ← NEW PPP cell
-                            var pppDisplay = city.PPP.HasValue && city.PPP > 0
-                                ? FormatPop(city.PPP).ToString()
-                                : "—";
-                            var pppColor = city.PPP > city.Income ? "#2E7D32"
-                                         : city.PPP < city.Income ? "#D9534F"
-                                         : "#555555";
-                            table.Cell().Background(rowBg).BorderBottom(0.5f).BorderColor("#e0e0e0")
-                                .Padding(5).Text(pppDisplay).FontSize(8).Bold().FontColor(pppColor);
+                            
                         }
                     }
                 });
@@ -3420,15 +3262,6 @@ namespace AssessmentPlatform.Common.Implementation
 
         static string ScoreColor(float score) =>
             score >= 70 ? "#336b58" : score >= 40 ? "#f5a623" : "#e05252";
-
-        static string DeriveRole(PeerCityHistoryReportDto city)
-        {
-            if (city.Population >= 5_000_000) return "Metropolis";
-            if (city.Population >= 1_000_000) return "Major City";
-            if (city.Population >= 300_000) return "Mid-Sized City";
-            if (city.Population >= 100_000) return "Large Town";
-            return "Small City";
-        }
 
         static string FormatPop(decimal? value)
         {

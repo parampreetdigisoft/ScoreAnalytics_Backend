@@ -131,7 +131,7 @@ namespace AssessmentPlatform.Common.Implementation
                         if (!pillarsDict.TryGetValue(city.CityID, out var pillars) || !pillars.Any())
                             continue;
 
-                        var cityKpis = kpis?.Where(k => k.CityID == city.CityID).Take(109).ToList()
+                        var cityKpis = kpis?.Where(k => k.CityID == city.CityID).ToList()
                                        ?? new List<KpiChartItem>();
 
                         if (!first) body.AppendChild(PageBreak());
@@ -190,7 +190,7 @@ namespace AssessmentPlatform.Common.Implementation
             // Reset pending header state for this document
             ResetSectionState();
 
-            var kpiChartItems = kpis.Take(109).ToList();
+            var kpiChartItems = kpis.ToList();
             var pillarChartItems = pillars.Take(14)
                 .Select(p => new PillarChartItem(
                     p.PillarName?.Length > 20 ? p.PillarName[..20] : p.PillarName ?? "—",
@@ -299,8 +299,8 @@ namespace AssessmentPlatform.Common.Implementation
 
                 body.Append(CreateKpiOverviewHeader(avg));
 
-                var sparkPng = RenderPng((c, s) => PaintKpiSparkline(c, s, kpis), 700, 130);
-                body.AppendChild(CreateFullWidthImage(mainPart, sparkPng, 130));
+                var sparkPng = RenderPng((c, s) => PaintKpiSparkline(c, s, kpis), 700, 90);
+                body.AppendChild(CreateFullWidthImage(mainPart, sparkPng, 90));
             }
 
 
@@ -559,7 +559,7 @@ namespace AssessmentPlatform.Common.Implementation
             AiCitySummeryDto data, UserRole userRole)
         {
             // Progress metric
-            body.AppendChild(SectionHeading("City", DarkGreen));
+            body.AppendChild(SectionHeading("Total", DarkGreen));
             body.AppendChild(CreateProgressBar("Score", (float)(data.AIProgress ?? 0), MedGreen));
             body.AppendChild(Gap(160));
 
@@ -1860,55 +1860,7 @@ namespace AssessmentPlatform.Common.Implementation
                 body.AppendChild(CreateFullWidthImage(mainPart, incScatterPng, 180));
                 body.AppendChild(Gap(80));
 
-                // ══════════════════════════════════════════════════════════════
-                // NEW ── PPP Analytical Section
-                // ══════════════════════════════════════════════════════════════
-                var withPpp = all.Where(p => p.PPP.HasValue && p.PPP > 0).ToList();
-                if (withPpp.Any())
-                {
-                    // Section divider heading
-                    body.AppendChild(CreateSectionDivider("Purchasing Power Parity (PPP) Analysis", DarkGreen));
-
-                    // Explanatory note
-                    body.AppendChild(CreateItalicNote(
-                        "PPP-adjusted income reflects real purchasing power in International Dollars, " +
-                        "correcting for local price differences. A higher PPP vs Nominal income indicates " +
-                        "a more affordable city; a lower PPP suggests high cost of living that erodes nominal " +
-                        "earnings. Use this alongside structural factors (inequality, informal markets) for a " +
-                        "complete welfare picture."));
-                    body.AppendChild(Gap(60));
-
-                    // ── Nominal vs PPP scatter ────────────────────────────────
-                    body.AppendChild(SectionHeading(
-                        "Nominal Income vs PPP-Adjusted Income  (each dot = one city)", DarkGreen));
-                    var pppScatterPng = RenderPng(
-                        (c, s) => PdfGeneratorService.DrawScatterPlotCanvas(
-                            c, s, withPpp, cityDetails,
-                            city => (float)(city.Income ?? 0),
-                            city => (float)(city.PPP ?? 0),
-                            "Nominal Income (USD)", "PPP Income (Int'l $)"),
-                        700, 180);
-                    body.AppendChild(CreateFullWidthImage(mainPart, pppScatterPng, 180));
-                    body.AppendChild(Gap(80));
-
-                    // ── PPP Comparison Table ──────────────────────────────────
-                    body.AppendChild(SectionHeading(
-                        "Nominal vs PPP-Adjusted Income Comparison", DarkGreen));
-                    body.AppendChild(CreatePppComparisonTable(withPpp, cityDetails));
-                    body.AppendChild(Gap(60));
-
-                    // ── PPP signal legend ─────────────────────────────────────
-                    body.AppendChild(CreatePppLegend());
-                    body.AppendChild(Gap(40));
-
-                    // Footnote
-                    body.AppendChild(CreateFootnote(
-                        "▲ PPP adjustment moves city to a higher income category.  " +
-                        "▼ PPP adjustment moves city to a lower income category.  " +
-                        "Signal Ratio = PPP ÷ Nominal Income."));
-                    body.AppendChild(Gap(80));
-                }
-
+               
                 // ── Top performers by income group (PPP column added) ─────────
                 body.AppendChild(SectionHeading("Top Performers by Income Group", DarkGreen));
                 body.AppendChild(CreateIncomeGroupTable(all, cityDetails));
@@ -2100,175 +2052,24 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 float sc = GetLatestScoreOrZero(city);
 
-                // PPP display: value if available, "—" if not
-                string pppDisplay = (city.PPP.HasValue && city.PPP > 0)
-                    ? FormatPop(city.PPP)
-                    : "—";
-
                 return new[]
                 {
-            city.CityName,
-            city.Country ?? "—",
-            sc < 0 ? "—" : $"{sc:F1}",
-            PdfGeneratorService.GetIncomeCategory(city.Income ?? 0),
-            FormatPop(city.Income),
-            pppDisplay          // ← NEW column
-        };
+                    city.CityName,
+                    city.Country ?? "—",
+                    sc < 0 ? "—" : $"{sc:F1}",
+                    PdfGeneratorService.GetIncomeCategory(city.Income ?? 0),
+                    FormatPop(city.Income)         // ← NEW column
+                };
             }).ToArray();
 
             return CreateStyledTableWithCellColors(
-                headers: new[] { "City", "Country", "Score", "Income Group", "Income", "PPP (Int'l $)" },
-                widths: new[] { 1800, 1000, 700, 2000, 1200, 1300 },
+                headers: new[] { "City", "Country", "Score", "Income Group", "Income" },
+                widths: new[] { 1800, 1000, 700, 2000, 1200 },
                 rows: rows,
-                highlightRow: i => IsSameCity(orderedCities[i].CityName, cityDetails.CityName),
-                cellColor: (rowIdx, colIdx) =>
-                {
-                    // PPP column (col 5) — tint green if PPP > Income, red if less
-                    if (colIdx == 5)
-                    {
-                        var city = orderedCities[rowIdx];
-                        if (!city.PPP.HasValue || city.PPP <= 0) return null;
-                        return city.PPP > city.Income ? "E8F5E9"
-                             : city.PPP < city.Income ? "FFEBEE"
-                             : null;
-                    }
-                    return null;
-                },
-                cellFontColor: (rowIdx, colIdx) =>
-                {
-                    if (colIdx == 5)
-                    {
-                        var city = orderedCities[rowIdx];
-                        if (!city.PPP.HasValue || city.PPP <= 0) return null;
-                        return city.PPP > city.Income ? "2E7D32"
-                             : city.PPP < city.Income ? "D9534F"
-                             : null;
-                    }
-                    return null;
-                });
+                highlightRow: i => IsSameCity(orderedCities[i].CityName, cityDetails.CityName)
+                );
         }
 
-        // ══════════════════════════════════════════════════════════════════
-        // NEW HELPERS — legend, italic note, divider, footnote
-        // ══════════════════════════════════════════════════════════════════
-
-        /// <summary>Section divider with bottom border line — for PPP heading</summary>
-        private static Paragraph CreateSectionDivider(string text, string hexColor)
-        {
-            var para = new Paragraph();
-            var pPr = new ParagraphProperties();
-            //pPr.AppendChild(new Paragraph(new BottomBorder
-            //{
-            //    Val = BorderValues.Single,
-            //    Size = 6,
-            //    Color = hexColor.Replace("#", "")
-            //}));
-            pPr.AppendChild(new SpacingBetweenLines { Before = "120", After = "60" });
-            para.AppendChild(pPr);
-
-            var run = new Run();
-            run.AppendChild(new RunProperties
-            {
-                Bold = new Bold(),
-                FontSize = new FontSize { Val = "22" },  // 11pt
-                Color = new Color { Val = hexColor.Replace("#", "") }
-            });
-            run.AppendChild(new Text(text));
-            para.AppendChild(run);
-            return para;
-        }
-
-        /// <summary>Small italic grey explanatory note</summary>
-        private static Paragraph CreateItalicNote(string text)
-        {
-            var para = new Paragraph();
-            para.AppendChild(new ParagraphProperties(
-                new SpacingBetweenLines { Before = "40", After = "40" }));
-
-            var run = new Run();
-            run.AppendChild(new RunProperties
-            {
-                Italic = new Italic(),
-                FontSize = new FontSize { Val = "16" },   // 8pt
-                Color = new Color { Val = "555555" }
-            });
-            run.AppendChild(new Text(text));
-            para.AppendChild(run);
-            return para;
-        }
-
-        /// <summary>Very small italic footnote (7pt)</summary>
-        private static Paragraph CreateFootnote(string text)
-        {
-            var para = new Paragraph();
-            para.AppendChild(new ParagraphProperties(
-                new SpacingBetweenLines { Before = "20", After = "20" }));
-
-            var run = new Run();
-            run.AppendChild(new RunProperties
-            {
-                Italic = new Italic(),
-                FontSize = new FontSize { Val = "14" },   // 7pt
-                Color = new Color { Val = "999999" }
-            });
-            run.AppendChild(new Text(text));
-            para.AppendChild(run);
-            return para;
-        }
-
-        /// <summary>PPP signal colour legend row</summary>
-        private static Paragraph CreatePppLegend()
-        {
-            var para = new Paragraph();
-            para.AppendChild(new ParagraphProperties(
-                new SpacingBetweenLines { Before = "40", After = "20" }));
-
-            var signals = new[]
-            {
-        ("Strong PPP Advantage ≥2×",  "2E7D32"),
-        ("Moderate Advantage ≥1.3×",  "0277BD"),
-        ("Near-Parity 0.9–1.3×",      "555555"),
-        ("Cost Pressure 0.7–0.9×",    "E65100"),
-        ("High Cost Penalty <0.7×",   "D9534F"),
-    };
-
-            // Label prefix
-            var prefix = new Run();
-            prefix.AppendChild(new RunProperties
-            {
-                Bold = new Bold(),
-                FontSize = new FontSize { Val = "14" },
-                Color = new Color { Val = "777777" }
-            });
-            prefix.AppendChild(new Text("PPP Signals:  ") { Space = SpaceProcessingModeValues.Preserve });
-            para.AppendChild(prefix);
-
-            foreach (var (label, color) in signals)
-            {
-                // Coloured bullet block
-                var bullet = new Run();
-                bullet.AppendChild(new RunProperties
-                {
-                    Bold = new Bold(),
-                    FontSize = new FontSize { Val = "14" },
-                    Color = new Color { Val = color }
-                });
-                bullet.AppendChild(new Text("■ ") { Space = SpaceProcessingModeValues.Preserve });
-                para.AppendChild(bullet);
-
-                // Label text
-                var lbl = new Run();
-                lbl.AppendChild(new RunProperties
-                {
-                    FontSize = new FontSize { Val = "14" },
-                    Color = new Color { Val = "555555" }
-                });
-                lbl.AppendChild(new Text(label + "   ") { Space = SpaceProcessingModeValues.Preserve });
-                para.AppendChild(lbl);
-            }
-
-            return para;
-        }
         private static Table CreateCityLegendTable(
             List<PeerCityHistoryReportDto> allCities, AiCitySummeryDto cityDetails)
         {
@@ -2733,119 +2534,7 @@ namespace AssessmentPlatform.Common.Implementation
             return value.Value.ToString("N0");
         }
 
-        // ══════════════════════════════════════════════════════════════════
-        // NEW HELPER — CreatePppComparisonTable
-        // ══════════════════════════════════════════════════════════════════
-
-        private static Table CreatePppComparisonTable(
-            List<PeerCityHistoryReportDto> cities,
-            AiCitySummeryDto cityDetails)
-        {
-            var orderedCities = cities
-                .OrderByDescending(c => c.PPP ?? 0)
-                .ToList();
-
-            var rows = orderedCities.Select(city =>
-            {
-                float score = GetLatestScoreOrZero(city);
-                decimal nominal = city.Income ?? 0;
-                decimal ppp = city.PPP ?? 0;
-                decimal diff = ppp - nominal;
-                decimal ratio = nominal > 0 ? Math.Round(ppp / nominal, 2) : 1m;
-
-                string nomCat = PdfGeneratorService.GetIncomeCategory(nominal);
-                string pppCat = PdfGeneratorService.GetIncomeCategory(ppp);
-                bool upgraded = pppCat != nomCat && ppp > nominal;
-                bool downgraded = pppCat != nomCat && ppp < nominal;
-
-                string signalLabel = ratio switch
-                {
-                    >= 2.0m => "Strong PPP Advantage",
-                    >= 1.3m => "Moderate PPP Advantage",
-                    >= 0.9m => "Near-Parity",
-                    >= 0.7m => "Cost Pressure",
-                    _ => "High Cost Penalty"
-                };
-
-                string diffStr = diff >= 0
-                    ? $"+{FormatPop(diff)}"
-                    : $"-{FormatPop(Math.Abs(diff))}";
-
-                string pppDisplay = FormatPop(ppp) + (upgraded ? " ▲" : downgraded ? " ▼" : "");
-
-                return new[]
-                {
-            city.CityName,
-            city.Country ?? "—",
-            score < 0 ? "—" : $"{score:F1}",
-            FormatPop(nominal),
-            pppDisplay,
-            diffStr,
-            signalLabel
-        };
-            }).ToArray();
-
-            // Column widths: City, Country, Score, Nominal, PPP, Diff, Signal
-            var table = CreateStyledTableWithCellColors(
-                headers: new[] { "City", "Country", "Score", "Nominal (USD)", "PPP (Int'l $)", "Δ Difference", "Signal" },
-                widths: new[] { 1800, 1000, 700, 1300, 1300, 1100, 1600 },
-                rows: rows,
-                highlightRow: i => IsSameCity(orderedCities[i].CityName, cityDetails.CityName),
-                cellColor: (rowIdx, colIdx) =>
-                {
-                    var city = orderedCities[rowIdx];
-                    decimal nominal = city.Income ?? 0;
-                    decimal ppp = city.PPP ?? 0;
-                    decimal ratio = nominal > 0 ? Math.Round(ppp / nominal, 2) : 1m;
-
-                    // PPP column (col 4) — green if up, red if down
-                    if (colIdx == 4)
-                        return ppp > nominal ? "E8F5E9" : ppp < nominal ? "FFEBEE" : null;
-
-                    // Diff column (col 5)
-                    if (colIdx == 5)
-                        return ppp >= nominal ? "E8F5E9" : "FFEBEE";
-
-                    // Signal column (col 6)
-                    if (colIdx == 6)
-                        return ratio switch
-                        {
-                            >= 2.0m => "E8F5E9",  // light green
-                            >= 1.3m => "E3F2FD",  // light blue
-                            >= 0.9m => "F5F5F5",  // light grey
-                            >= 0.7m => "FFF8E1",  // light amber
-                            _ => "FFEBEE"   // light red
-                        };
-
-                    return null;
-                },
-                cellFontColor: (rowIdx, colIdx) =>
-                {
-                    var city = orderedCities[rowIdx];
-                    decimal nominal = city.Income ?? 0;
-                    decimal ppp = city.PPP ?? 0;
-                    decimal ratio = nominal > 0 ? Math.Round(ppp / nominal, 2) : 1m;
-
-                    if (colIdx == 4 || colIdx == 5)
-                        return ppp >= nominal ? "2E7D32" : "D9534F";
-
-                    if (colIdx == 6)
-                        return ratio switch
-                        {
-                            >= 2.0m => "2E7D32",
-                            >= 1.3m => "0277BD",
-                            >= 0.9m => "555555",
-                            >= 0.7m => "E65100",
-                            _ => "D9534F"
-                        };
-
-                    return null;
-                });
-
-            return table;
-        }
-
-
+    
         // ══════════════════════════════════════════════════════════════════
         // UPDATED — CreateStyledTableWithCellColors
         // (if you only have CreateStyledTable, add this overload)

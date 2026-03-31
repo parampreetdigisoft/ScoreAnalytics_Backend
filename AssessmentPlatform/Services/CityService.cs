@@ -92,7 +92,8 @@ namespace AssessmentPlatform.Services
                     existing.Longitude = q.Longitude;
                     existing.Population = q.Population;
                     existing.Income = q.Income;
-                    existing.PPP = q.PPP;
+                    existing.PurchasingPower = q.PurchasingPower;
+                    existing.LivingCost = q.LivingCost;
                     existing.CityAliasName = q.CityAliasName;
 
                     _context.Cities.Update(existing);
@@ -185,7 +186,8 @@ namespace AssessmentPlatform.Services
                         Longitude = c.Longitude,
                         Latitude = c.Latitude,
                         Income = c.Income,
-                        PPP = c.PPP,
+                        PurchasingPower = c.PurchasingPower,
+                        LivingCost = c.LivingCost,
                         Population = c.Population,
                         CityAliasName = c.CityAliasName,
                         PeerCities = c.PeerCities
@@ -233,7 +235,8 @@ namespace AssessmentPlatform.Services
                     Longitude = cityDto.Longitude,
                     Latitude = cityDto.Latitude,
                     Income = cityDto.Income,
-                    PPP = cityDto.PPP,
+                    LivingCost = cityDto.LivingCost,
+                    PurchasingPower = cityDto.PurchasingPower,
                     Population = cityDto.Population,
                     CityAliasName = cityDto.CityAliasName
                 }).ToList();
@@ -431,7 +434,8 @@ namespace AssessmentPlatform.Services
                     CityPeers = c.CityPeers,
                     Population = c.Population,
                     Income = c.Income,
-                    PPP = c.PPP,
+                    LivingCost = c.LivingCost,
+                    PurchasingPower = c.PurchasingPower,
                     CityAliasName = c.CityAliasName
                 };
         }
