@@ -287,7 +287,7 @@ namespace AssessmentPlatform.Common.Implementation
                     .ToList();
 
                 if (topKpis.Any())
-                    col.Item().Height(145).Element(x =>
+                    col.Item().Height(155).Element(x =>
                     DrawTopKpiBand(x, topKpis));
 
                 col.Item().Height(100).Element(x =>
@@ -810,7 +810,7 @@ namespace AssessmentPlatform.Common.Implementation
                     DrawKpiSummaryBand(x, total, green, amber, red, avg));
 
                 if(topKpis.Any())
-                    col.Item().Height(130).Element(x =>
+                    col.Item().Height(155).Element(x =>
                     DrawTopKpiBand(x,topKpis));
 
                 // ── chart + reference-table sections ─────────────────────────────
@@ -1193,7 +1193,7 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 foreach (var pair in pairs)
                 {
-                    col.Item().Height(145).Row(row =>
+                    col.Item().Height(155).Row(row =>
                     {
                         foreach (var (kpi, idx) in pair)
                             row.RelativeItem().Column(card => DrawKpiCard(card, kpi, idx + 1));
