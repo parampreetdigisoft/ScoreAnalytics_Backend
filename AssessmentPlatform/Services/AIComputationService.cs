@@ -1131,13 +1131,13 @@ namespace AssessmentPlatform.Services
                     foreach (var pillar in pillars.Result.Pillars)
                     {
                         pillar.AIProgress = pillar.EvaluatorProgress;
+                        
                         pillar.DataGapAnalysis =
-                        $@"
-                        This assessment of {pillar.PillarName} in {cityDetails.CityName} is based on an integrated analytical approach that combines four principal sources of evidence: publicly available data, academic and policy literature, key informant interviews, and focus group discussions or other community-based consultations, where available. Public datasets, government reports, and international indicators were used to establish baseline patterns in access, infrastructure, outcomes, and institutional coverage. Academic studies and policy analyses provide interpretive depth, historical context, and conceptual framing, particularly in areas where official statistics alone are insufficient to explain inequality, exclusion, or system performance.
+$@"This assessment of {pillar.PillarName} in {cityDetails.CityName} is based on an integrated analytical approach combining publicly available data, academic and policy research, expert consultations, and community-level insights where available. These sources are used to establish baseline conditions and provide contextual understanding, particularly where official data alone is insufficient.
 
-                        These evidence streams are not treated as isolated inputs. Instead, they are systematically cross-referenced and triangulated to test consistency, identify gaps, and refine analytical judgment. Where official records align with research findings and practitioner insights, conclusions are treated as more robust. In cases where administrative data is incomplete, overly aggregated, or insufficiently disaggregated, interview and community-based evidence help clarify local realities, implementation constraints, and patterns of uneven access. Where lived experience diverges from formal reporting, such differences are explicitly acknowledged and treated as analytically significant.
+The analysis follows a triangulation approach, where multiple evidence streams are cross-referenced to ensure consistency, identify gaps, and strengthen analytical judgment. Where data is limited or uneven, expert and community inputs are used to reflect ground realities, and any differences between sources are critically examined and explicitly acknowledged.
 
-                        The scoring and narrative findings in this section therefore reflect a reasoned synthesis of both quantitative and qualitative evidence, rather than reliance on a single dataset or institutional source. At the same time, the analysis remains attentive to limitations such as city-specific data gaps, uneven institutional transparency, and the partial availability of recent outcome data. These constraints do not invalidate the assessment; however, they inform the level of confidence associated with specific findings and reinforce the need for cautious, evidence-based interpretation.";
+The findings and scores therefore reflect a balanced synthesis of quantitative and qualitative evidence rather than reliance on a single source. While certain data limitations and variations in availability may exist, the assessment remains transparent, methodologically sound, and grounded in evidence-based interpretation.";
                     }
                 }
 
