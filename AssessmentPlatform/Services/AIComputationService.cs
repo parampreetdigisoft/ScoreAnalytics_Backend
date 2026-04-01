@@ -284,6 +284,7 @@ namespace AssessmentPlatform.Services
                         r.GeographicEquityNote = x.score.GeographicEquityNote;
                         r.InstitutionalAssessment = x.score.InstitutionalAssessment;
                         r.DataGapAnalysis = x.score.DataGapAnalysis;
+                        r.AnalystDataGapAnalysis = x.score.AnalystDataGapAnalysis ?? string.Empty;
                         r.DataSourceCitations = x.score.DataSourceCitations;
                         r.UpdatedAt = x.score.UpdatedAt;
                     }
@@ -1131,13 +1132,7 @@ namespace AssessmentPlatform.Services
                     foreach (var pillar in pillars.Result.Pillars)
                     {
                         pillar.AIProgress = pillar.EvaluatorProgress;
-                        
-                        pillar.DataGapAnalysis =
-$@"This assessment of {pillar.PillarName} in {cityDetails.CityName} is based on an integrated analytical approach combining publicly available data, academic and policy research, expert consultations, and community-level insights where available. These sources are used to establish baseline conditions and provide contextual understanding, particularly where official data alone is insufficient.
-
-The analysis follows a triangulation approach, where multiple evidence streams are cross-referenced to ensure consistency, identify gaps, and strengthen analytical judgment. Where data is limited or uneven, expert and community inputs are used to reflect ground realities, and any differences between sources are critically examined and explicitly acknowledged.
-
-The findings and scores therefore reflect a balanced synthesis of quantitative and qualitative evidence rather than reliance on a single source. While certain data limitations and variations in availability may exist, the assessment remains transparent, methodologically sound, and grounded in evidence-based interpretation.";
+                        pillar.DataGapAnalysis = pillar.AnalystDataGapAnalysis;
                     }
                 }
 

@@ -18,6 +18,7 @@
         public string GeographicEquityNote { get; set; }
         public string InstitutionalAssessment { get; set; }
         public string DataGapAnalysis { get; set; }
+        public string? AnalystDataGapAnalysis { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
 
