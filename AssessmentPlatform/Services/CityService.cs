@@ -430,7 +430,7 @@ namespace AssessmentPlatform.Services
                     UpdatedDate = c.UpdatedDate,
                     IsDeleted = c.IsDeleted,
                     Score = 0,
-                    AiScore = ai != null ? ai.AIScore : 0,
+                    AiScore = ai != null ? ai.AIProgress : 0,
                     CityPeers = c.CityPeers,
                     Population = c.Population,
                     Income = c.Income,
@@ -481,10 +481,14 @@ namespace AssessmentPlatform.Services
             var scores = await _commonService.GetCitiesProgressAsync(request.UserId.GetValueOrDefault(),(int)role, year);
 
             var scoreMap = scores
-                .GroupBy(x => x.CityID)
-                .ToDictionary(
-                    g => g.Key,
-                    g => Math.Round(g.Sum(x => (decimal?)x.ScoreProgress) ?? 0 / 14.0m, 2));
+               .GroupBy(x => x.CityID)
+               .ToDictionary(
+               g => g.Key,
+               g =>
+               {
+                    var total = g.Sum(x => (decimal?)x.ScoreProgress) ?? 0;
+                    return Math.Round(total / 14.0m, 2);
+               });
 
             foreach (var city in response.Data)
             {
@@ -528,10 +532,14 @@ namespace AssessmentPlatform.Services
                     var scores = await _commonService.GetCitiesProgressAsync(userId, (int)userRole, year);
 
                     var scoreMap = scores
-                        .GroupBy(x => x.CityID)
-                        .ToDictionary(
-                            g => g.Key,
-                            g => Math.Round(g.Sum(x => (decimal?)x.ScoreProgress) ?? 0 / 14.0m, 2));
+                       .GroupBy(x => x.CityID)
+                       .ToDictionary(
+                       g => g.Key,
+                       g =>
+                       {
+                           var total = g.Sum(x => (decimal?)x.ScoreProgress) ?? 0;
+                           return Math.Round(total / 14.0m, 2);
+                       });
 
                     foreach (var city in result)
                     {
