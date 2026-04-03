@@ -65,6 +65,16 @@ namespace AssessmentPlatform.Services
                             validCities.Contains(ar.CityID) &&
                             validLayerIds.Contains(ar.LayerID));
                 }
+                else if (role == UserRole.Evaluator || role == UserRole.Analyst)
+                {
+                    var validCities = _context.UserCityMappings
+                        .Where(x =>
+                            x.UserID == userId &&
+                            !x.IsDeleted &&
+                            (!request.CityID.HasValue || x.CityID == request.CityID))
+                        .Select(x => x.CityID);
+                    baseQuery = baseQuery.Where(ar => validCities.Contains(ar.CityID) && (!request.LayerID.HasValue || ar.LayerID == request.LayerID));
+                }
                 else
                 {
                     baseQuery = baseQuery.Where(ar =>
