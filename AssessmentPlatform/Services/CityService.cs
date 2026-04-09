@@ -749,11 +749,16 @@ namespace AssessmentPlatform.Services
                 var cityQuery = await (
                     from c in _context.Cities
                     where !c.IsDeleted && c.IsActive
+
                     join uc in _context.UserCityMappings.Where(predicate)
-                        on c.CityID equals uc.CityID 
-                    join a in _context.Assessments.Where(x => x.IsActive && x.UpdatedAt >= startDate && x.UpdatedAt <= endDate)
-                        on uc.UserCityMappingID equals a.UserCityMappingID into cityAssessments 
-                    from a in cityAssessments.DefaultIfEmpty()
+                        on c.CityID equals uc.CityID into ucGroup
+                    from uc in ucGroup.DefaultIfEmpty()
+
+                    join a in _context.Assessments
+                        .Where(x => x.IsActive && x.UpdatedAt >= startDate && x.UpdatedAt <= endDate)
+                        on uc.UserCityMappingID equals a.UserCityMappingID into aGroup
+                    from a in aGroup.DefaultIfEmpty()
+
                     select new
                     {
                         c.CityID,
@@ -774,8 +779,17 @@ namespace AssessmentPlatform.Services
                 cityHistory.ActiveCity = cityQuery.Where(x => x.HasMapping).Select(x => x.CityID).Distinct().Count();
                 cityHistory.CompeleteCity = cityQuery.Where(x => x.IsCompleted).Select(x => x.CityID).Distinct().Count();
                 cityHistory.InprocessCity = cityHistory.ActiveCity - cityHistory.CompeleteCity;
-                cityHistory.FinalizeCity = aICity.Where(x=>x.IsVerified).Count();
-                cityHistory.UnFinalize = aICity.Where(x => !x.IsVerified).Count();
+                cityHistory.FinalizeCity = aICity
+                .Where(x => x.IsVerified)
+                .Select(x => x.CityID)
+                .Distinct()
+                .Count();
+
+                cityHistory.UnFinalize = aICity
+                    .Where(x => !x.IsVerified)
+                    .Select(x => x.CityID)
+                    .Distinct()
+                    .Count();
 
                 // 2️⃣ Get evaluators & analysts in a single query
                 var userCounts = await _context.Users
