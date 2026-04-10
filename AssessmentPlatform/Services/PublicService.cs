@@ -251,7 +251,6 @@ namespace AssessmentPlatform.Services
                         Cities = g
                             .OrderByDescending(x => x.AIProgress)
                             .Take(3)
-                            .OrderBy(x => x.AIProgress)
                             .Select(c => new PromotedCityResponseDto
                             {
                                 CityID = c.CityID,
