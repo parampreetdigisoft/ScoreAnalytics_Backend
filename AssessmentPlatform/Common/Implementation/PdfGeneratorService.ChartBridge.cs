@@ -181,7 +181,7 @@ namespace AssessmentPlatform.Common.Implementation
                 using var bar = new SKPaint { Shader = shader, IsAntialias = true };
                 c.DrawRoundRect(new SKRoundRect(new SKRect(labelW, y + 3, labelW + bw, y + rowH - 3), 3), bar);
                 using var scorePaint = new SKPaint { Color = col, TextSize = 8.5f, IsAntialias = true, TextAlign = SKTextAlign.Left };
-                c.DrawText($"{v:F1}%", labelW + bw + 5, y + rowH * 0.65f, scorePaint);
+                c.DrawText($"{v:F1}, Rank {i+1}/{pillars.Count}", labelW + bw + 5, y + rowH * 0.65f, scorePaint);
             }
         }
 
