@@ -6,6 +6,7 @@
         public string State { get; set; }
         public string CityName { get; set; }
         public string Country { get; set; }
+        public string Region { get; set; }
         public string? Image { get; set; }
         public int ScoringYear { get; set; }
         public decimal? AIScore { get; set; }
@@ -23,6 +24,10 @@
         public DateTime? UpdatedAt { get; set; }
         public bool IsVerified { get; set; }
         public string? Comment { get; set; }
-        public decimal? AICompletionRate { get; set; }
+        public decimal? AICompletionRate { get; set; }       
+        public int? Rank { get; set; }
+        public int? TotalCity { get; set; }
+        public int? RegionRank { get; set; }
+        public int? RegionTotalCity { get; set; }
     }
 }

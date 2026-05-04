@@ -5,6 +5,7 @@ using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AiDto;
 using AssessmentPlatform.Dtos.AssessmentDto;
+using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
@@ -188,7 +189,7 @@ namespace AssessmentPlatform.Services
                     CityName = c.CityName ?? string.Empty,
                     Country = c.Country ?? string.Empty,
                     Image = c.Image ?? string.Empty,
-
+                    Region = c.Region ?? string.Empty,
                     ScoringYear = score != null ? score.Year : currentYear,
                     AIScore = score != null ? score.AIScore : 0,
                     AIProgress = score != null ? score.AIProgress : null,
@@ -838,63 +839,138 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<bool>.Failure(new[] { "Something went wrong while importing AI research. Please try again later." });
             }
         }
-        public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year)
+
+        private void ApplyCityRanking(List<AiCitySummeryDto> citiesDetails,List<dynamic> cityRanks)
         {
-            var query = await GetCityAiSummeryDetails(userID, userRole, cityID, year);
-            var cityDetails = await query.FirstAsync();
+            var totalCityCount = citiesDetails.Count;
 
-            if (userRole != UserRole.CityUser)
+            // Global rank lookup
+            var cityRankLookup = cityRanks.ToDictionary(x => x.CityID);
+
+            // Region -> CityIDs lookup
+            var regionLookup = citiesDetails
+                .GroupBy(x => x.Region)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => x.CityID).ToList()
+                );
+
+            // Region rank lookup
+            var regionRankLookup = new Dictionary<int, (int Rank, int TotalCity)>();
+
+            foreach (var region in regionLookup)
             {
-                var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+                var rankedCities = cityRanks
+                    .Where(x => region.Value.Contains(x.CityID))
+                    .OrderByDescending(x => x.ScoreProgress)
+                    .Select((x, index) => new
+                    {
+                        x.CityID,
+                        Rank = index + 1
+                    })
+                    .ToList();
 
-                var cities = progress.Where(x => x.CityID == cityID);
+                var regionTotal = rankedCities.Count;
 
-               if(cities != null)
+                foreach (var city in rankedCities)
                 {
-                    var cityScore = cities
-                        .Select(x => x.ScoreProgress)
-                        .DefaultIfEmpty(0)
-                        .Sum();
-                    cityScore = Math.Round(cityScore / 14.0m, 2);
-
-
-                    cityDetails.EvaluatorProgress = Math.Round(cityScore,2);
-                    cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));                    
-               }
+                    regionRankLookup[city.CityID] = (city.Rank, regionTotal);
+                }
             }
-            return cityDetails;
+
+            // Final mapping
+            foreach (var city in citiesDetails)
+            {
+                if (cityRankLookup.TryGetValue(city.CityID, out var globalRank))
+                {
+                    city.Rank = globalRank.Rank;
+                    city.TotalCity = totalCityCount;
+                }
+
+                if (regionRankLookup.TryGetValue(city.CityID, out var regionRank))
+                {
+                    city.RegionRank = regionRank.Rank;
+                    city.RegionTotalCity = regionRank.TotalCity;
+                }
+            }
         }
 
-        public async Task<List<AiCitySummeryDto>> GetAllCityAiSummeryDetail(int userID, UserRole userRole,int year)
+        private List<dynamic> CalculateCityRanks(List<EvaluationCityProgressResultDto> progress)
+        {
+            return progress
+                .GroupBy(x => x.CityID)
+                .Select(g => new
+                {
+                    CityID = g.Key,
+                    ScoreProgress = Math.Round((g.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Sum()) / 14.0m, 2) 
+                })
+                .OrderByDescending(x => x.ScoreProgress)
+                .Select((x, index) => new
+                {
+                    x.CityID,
+                    x.ScoreProgress,
+                    Rank = index + 1
+                })
+                .ToList<dynamic>();
+        }
+        public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year)
         {
             var query = await GetCityAiSummeryDetails(userID, userRole, null, year);
             var citiesDetails = await query.ToListAsync();
 
-            if (userRole != UserRole.CityUser)
+            var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+
+            var cityRanks = CalculateCityRanks(progress);
+
+            ApplyCityRanking(citiesDetails, cityRanks);
+
+            var cityDetails = citiesDetails.FirstOrDefault(x=>x.CityID==cityID);
+
+            if (userRole != UserRole.CityUser && cityID.HasValue && cityDetails !=null)
             {
-                foreach(var cityDetails in citiesDetails)
-                {
-                    var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+                var cityProgress = progress.Where(x => x.CityID == cityID);
 
-                    var cities = progress.Where(x => x.CityID == cityDetails.CityID);
+                var cityScore = cityProgress
+                    .Select(x => x.ScoreProgress)
+                    .DefaultIfEmpty(0)
+                    .Sum();
 
-                    if (cities != null)
-                    {
-                        var cityScore = cities
-                            .Select(x => x.ScoreProgress)
-                            .DefaultIfEmpty(0)
-                            .Sum();
-                        cityScore = Math.Round(cityScore / 14.0m, 2);
+                cityScore = Math.Round(cityScore / 14.0m, 2);
 
-                        cityDetails.EvaluatorProgress = Math.Round(cityScore, 2);
-                        cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));
-                    }
-                }
-               
+                cityDetails.EvaluatorProgress = cityScore;
+                cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));
             }
-            return citiesDetails;
+
+            return cityDetails ?? new AiCitySummeryDto();
         }
 
+        public async Task<List<AiCitySummeryDto>> GetAllCityAiSummeryDetail(int userID, UserRole userRole, int year)
+        {
+            var query = await GetCityAiSummeryDetails(userID, userRole, null, year);
+            var citiesDetails = await query.ToListAsync();
+
+            var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+
+            var cityRanks = CalculateCityRanks(progress);
+
+            ApplyCityRanking(citiesDetails, cityRanks);
+
+            if (userRole != UserRole.CityUser)
+            {
+                foreach (var city in citiesDetails)
+                {
+                    var cr = cityRanks.FirstOrDefault(x => x.CityID == city.CityID);
+
+                    if (cr != null)
+                    {
+                        city.EvaluatorProgress = Math.Round(cr.ScoreProgress, 2);
+                        city.Discrepancy = Math.Abs(cr.ScoreProgress - (city.AIProgress ?? 0));
+                    }
+                }
+            }
+
+            return citiesDetails;
+        }
 
         #endregion
 

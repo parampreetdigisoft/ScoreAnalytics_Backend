@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Common.Implementation;
+using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.CommonDto;
@@ -18,13 +19,15 @@ namespace AssessmentPlatform.Services
         private readonly IAppLogger _appLogger;
         private readonly IWebHostEnvironment _env;
         private readonly IMemoryCache _cache;
+        private readonly ICommonService _commonService;
 
-        public PublicService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, IMemoryCache cache)
+        public PublicService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, IMemoryCache cache, ICommonService commonService)
         {
             _context = context;
             _appLogger = appLogger;
             _env = env;
             _cache = cache;
+            _commonService = commonService;
         }
         public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetAllCities()
         {
@@ -228,6 +231,13 @@ namespace AssessmentPlatform.Services
 
                 int currentYear = DateTime.Now.Year;
 
+                var admin = await _context.Users.FirstOrDefaultAsync(x => x.Role == Models.UserRole.Admin);
+
+                int role = (int)(admin?.Role ?? Models.UserRole.Admin);
+
+                var pillarScores = await _commonService.GetCitiesProgressAsync(admin?.UserID ?? 0, role, currentYear);
+
+
                 var result = await _context.AIPillarScores
                     .Include(x => x.City)
                     .Include(x => x.Pillar)
@@ -267,10 +277,22 @@ namespace AssessmentPlatform.Services
                     .OrderBy(p => p.DisplayOrder)
                     .ToListAsync();
 
+                foreach (var pillar in result)
+                {
+                    foreach (var city in pillar.Cities)
+                    {
+                        var score = pillarScores
+                            .Where(s => s.CityID == city.CityID && s.PillarID == pillar.PillarID)
+                            .Select(s => s.ScoreProgress)
+                            .FirstOrDefault();
+                        city.ScoreProgress = score;
+                    }
+                }
+
                 _cache.Set(cacheKey, result, new MemoryCacheEntryOptions
                 {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
-                    SlidingExpiration = TimeSpan.FromMinutes(2),
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                    SlidingExpiration = TimeSpan.FromMinutes(5),
                     Priority = CacheItemPriority.High
                 });
 
