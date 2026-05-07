@@ -266,7 +266,7 @@ namespace AssessmentPlatform.Common.Implementation
                     mainPart,
                     donutPng, radarPng,
                     city,
-                    14, 110,
+                    pillars.Count(), kpis.Count(),
                     best, worst,
                     validPillars));
 
