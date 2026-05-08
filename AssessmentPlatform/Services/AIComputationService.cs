@@ -10,8 +10,12 @@ using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using DocumentFormat.OpenXml.InkML;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using PeaceEnablers.Dtos.AiDto;
+using PeaceEnablers.Models;
 using System.Linq;
+using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
 {
@@ -25,8 +29,10 @@ namespace AssessmentPlatform.Services
         private readonly Download _download;
         private readonly IAIAnalyzeService _iAIAnalayzeService;
         private readonly IDocumentGeneratorService _documentGeneratorService;
+        private readonly IWebHostEnvironment _env;
         public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService,
-            Download download, IAIAnalyzeService iAIAnalayzeService, IDocumentGeneratorService documentGeneratorService)
+            Download download, IAIAnalyzeService iAIAnalayzeService, IDocumentGeneratorService documentGeneratorService,
+            IWebHostEnvironment env)
         {
             _context = context;
             _appLogger = appLogger;
@@ -34,6 +40,7 @@ namespace AssessmentPlatform.Services
             _download = download;
             _iAIAnalayzeService = iAIAnalayzeService;
             _documentGeneratorService = documentGeneratorService;
+            _env = env;
         }
         #endregion
 
@@ -1460,6 +1467,282 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<string>.Failure(new[] { "Failed to recalculate KPIs, please try again later." });
             }
         }
+
+
+        public async Task<ResultResponseDto<string>> UploadAiDocuments(
+            UploadAiDocumentRequest request,
+            int userID,
+            UserRole userRole)
+        {
+            try
+            {
+                if (userRole != UserRole.Admin)
+                {
+                    return ResultResponseDto<string>.Failure(
+                        new[] { "Failed to Upload Ai Documents, You don't have access." });
+                }
+
+                var basePath = Path.Combine(_env.WebRootPath, "aidocuments");
+
+                if (!Directory.Exists(basePath))
+                    Directory.CreateDirectory(basePath);
+
+                for (int i = 0; i < request.Files.Count; i++)
+                {
+                    var file = request.Files[i];
+                    var pillarId = request.PillarIDs[i];
+
+                    var ext = Path.GetExtension(file.FileName).ToLower();
+
+                    if (ext != ".pdf" && ext != ".docx")
+                        continue;
+
+                    if (!Directory.Exists(basePath))
+                        Directory.CreateDirectory(basePath);
+
+                    var storedFileName = $"{Guid.NewGuid()}{ext}";
+                    var fullPath = Path.Combine(basePath, storedFileName);
+
+                    // ✅ Save file
+                    using (var stream = new FileStream(fullPath, FileMode.Create))
+                    {
+                        await file.CopyToAsync(stream);
+                    }
+
+                    // ✅ Save DB record
+                    var doc = new CityDocument
+                    {
+                        FileName = file.FileName,
+                        StoredFileName = storedFileName,
+                        FilePath = fullPath,
+                        CityID = request.CityID,
+                        PillarID = pillarId == 0 ? null : pillarId,
+                        FileType = ext,
+                        FileSize = file.Length,
+                        ProcessingStatus = DocumentProcessingStatus.Pending,
+                        UpdatedAt = DateTime.UtcNow,
+                        UploadedByUserID = userID
+                    };
+
+                    _context.CityDocuments.Add(doc);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<string>.Success(
+                    "",
+                    new[] { "Upload Ai Documents has been initiated successfully." });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in Upload Ai Documents", ex);
+
+                return ResultResponseDto<string>.Failure(
+                    new[] { "Failed to Upload Ai Documents, please try again later." });
+            }
+        }
+
+        public async Task<PaginationResponse<GetCityDocumentResponseDto>> GetAICityDocuments(
+            AiCityDocumentRequestDto request,
+            int userID,
+            UserRole userRole)
+        {
+            try
+            {
+                Expression<Func<UserCityMapping, bool>> filter = userRole switch
+                {
+                    UserRole.Admin => x => !x.IsDeleted,
+                    UserRole.Analyst => x => !x.IsDeleted && (x.UserID == userID || x.AssignedByUserId == userID),
+                    UserRole.Evaluator => x => !x.IsDeleted && x.UserID == userID,
+                    _ => x => false
+                };
+
+                var userCityIds = await _context.UserCityMappings
+                    .Where(filter)
+                    .Select(x => x.CityID)
+                    .Distinct()
+                    .ToListAsync();
+
+                var query = _context.Cities
+                    .Where(c => !request.CityID.HasValue || c.CityID == request.CityID
+                        && userCityIds.Contains(c.CityID))
+                    .Select(x => new GetCityDocumentResponseDto
+                    {
+                        CityID = x.CityID,
+                        CityName = x.CityName,
+                        FileTypes = ""
+                    });
+
+                var result = await query.ApplyPaginationAsync(request);
+
+                // 🔥 FileTypes (optimized for selected countries only)
+                var cityIds = result.Data.Select(x => x.CityID).ToList();
+
+                var fileTypesData = await _context.CityDocuments
+                    .Where(x => !x.IsDeleted && cityIds.Contains(x.CityID))
+                    .GroupBy(x => x.CityID)
+                    .Select(g => new
+                    {
+                        CityID   = g.Key,
+                        FileTypes = g.Select(x => x.FileType).Distinct().ToList(),
+
+                        NoOfFiles = g.Count(),
+                        NoOfUsers = g.Select(d => d.UploadedByUserID).Distinct().Count(),
+                        FilesSize = g.Sum(d => (long?)d.FileSize) ?? 0,
+                    })
+                    .ToListAsync();
+
+                foreach (var item in result.Data)
+                {
+                    var ft = fileTypesData.FirstOrDefault(x => x.CityID == item.CityID);
+                    if (ft != null)
+                    {
+                        item.FileTypes = string.Join(", ", ft.FileTypes);
+                        item.NoOfFiles = ft.NoOfFiles;
+                        item.NoOfUsers = ft.NoOfUsers;
+                        item.FilesSize = ft.FilesSize;
+                    }
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in GetAIDocuments", ex);
+
+                return new PaginationResponse<GetCityDocumentResponseDto>();
+            }
+        }
+
+        public async Task<ResultResponseDto<List<GetCityPillarDocumentResponseDto>>> GetAICityPillarDocuments(
+             AiCityPillarDocumentRequestDto request,
+             int userID,
+             UserRole userRole)
+        {
+            try
+            {
+                var result = await _context.CityDocuments
+                   .Where(x => !x.IsDeleted && x.CityID == request.CityID)
+                   .Select(x => new GetCityPillarDocumentResponseDto
+                   {
+                       CityDocumentID = x.CityDocumentID,
+                       CityID = x.CityID,
+                       PillarID = x.PillarID,
+
+                       PillarName = _context.Pillars
+                           .Where(p => p.PillarID == x.PillarID)
+                           .Select(p => p.PillarName)
+                           .FirstOrDefault(),
+
+                       FileName = x.FileName,
+                       FilePath = x.FilePath,
+                       FileSize = x.FileSize,
+                       FileType = x.FileType,
+                       ProcessingStatus = x.ProcessingStatus,
+                       StoredFileName = x.StoredFileName,
+
+                       UploadedBy = "",
+                       UploadedByUserID = x.UploadedByUserID ?? 0
+                   })
+                   .OrderBy(x => x.PillarID)
+                   .ToListAsync();
+
+                var users = _context.Users
+                    .Where(x => result.Select(x => x.UploadedByUserID).Contains(x.UserID) && !x.IsDeleted)
+                    .ToDictionary(x => x.UserID, y => y.FullName);
+
+                foreach (var r in result)
+                {
+                    r.UploadedBy = users.TryGetValue(r.UploadedByUserID, out var userName) ? userName : "";
+                }
+
+                return ResultResponseDto<List<GetCityPillarDocumentResponseDto>>.Success(result, new[] { "Get documents successfully" });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in GetAIDocuments", ex);
+                return ResultResponseDto<List<GetCityPillarDocumentResponseDto>>.Failure(new[] { "Failed to get Documents, please try again later." });
+            }
+        }
+
+        public async Task<ResultResponseDto<string>> DeleteDocument(
+            DeleteCityDocumentRequestDto request,
+            int userID,
+            UserRole userRole)
+        {
+            try
+            {
+                var query = _context.CityDocuments
+                    .Where(x => !x.IsDeleted && x.CityID == request.CityID);
+
+                // 🔷 If not admin → only own documents
+                if (userRole != UserRole.Admin)
+                {
+                    query = query.Where(x => x.UploadedByUserID == userID && (!request.CityDocumentID.HasValue || x.CityDocumentID == request.CityDocumentID));
+                }
+
+                // 🔷 If NOT delete all → filter by document id
+                if (!request.IsAll && request.CityDocumentID.HasValue)
+                {
+                    query = query.Where(x => x.CityDocumentID == request.CityDocumentID.Value);
+                }
+
+                var documents = await query.ToListAsync();
+
+                if (!documents.Any())
+                {
+                    return ResultResponseDto<string>.Failure(
+                        new[] { "No documents found or you don't have permission." });
+                }
+
+                // 🔥 Soft delete
+                foreach (var doc in documents)
+                {
+                    doc.IsDeleted = true;
+                }
+
+                await _context.SaveChangesAsync();
+
+                return ResultResponseDto<string>.Success(
+                    "",
+                    new[] { "Document(s) deleted successfully." });
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occured in DeleteDocument", ex);
+
+                return ResultResponseDto<string>.Failure(
+                    new[] { "Failed to delete document, please try again later." });
+            }
+        }
+        public async Task<FileResult> DownloadDocument(int cityDocumentID, int userID, UserRole userRole)
+        {
+            var doc = await _context.CityDocuments
+                .FirstOrDefaultAsync(x => x.CityDocumentID == cityDocumentID && !x.IsDeleted);
+
+            if (doc == null)
+                throw new Exception("Document not found.");
+
+            if (!System.IO.File.Exists(doc.FilePath))
+                throw new Exception("File not found on server.");
+
+            var ext = Path.GetExtension(doc.FileName).ToLower();
+
+            var contentType = ext switch
+            {
+                ".pdf" => "application/pdf",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                _ => "application/octet-stream"
+            };
+
+            var stream = new FileStream(doc.FilePath, FileMode.Open, FileAccess.Read);
+
+            return new FileStreamResult(stream, contentType)
+            {
+                FileDownloadName = doc.FileName
+            };
+        }
+
     }
     public record PillarChartItem(string ShortName, string Name, decimal? Value);
     public record KpiChartItem(string ShortName, string Name, decimal? Value,string? Definition, int? CityID, List<FiveLevelInterpretationsDto> InterPretation);

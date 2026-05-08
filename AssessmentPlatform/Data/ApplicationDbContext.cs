@@ -1,6 +1,7 @@
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
+using PeaceEnablers.Models;
 
 namespace AssessmentPlatform.Data
 {
@@ -36,6 +37,7 @@ namespace AssessmentPlatform.Data
         public DbSet<AIUserCityMapping> AIUserCityMappings { get; set; }
         public DbSet<Blog> Blogs { get; set; }
         public DbSet<CityPeer> CityPeers { get; set; } = default!;
+        public DbSet<CityDocument> CityDocuments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -107,6 +109,11 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<FiveLevelInterpretation>(entity =>
             {
                 entity.HasKey(al => al.InterpretationID);
+            });
+            modelBuilder.Entity<CityDocument>(entity =>
+            {
+                entity.HasKey(e => e.CityDocumentID);
+                entity.ToTable("CityDocuments");
             });
             modelBuilder.Entity<CityUserPillarMapping>().HasKey(ur => ur.CityUserPillarMappingID);
 

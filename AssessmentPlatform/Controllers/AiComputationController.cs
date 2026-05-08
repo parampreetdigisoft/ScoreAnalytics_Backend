@@ -409,5 +409,113 @@ namespace AssessmentPlatform.Controllers
 
             return Ok(await _aIComputationService.ReCalculateKpis( userId.Value, userRole));
         }
+
+        [HttpPost("uploadAiDocuments")]
+        [Authorize(Roles = "Admin,Analyst")]
+        public async Task<IActionResult> UploadAiDocuments([FromForm] UploadAiDocumentRequest uploadAiDocumentRequest)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            if (uploadAiDocumentRequest.Files == null || !uploadAiDocumentRequest.Files.Any())
+                return BadRequest("No files uploaded.");
+
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _aIComputationService.UploadAiDocuments(uploadAiDocumentRequest, userId.Value, userRole));
+        }
+
+        [HttpGet("getAICityDocuments")]
+        [Authorize(Roles = "Admin,Analyst")]
+        public async Task<IActionResult> GetAICityDocuments([FromQuery] AiCityDocumentRequestDto  uploadAiDocumentRequest)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _aIComputationService.GetAICityDocuments(uploadAiDocumentRequest, userId.Value, userRole));
+        }
+
+        [HttpGet("getAICityPillarDocuments")]
+        [Authorize(Roles = "Admin,Analyst")]
+        public async Task<IActionResult> GetAICityillarDocuments([FromQuery] AiCityPillarDocumentRequestDto uploadAiDocumentRequest)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _aIComputationService.GetAICityPillarDocuments(uploadAiDocumentRequest, userId.Value, userRole));
+        }
+
+        [HttpPost("deleteDocument")]
+        [Authorize(Roles = "Admin,Analyst")]
+        public async Task<IActionResult> DeleteDocument([FromBody] DeleteCityDocumentRequestDto uploadAiDocumentRequest)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _aIComputationService.DeleteDocument(uploadAiDocumentRequest, userId.Value, userRole));
+        }
+
+        [HttpGet("downloadDocument/{Id}")]
+        [Authorize(Roles = "Admin,Analyst")]
+        public async Task<IActionResult> DownloadDocument(int Id)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            var result = await _aIComputationService.DownloadDocument(Id, userId.GetValueOrDefault(), userRole);
+
+            return result;
+        }
     }
 }

@@ -24,4 +24,19 @@ namespace AssessmentPlatform.Dtos.AiDto
         public int CityID { get; set; }
         public int Year { get; set; } = DateTime.UtcNow.Year;
     }
+    public class AiCityDocumentRequestDto : PaginationRequest
+    {
+        public int? CityID { get; set; }
+    }
+
+    public class AiCityPillarDocumentRequestDto : PaginationRequest
+    {
+        public int CityID { get; set; }
+    }
+    public class DeleteCityDocumentRequestDto
+    {
+        public int CityID { get; set; }
+        public int? CityDocumentID  { get; set; }
+        public bool IsAll { get; set; } = false;
+    }
 }

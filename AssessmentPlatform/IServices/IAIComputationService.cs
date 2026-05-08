@@ -2,6 +2,8 @@
 using AssessmentPlatform.Dtos.AiDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Models;
+using Microsoft.AspNetCore.Mvc;
+using PeaceEnablers.Dtos.AiDto;
 
 namespace AssessmentPlatform.IServices
 {
@@ -25,6 +27,12 @@ namespace AssessmentPlatform.IServices
         public Task<ResultResponseDto<Dictionary<int, List<AiCityPillarReponse>>>> GetAllCitiesAIPillars(int userID, UserRole userRole, int currentYear = 0);
         Task<ResultResponseDto<string>> AITransferAssessment(AITransferAssessmentRequestDto r, int userID, UserRole userRole);
         Task<ResultResponseDto<string>> ReCalculateKpis(int userID, UserRole userRole);
+
+        Task<ResultResponseDto<string>> UploadAiDocuments(UploadAiDocumentRequest r, int userID, UserRole userRole);
+        Task<PaginationResponse<GetCityDocumentResponseDto>> GetAICityDocuments(AiCityDocumentRequestDto request, int userID, UserRole userRole);
+        Task<ResultResponseDto<List<GetCityPillarDocumentResponseDto>>> GetAICityPillarDocuments(AiCityPillarDocumentRequestDto request, int userID, UserRole userRole);
+        Task<ResultResponseDto<string>> DeleteDocument(DeleteCityDocumentRequestDto request, int userID, UserRole userRole);
+        Task<FileResult> DownloadDocument(int cityDocumentID, int userID, UserRole userRole);
 
     }
 }
