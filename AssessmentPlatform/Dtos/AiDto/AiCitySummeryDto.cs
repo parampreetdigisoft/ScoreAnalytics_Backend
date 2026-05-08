@@ -29,5 +29,9 @@
         public int? TotalCity { get; set; }
         public int? RegionRank { get; set; }
         public int? RegionTotalCity { get; set; }
+        public string? ImmediateSituationSummary { get; set; }
+        public string? KeyDevelopments { get; set; }
+        public string? CriticalRisks { get; set; }
+        public string? Gaps { get; set; }
     }
 }

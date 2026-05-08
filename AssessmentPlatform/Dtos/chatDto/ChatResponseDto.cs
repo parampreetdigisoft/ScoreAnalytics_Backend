@@ -1,4 +1,4 @@
-﻿namespace PeaceEnablers.Dtos.chatDto
+﻿namespace AssessmentPlatform.Dtos.chatDto
 {
     public class ChatResponseDto
     {

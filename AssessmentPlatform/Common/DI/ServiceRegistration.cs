@@ -39,6 +39,7 @@ namespace AssessmentPlatform.Common.DI
             services.AddScoped<IPdfGeneratorService, PdfGeneratorService>();
             services.AddScoped<IDocxGeneratorService, DocxGeneratorService>();
             services.AddScoped<IDocumentGeneratorService, DocumentGeneratorService>();
+            services.AddScoped<IChatService, ChatService>();
 
             return services;
         }

@@ -1,7 +1,6 @@
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Models;
 using Microsoft.EntityFrameworkCore;
-using PeaceEnablers.Models;
 
 namespace AssessmentPlatform.Data
 {
@@ -38,6 +37,11 @@ namespace AssessmentPlatform.Data
         public DbSet<Blog> Blogs { get; set; }
         public DbSet<CityPeer> CityPeers { get; set; } = default!;
         public DbSet<CityDocument> CityDocuments { get; set; }
+        public DbSet<DocumentChunks> DocumentChunks { get; set; }
+        public DbSet<DocumentTOC> DocumentTOC { get; set; }
+
+        public DbSet<AssistantChatHistory> AssistantChatHistory { get; set; }
+        public DbSet<AIAssistantFAQ> AIAssistantFAQ { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -114,6 +118,27 @@ namespace AssessmentPlatform.Data
             {
                 entity.HasKey(e => e.CityDocumentID);
                 entity.ToTable("CityDocuments");
+            });
+            modelBuilder.Entity<DocumentTOC>(entity =>
+            {
+                entity.HasKey(e => e.TOCID);
+                entity.ToTable("DocumentTOC");
+            });
+            modelBuilder.Entity<DocumentChunks>(entity =>
+            {
+                entity.HasKey(e => e.ChunkID);
+                entity.ToTable("DocumentChunks");
+            });
+            modelBuilder.Entity<AssistantChatHistory>(entity =>
+            {
+                entity.HasKey(e => e.ChatID);
+                entity.ToTable("AssistantChatHistory");
+            });
+
+            modelBuilder.Entity<AIAssistantFAQ>(entity =>
+            {
+                entity.HasKey(e => e.FAQID);
+                entity.ToTable("AIAssistantFAQ");
             });
             modelBuilder.Entity<CityUserPillarMapping>().HasKey(ur => ur.CityUserPillarMappingID);
 

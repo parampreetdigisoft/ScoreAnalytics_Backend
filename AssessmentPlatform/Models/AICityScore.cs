@@ -23,6 +23,10 @@
         public City? City { get; set; }
         public bool IsVerified { get; set; }
         public int? VerifiedBy { get; set; }
+        public string? ImmediateSituationSummary { get; set; } // Generates structured summaries (daily, weekly, or on-demand)
+        public string? KeyDevelopments { get; set; }
+        public string? CriticalRisks { get; set; }
+        public string? Gaps { get; set; }
     }
 
 }

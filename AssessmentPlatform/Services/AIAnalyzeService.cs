@@ -44,6 +44,21 @@ namespace AssessmentPlatform.Services
 
         }
 
+        public async Task RunDailyJob()
+        {
+            try
+            {
+                await ImportAllCityImmediateSummary();
+                await ImportRemainingDocumentsToVectorDB();
+                await DeleteRemainingDocumentsToVectorDB();
+
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in Running job in Run daily job ", ex);
+            }
+        }
+
         public async Task ImportAiScore()
         {
             // if new city added
@@ -124,6 +139,96 @@ namespace AssessmentPlatform.Services
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
+        public async Task AnalyzeCityImmediateSituation(int cityId)
+        {
+            var url = aiUrl + AiEndpoints.AnalyzeCityImmediateSituation(cityId);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
+        }
+
+        public async Task ProcessDocument(int documentID)
+        {
+            var url = aiUrl + AiEndpoints.ProcessDocument(documentID);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
+        }
+        public async Task DeleteDocument(int documentID)
+        {
+            var url = aiUrl + AiEndpoints.DeleteDocument(documentID);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
+        }
+
+        public async Task<ChatCityAskQuestionResponse> ChatCityAsk(ChatCityAskQuestionRequest request)
+        {
+            var url = aiUrl + AiEndpoints.ChatCityAsk();
+            return await _httpService.SendAsync<ChatCityAskQuestionResponse>(HttpMethod.Post, url, request, headers) ?? new ChatCityAskQuestionResponse();            
+        }
+        public async Task<ChatCityAskQuestionResponse> ChatGlobalAsk(ChatGlobalAskQuestionRequest request)
+        {
+            var url = aiUrl + AiEndpoints.ChatGlobalAsk();
+            return await _httpService.SendAsync<ChatCityAskQuestionResponse>(HttpMethod.Post, url, request, headers) ?? new ChatCityAskQuestionResponse();            
+        }
+
+        public async Task ImportAllCityImmediateSummary()
+        {
+            var allCitiesIds = await _context.Cities.Where(x => x.IsActive && !x.IsDeleted).Select(x => x.CityID).ToListAsync();
+
+            foreach (var id in allCitiesIds)
+            {
+                await AnalyzeCityImmediateSituation(id);
+                await Task.Delay(200);
+            }
+
+        }
+
+        public async Task ImportRemainingDocumentsToVectorDB()
+        {
+            var activeDocumentIds = _context.CityDocuments
+                    .Where(x => !x.IsDeleted)
+                    .Select(x => x.CityDocumentID);
+
+            var data = await _context.DocumentChunks
+                .Where(x => !activeDocumentIds.Contains(x.CityDocumentID))
+                .Select(x => x.CityDocumentID)
+
+                .Union(
+                    _context.DocumentTOC
+                        .Where(x => !activeDocumentIds.Contains(x.CityDocumentID))
+                        .Select(x => x.CityDocumentID)
+                )
+                .Distinct()
+                .ToListAsync();
+
+
+            foreach (var documentID in data)
+            {
+                await ProcessDocument(documentID);
+                await Task.Delay(200);
+            }
+        }
+        public async Task DeleteRemainingDocumentsToVectorDB()
+        {
+            var activeDocumentIds = _context.CityDocuments
+                    .Where(x => x.IsDeleted)
+                    .Select(x => x.CityDocumentID);
+
+            var data = await _context.DocumentChunks
+                .Where(x => activeDocumentIds.Contains(x.CityDocumentID))
+                .Select(x => x.CityDocumentID)
+
+                .Union(
+                    _context.DocumentTOC
+                        .Where(x => activeDocumentIds.Contains(x.CityDocumentID))
+                        .Select(x => x.CityDocumentID)
+                )
+                .Distinct()
+                .ToListAsync();
+
+            foreach (var documentID in data)
+            {
+                await DeleteDocument(documentID);
+                await Task.Delay(200);
+            }
+        }
+
 
     }
 
@@ -132,6 +237,8 @@ namespace AssessmentPlatform.Services
     public static class AiEndpoints
     {
         private const string BasePath = "/api/cities-score-analysis";
+        private const string DocumentPath = "/api/rag";
+        private const string ChatPath = "/api/chat";
 
         public static string AnalyzeAllCitiesFull =>
             $"{BasePath}/analyze/full";
@@ -152,6 +259,39 @@ namespace AssessmentPlatform.Services
 
         public static string AnalyzeCityPillarQuestions(int cityId, int pillarId) =>
             $"{BasePath}/analyze/{cityId}/pillars/{pillarId}/questions";
+
+        public static string AnalyzeCityImmediateSituation(int cityId) =>
+           $"{BasePath}/analyze/{cityId}/immediateSituation";
+
+        public static string ProcessDocument(int documentId) =>
+            $"{DocumentPath}/process-document/{documentId}";
+        public static string DeleteDocument(int documentId) =>
+            $"{DocumentPath}/delete-document/{documentId}";
+        public static string ChatCityAsk() => $"{ChatPath}/city";
+        public static string ChatGlobalAsk() => $"{ChatPath}/global";
+    }
+
+    #endregion
+
+
+    #region Ai Models 
+
+    public class ChatCityAskQuestionRequest : ChatGlobalAskQuestionRequest
+    {
+        public int CityID { get; set; }
+        public int? PillarID { get; set; }
+    }
+    public class ChatGlobalAskQuestionRequest
+    {
+        public string QuestionText { get; set; }
+        public string? HistoryText { get; set; }
+        public int? FAQID { get; set; }
+    }
+    public class ChatCityAskQuestionResponse
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+        public string? Result { get; set; }
     }
 
     #endregion

@@ -16,6 +16,7 @@ namespace AssessmentPlatform.Backgroundjob
             // Run both schedules in parallel
             //_ = RunEvery2Hours(stoppingToken);
             //_ = RunEveryMonth(stoppingToken);
+            _ = RunDaily(stoppingToken);
 
             await Task.CompletedTask;
         }
@@ -61,6 +62,27 @@ namespace AssessmentPlatform.Backgroundjob
                     var aiService = scope.ServiceProvider.GetRequiredService<IAIAnalyzeService>();
 
                    // await aiService.RunMonthlyJob();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
+            }
+        }
+        private async Task RunDaily(CancellationToken token)
+        {
+            var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                try
+                {
+                    using var scope = _serviceProvider.CreateScope();
+
+                    var aiService = scope.ServiceProvider
+                        .GetRequiredService<IAIAnalyzeService>();
+
+                    await aiService.RunDailyJob();
                 }
                 catch (Exception ex)
                 {

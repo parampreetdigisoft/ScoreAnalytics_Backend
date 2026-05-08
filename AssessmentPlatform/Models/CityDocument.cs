@@ -1,11 +1,11 @@
 ﻿using DocumentFormat.OpenXml.Bibliography;
 
-namespace PeaceEnablers.Models
+namespace AssessmentPlatform.Models
 {
     public class CityDocument
     {
         public int CityDocumentID { get; set; }
-        public int CityID { get; set; }
+        public int? CityID { get; set; }
         public int? PillarID { get; set; }
         public string FileName { get; set; }
         public string StoredFileName { get; set; }
@@ -16,6 +16,7 @@ namespace PeaceEnablers.Models
         public int? UploadedByUserID { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public bool IsDeleted { get; set; }
+        public string DocumentLevel { get; set; }
     }
 
     public enum DocumentProcessingStatus

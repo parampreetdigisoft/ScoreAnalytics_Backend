@@ -1,4 +1,6 @@
-﻿namespace AssessmentPlatform.IServices
+﻿using AssessmentPlatform.Services;
+
+namespace AssessmentPlatform.IServices
 {
     public interface IAIAnalyzeService
     {
@@ -9,8 +11,14 @@
         Task AnalyzeSinglePillar(int cityId, int pillarId);
         Task AnalyzeQuestionsOfCity(int cityId);
         Task AnalyzeQuestionsOfCityPillar(int cityId, int pillarId);
-
+        Task ProcessDocument(int documentID);
+        Task DeleteDocument(int documentID);
+        Task AnalyzeCityImmediateSituation(int cityId);
+        Task<ChatCityAskQuestionResponse> ChatCityAsk(ChatCityAskQuestionRequest request);
+        Task<ChatCityAskQuestionResponse> ChatGlobalAsk(ChatGlobalAskQuestionRequest request);
         Task RunEvery2HoursJob();
         Task RunMonthlyJob();
+        Task RunDailyJob();
+        
     }
 }

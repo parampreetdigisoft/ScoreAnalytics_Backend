@@ -22,6 +22,18 @@ namespace AssessmentPlatform.Common.Implementation
         }
         #endregion
 
+        public static string InitailLineOfExecutiveSummery(
+          string evidenceSummary,
+          string? immediateSituationSummary,
+          decimal? progress,
+          string? cityName = "The city", int pillarCount = 14, int kpiCount = 110)
+        {
+            immediateSituationSummary = immediateSituationSummary ?? "";
+
+            var evidenceSummaryStaringLine = $"{cityName ?? "The city"} records an overall VUI score of {progress ?? 0}, reflecting performance across {pillarCount} pillars and {kpiCount} KPIs.";
+
+            return immediateSituationSummary + "\n\n " + evidenceSummaryStaringLine + " " + evidenceSummary;
+        }
         public async Task<List<EvaluationCityProgressResultDto>> GetCitiesProgressAsync(int userId, int role, int year)
         {
             try

@@ -1,6 +1,6 @@
-﻿using PeaceEnablers.Models;
+﻿using AssessmentPlatform.Models;
 
-namespace PeaceEnablers.Dtos.AiDto
+namespace AssessmentPlatform.Dtos.AiDto
 {
     public class GetCityDocumentResponseDto
     {
@@ -15,7 +15,7 @@ namespace PeaceEnablers.Dtos.AiDto
     public class GetCityPillarDocumentResponseDto
     {
         public int CityDocumentID { get; set; }
-        public int CityID { get; set; }
+        public int? CityID { get; set; }
         public int? PillarID { get; set; }
         public string? PillarName { get; set; }
         public string FileName { get; set; }

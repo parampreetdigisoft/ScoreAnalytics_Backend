@@ -2,19 +2,16 @@
 using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AiDto;
-using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
-using DocumentFormat.OpenXml.InkML;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using PeaceEnablers.Dtos.AiDto;
-using PeaceEnablers.Models;
-using System.Linq;
+using Microsoft.Extensions.Options;
 using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
@@ -30,9 +27,10 @@ namespace AssessmentPlatform.Services
         private readonly IAIAnalyzeService _iAIAnalayzeService;
         private readonly IDocumentGeneratorService _documentGeneratorService;
         private readonly IWebHostEnvironment _env;
+        private readonly AppSettings _appSettings;
         public AIComputationService(ApplicationDbContext context, IAppLogger appLogger, ICommonService commonService,
             Download download, IAIAnalyzeService iAIAnalayzeService, IDocumentGeneratorService documentGeneratorService,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env, IOptions<AppSettings> appSettings)
         {
             _context = context;
             _appLogger = appLogger;
@@ -41,6 +39,7 @@ namespace AssessmentPlatform.Services
             _iAIAnalayzeService = iAIAnalayzeService;
             _documentGeneratorService = documentGeneratorService;
             _env = env;
+            _appSettings = appSettings.Value;
         }
         #endregion
 
@@ -60,9 +59,17 @@ namespace AssessmentPlatform.Services
             {
                 IQueryable<AiCitySummeryDto> query = await GetCityAiSummeryDetails(userID, userRole, request.CityID, request.Year);
 
-                var result = await query.ApplyPaginationAsync(request); 
+                var result = await query.ApplyPaginationAsync(request);
+                var analyticalLayers = _context.AnalyticalLayers.AsQueryable();
+                int pillarCount = _appSettings.PillarCount;
+                var totalValidKpis = await analyticalLayers.Distinct().CountAsync();
 
-                if(userRole != UserRole.CityUser)
+                foreach (var c in result.Data)
+                {
+                    c.EvidenceSummary = CommonService.InitailLineOfExecutiveSummery(c.EvidenceSummary, c.ImmediateSituationSummary, c.AIProgress, c.CityName, pillarCount, totalValidKpis);
+                }
+
+                if (userRole != UserRole.CityUser)
                 {
                     var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
 
@@ -215,7 +222,11 @@ namespace AssessmentPlatform.Services
                     UpdatedAt = score != null ? score.UpdatedAt : null,
                     IsVerified = score != null ? score.IsVerified : false,
 
-                    Comment = cmt != null ? cmt.Comment : null
+                    Comment = cmt != null ? cmt.Comment : null,
+                    ImmediateSituationSummary = score != null ? score.ImmediateSituationSummary : null,
+                    KeyDevelopments = score != null ? score.KeyDevelopments : null,
+                    CriticalRisks = score != null ? score.CriticalRisks : null,
+                    Gaps = score != null ? score.Gaps : null
                 };
 
 
@@ -710,7 +721,7 @@ namespace AssessmentPlatform.Services
                 }
 
 
-                await _download.AiResearchByCityId(dto.CityID, dto.CityEnable, dto.PillarEnable, dto.QuestionEnable);
+                await _download.AiResearchByCityId(dto.CityID, dto.CityEnable, dto.PillarEnable, dto.QuestionEnable, dto.ImmediateSummaryEnable);
                 var aiResponse = await _context.AICityScores.FirstOrDefaultAsync(x => x.CityID == dto.CityID && x.City.IsActive && !x.City.IsDeleted);
                 if(aiResponse != null)
                 {
@@ -928,13 +939,18 @@ namespace AssessmentPlatform.Services
             var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
 
             var cityRanks = CalculateCityRanks(progress);
+            var analyticalLayers = _context.AnalyticalLayers.AsQueryable();
+            var totalValidKpis = await analyticalLayers.Distinct().CountAsync();
+
+            int pillarCount = _appSettings.PillarCount;
 
             ApplyCityRanking(citiesDetails, cityRanks);
 
             var cityDetails = citiesDetails.FirstOrDefault(x=>x.CityID==cityID);
 
-            if (userRole != UserRole.CityUser && cityID.HasValue && cityDetails !=null)
+            if (cityDetails !=null && userRole != UserRole.CityUser && cityID.HasValue )
             {
+                cityDetails.EvidenceSummary = CommonService.InitailLineOfExecutiveSummery(cityDetails.EvidenceSummary, cityDetails.ImmediateSituationSummary, cityDetails.AIProgress, cityDetails.CityName, pillarCount, totalValidKpis);
                 var cityProgress = progress.Where(x => x.CityID == cityID);
 
                 var cityScore = cityProgress
@@ -955,7 +971,9 @@ namespace AssessmentPlatform.Services
         {
             var query = await GetCityAiSummeryDetails(userID, userRole, null, year);
             var citiesDetails = await query.ToListAsync();
-
+            var analyticalLayers = _context.AnalyticalLayers.AsQueryable();
+            var totalValidKpis = await analyticalLayers.Distinct().CountAsync();
+            int pillarCount = _appSettings.PillarCount;
             var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
 
             var cityRanks = CalculateCityRanks(progress);
@@ -966,6 +984,8 @@ namespace AssessmentPlatform.Services
             {
                 foreach (var city in citiesDetails)
                 {
+                    city.EvidenceSummary = CommonService.InitailLineOfExecutiveSummery(city.EvidenceSummary,
+                    city.ImmediateSituationSummary, city.AIProgress, city.CityName, pillarCount, totalValidKpis);
                     var cr = cityRanks.FirstOrDefault(x => x.CityID == city.CityID);
 
                     if (cr != null)
@@ -1518,16 +1538,19 @@ namespace AssessmentPlatform.Services
                         CityID = request.CityID,
                         PillarID = pillarId == 0 ? null : pillarId,
                         FileType = ext,
-                        FileSize = file.Length,
+                        FileSize = file.Length / 1024,//kb file will be store now
                         ProcessingStatus = DocumentProcessingStatus.Pending,
                         UpdatedAt = DateTime.UtcNow,
-                        UploadedByUserID = userID
+                        UploadedByUserID = userID,
+                        DocumentLevel = GetDocumentLevel(request.CityID, pillarId)
                     };
 
                     _context.CityDocuments.Add(doc);
+                    await _context.SaveChangesAsync();
+                    await _iAIAnalayzeService.ProcessDocument(doc.CityDocumentID);
                 }
 
-                await _context.SaveChangesAsync();
+                
 
                 return ResultResponseDto<string>.Success(
                     "",
@@ -1566,7 +1589,7 @@ namespace AssessmentPlatform.Services
                 var query = _context.Cities
                     .Where(c => !request.CityID.HasValue || c.CityID == request.CityID
                         && userCityIds.Contains(c.CityID))
-                    .Select(x => new GetCityDocumentResponseDto
+                    .Select(x => new GetCityDocumentResponseDto 
                     {
                         CityID = x.CityID,
                         CityName = x.CityName,
@@ -1575,22 +1598,21 @@ namespace AssessmentPlatform.Services
 
                 var result = await query.ApplyPaginationAsync(request);
 
-                // 🔥 FileTypes (optimized for selected countries only)
+                // 🔥 FileTypes (optimized for selected cities only)
                 var cityIds = result.Data.Select(x => x.CityID).ToList();
 
-                var fileTypesData = await _context.CityDocuments
-                    .Where(x => !x.IsDeleted && cityIds.Contains(x.CityID))
-                    .GroupBy(x => x.CityID)
-                    .Select(g => new
-                    {
-                        CityID   = g.Key,
-                        FileTypes = g.Select(x => x.FileType).Distinct().ToList(),
+                var fileTypesData = await _context.CityDocuments.Where(x =>!x.IsDeleted && x.CityID.HasValue &&
+                                     cityIds.Contains(x.CityID.Value)).GroupBy(x => x.CityID)
+                                    .Select(g => new
+                                    {
+                                        CityID = g.Key,
+                                        FileTypes = g.Select(x => x.FileType).Distinct().ToList(),
 
-                        NoOfFiles = g.Count(),
-                        NoOfUsers = g.Select(d => d.UploadedByUserID).Distinct().Count(),
-                        FilesSize = g.Sum(d => (long?)d.FileSize) ?? 0,
-                    })
-                    .ToListAsync();
+                                        NoOfFiles = g.Count(),
+                                        NoOfUsers = g.Select(d => d.UploadedByUserID).Distinct().Count(),
+                                        FilesSize = g.Sum(d => (long?)d.FileSize) ?? 0,
+                                    })
+                            .ToListAsync();
 
                 foreach (var item in result.Data)
                 {
@@ -1615,24 +1637,24 @@ namespace AssessmentPlatform.Services
         }
 
         public async Task<ResultResponseDto<List<GetCityPillarDocumentResponseDto>>> GetAICityPillarDocuments(
-             AiCityPillarDocumentRequestDto request,
-             int userID,
-             UserRole userRole)
+              AiCityPillarDocumentRequestDto request,
+              int userID,
+              UserRole userRole)
         {
             try
             {
                 var result = await _context.CityDocuments
-                   .Where(x => !x.IsDeleted && x.CityID == request.CityID)
+                   .Where(x => !x.IsDeleted && (x.CityID == request.CityID || x.CityID == null))
                    .Select(x => new GetCityPillarDocumentResponseDto
                    {
                        CityDocumentID = x.CityDocumentID,
                        CityID = x.CityID,
                        PillarID = x.PillarID,
 
-                       PillarName = _context.Pillars
+                       PillarName = x.CityID.HasValue ? _context.Pillars
                            .Where(p => p.PillarID == x.PillarID)
                            .Select(p => p.PillarName)
-                           .FirstOrDefault(),
+                           .FirstOrDefault() : x.DocumentLevel,
 
                        FileName = x.FileName,
                        FilePath = x.FilePath,
@@ -1648,7 +1670,8 @@ namespace AssessmentPlatform.Services
                    .ToListAsync();
 
                 var users = _context.Users
-                    .Where(x => result.Select(x => x.UploadedByUserID).Contains(x.UserID) && !x.IsDeleted)
+                    .Where(x => result.Select(x => x.UploadedByUserID)
+                    .Contains(x.UserID) && !x.IsDeleted)
                     .ToDictionary(x => x.UserID, y => y.FullName);
 
                 foreach (var r in result)
@@ -1699,6 +1722,7 @@ namespace AssessmentPlatform.Services
                 foreach (var doc in documents)
                 {
                     doc.IsDeleted = true;
+                    await _iAIAnalayzeService.DeleteDocument(doc.CityDocumentID);
                 }
 
                 await _context.SaveChangesAsync();
@@ -1742,8 +1766,24 @@ namespace AssessmentPlatform.Services
                 FileDownloadName = doc.FileName
             };
         }
+        static string GetDocumentLevel(int? countryID, int? pillarID)
+        {
+            if (countryID == null)
+            {
+                return "Global";
+            }
+            else if (countryID > 0 && (pillarID == null || pillarID == 0))
+            {
+                return "Country_Pillar";
+            }
+            else
+            {
+                return "Country";
+            }
+        }
 
     }
+  
     public record PillarChartItem(string ShortName, string Name, decimal? Value);
     public record KpiChartItem(string ShortName, string Name, decimal? Value,string? Definition, int? CityID, List<FiveLevelInterpretationsDto> InterPretation);
     public record FiveLevelInterpretationsDto ( 

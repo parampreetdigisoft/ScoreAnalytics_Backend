@@ -196,6 +196,8 @@ namespace AssessmentPlatform.Backgroundjob
 
                     if (channel.CityEnable)
                         await aiService.AnalyzeSingleCity(channel.CityID.Value);
+                    if (!channel.CityEnable && channel.ImmediateSummaryEnable)
+                        await aiService.AnalyzeCityImmediateSituation(channel.CityID.Value);
                 }
 
                 
