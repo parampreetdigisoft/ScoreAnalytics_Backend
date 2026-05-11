@@ -12,7 +12,7 @@ namespace AssessmentPlatform.Common.Implementation
             _httpClient = httpClient;
         }
 
-        public async Task<T?> SendAsync<T>(HttpMethod method,string url,object? body = null, Dictionary<string, string>? headers = null)
+        public async Task<T?> SendAsync<T>(HttpMethod method, string url, object? body = null, Dictionary<string, string>? headers = null)
         {
             // Add headers if provided
             if (headers != null)
@@ -31,7 +31,7 @@ namespace AssessmentPlatform.Common.Implementation
 
             if (body != null)
             {
-                var json = JsonSerializer.Serialize(body);
+                var json = JsonSerializer.Serialize(body, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             }
 
@@ -43,7 +43,11 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 try
                 {
-                    var result = await response.Content.ReadFromJsonAsync<T>();
+                    var result = await response.Content.ReadFromJsonAsync<T>(
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
                     return result;
                 }
                 catch
