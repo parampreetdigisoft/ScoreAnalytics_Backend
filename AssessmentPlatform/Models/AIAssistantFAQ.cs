@@ -10,5 +10,6 @@
         public bool IsActive { get; set; }
         public int DisplayOrder { get; set; }
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        public string ProcName { get; set; }
     }
 }
