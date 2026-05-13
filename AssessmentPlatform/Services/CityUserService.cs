@@ -630,6 +630,41 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<List<CityPillarQuestionDetailsDto>>.Failure(new[] { "There is an error, please try later" });
             }
         }
+
+        public async Task<ResultResponseDto<List<Pillar>>> GetAllAsync(int userId, UserRole userRole)
+        {
+            try
+            {
+                var userPillar = await _context.CityUserPillarMappings
+                    .Where(x => x.IsActive && x.UserID == userId)
+                    .Select(x => x.Pillar)
+                    .Where(x => x != null)
+                    .Distinct()
+                    .ToListAsync();
+
+                return new ResultResponseDto<List<Pillar>>(
+                    true,
+                    userPillar.Where(x => x != null).ToList()!,
+                    new List<string>(),
+                    new List<string> { "Pillars fetched successfully." },
+                    200,
+                    null
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error Occure in GetAllAsync", ex);
+
+                return new ResultResponseDto<List<Pillar>>(
+                    false,
+                    new List<Pillar>(),
+                    new List<string> { ex.Message },
+                    new List<string>(),
+                    500,
+                    null
+                );
+            }
+        }
         public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetCityUserCities(int userID)
         {
             try

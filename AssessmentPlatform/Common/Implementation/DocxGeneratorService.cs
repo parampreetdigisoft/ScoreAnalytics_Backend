@@ -386,78 +386,245 @@ namespace AssessmentPlatform.Common.Implementation
 
         // ── LEFT: Donut card (40 % width) ────────────────────────────────────────────
         private TableCell BuildDonutCell(
-        MainDocumentPart mainPart,
-        byte[] donutPng,
-        AiCitySummeryDto city,
-        int pillarCount,
-        int kpiCount,
-        PillarChartItem? best,
-        PillarChartItem? worst)
+     MainDocumentPart mainPart,
+     byte[] donutPng,
+     AiCitySummeryDto city,
+     int pillarCount,
+     int kpiCount,
+     PillarChartItem? best,
+     PillarChartItem? worst)
         {
-            int leftDxa = (int)(ContentDxa * 0.30);   // 40 % of page content width
+            int leftDxa = (int)(ContentDxa * 0.30);
+
             long imgEmuW = (long)leftDxa * 914400L / 1440L;
-            long imgEmuH = imgEmuW * 220 / 320;        // keep aspect of 320×220 render
+            long imgEmuH = imgEmuW * 220 / 320;
 
             var cell = new TableCell();
 
-            // ── Cell properties ──
-            cell.Append(new TableCellProperties(
-                new TableCellWidth { Width = leftDxa.ToString(), Type = TableWidthUnitValues.Dxa },
-                CellNoBorder(),
-                new TableCellMargin(
-                    new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }),
-                new Shading { Val = ShadingPatternValues.Clear, Color = "auto", Fill = "FFFFFF" }));
-
-            // ── Heading ──
-            cell.Append(CenteredBoldPara("Overall City Score", "12352f", "20"));
-            // ── Ranking Labels ──
-            var globalRankLabel = city.Rank.HasValue && city.TotalCity.HasValue && city.TotalCity > 1
-                ? $"Global Rank: {city.Rank} / {city.TotalCity}"
-                : "Global Rank: N/A";
-
-            var regionName = string.IsNullOrEmpty(city.Region) ? "Region" : city.Region;
-
-            var regionRankLabel = city.RegionRank.HasValue && city.RegionTotalCity.HasValue && city.RegionTotalCity > 1
-                ? $"{regionName}: {city.RegionRank} / {city.RegionTotalCity}"
-                : $"{regionName}: N/A";
-
-            // ✅ Safe paragraph instead of table
+            // ─────────────────────────────────────────────
+            // Cell Properties
+            // ─────────────────────────────────────────────
             cell.Append(
-                new Paragraph(
-                    new ParagraphProperties(
-                        new Justification { Val = JustificationValues.Center }
-                    ),
-                    new Run(
-                        new RunProperties(new Bold(), new FontSize { Val = "16" }),
-                        new Text(globalRankLabel + "   |   ")
-                    ),
-                    new Run(
-                        new RunProperties(new Bold(), new Color { Val = "5D3B00" }, new FontSize { Val = "16" }),
-                        new Text(regionRankLabel)
-                    )
-                )
-            );
+                new TableCellProperties(
+                    new TableCellWidth
+                    {
+                        Width = leftDxa.ToString(),
+                        Type = TableWidthUnitValues.Dxa
+                    },
+                    CellNoBorder(),
+                    new TableCellMargin(
+                        new TopMargin
+                        {
+                            Width = "80",
+                            Type = TableWidthUnitValues.Dxa
+                        },
+                        new BottomMargin
+                        {
+                            Width = "80",
+                            Type = TableWidthUnitValues.Dxa
+                        },
+                        new LeftMargin
+                        {
+                            Width = "80",
+                            Type = TableWidthUnitValues.Dxa
+                        },
+                        new RightMargin
+                        {
+                            Width = "80",
+                            Type = TableWidthUnitValues.Dxa
+                        }),
+                    new Shading
+                    {
+                        Val = ShadingPatternValues.Clear,
+                        Color = "auto",
+                        Fill = "FFFFFF"
+                    }));
 
-            // ── Donut image ──
-            cell.Append(EmbedImage(mainPart, donutPng, imgEmuW, imgEmuH));
+            // ─────────────────────────────────────────────
+            // Heading
+            // ─────────────────────────────────────────────
+            cell.Append(
+                CenteredBoldPara(
+                    "Overall City Score",
+                    "12352f",
+                    "20"));
 
-            
-            // ── Pillars | KPIs row ──
-            cell.Append(BuildPillarKpiTable(pillarCount, kpiCount, leftDxa));
+            // ─────────────────────────────────────────────
+            // Rank Labels
+            // ─────────────────────────────────────────────
+            var globalRankLabel =
+                city.Rank.HasValue &&
+                city.TotalCity.HasValue &&
+                city.TotalCity > 1
+                    ? $"Global Rank: {city.Rank} / {city.TotalCity}"
+                    : "Global Rank: N/A";
 
-            // ── Best / Worst badges ──
+            var regionName =
+                string.IsNullOrEmpty(city.Region)
+                    ? "Region"
+                    : city.Region;
+
+            var regionRankLabel =
+                city.RegionRank.HasValue &&
+                city.RegionTotalCity.HasValue &&
+                city.RegionTotalCity > 1
+                    ? $"{regionName}: {city.RegionRank} / {city.RegionTotalCity}"
+                    : $"{regionName}: N/A";
+
+            // ─────────────────────────────────────────────
+            // Donut Image
+            // ─────────────────────────────────────────────
+            cell.Append(
+                EmbedImage(
+                    mainPart,
+                    donutPng,
+                    imgEmuW,
+                    imgEmuH));
+
+            // ─────────────────────────────────────────────
+            // Pillars | KPIs Table
+            // ─────────────────────────────────────────────
+            cell.Append(
+                BuildPillarKpiTable(
+                    pillarCount,
+                    kpiCount,
+                    leftDxa));
+
+            // ─────────────────────────────────────────────
+            // Best Pillar + Global Rank
+            // ─────────────────────────────────────────────
             if (best != null)
-                cell.Append(BadgePara($"▲  {Shorten(best.Name, 22)}  ({best.Value:F0}%)",
-                    "E8F5E9", "2E7D32", "1B5E20"));
+            {
+                cell.Append(
+                    BuildDualBadgeRow(
+                        $"▲ {Shorten(best.Name, 16)} ({best.Value:F0})",
+                        "E8F5E9",
+                        "1B5E20",
+
+                        globalRankLabel,
+                        "E8F0EC",
+                        "12352f"
+                    ));
+            }
+
+            // ─────────────────────────────────────────────
+            // Worst Pillar + Region Rank
+            // ─────────────────────────────────────────────
             if (worst != null)
-                cell.Append(BadgePara($"▼  {Shorten(worst.Name, 22)}  ({worst.Value:F0}%)",
-                    "FDECEA", "C62828", "B71C1C"));
+            {
+                cell.Append(
+                    BuildDualBadgeRow(
+                        $"▼ {Shorten(worst.Name, 16)} ({worst.Value:F0})",
+                        "FDECEA",
+                        "B71C1C",
+
+                        regionRankLabel,
+                        "FFF3E0",
+                        "5D3B00"
+                    ));
+            }
 
             return cell;
-        }        
+        }
+
+        private Table BuildDualBadgeRow(
+    string leftText,
+    string leftBg,
+    string leftColor,
+
+    string rightText,
+    string rightBg,
+    string rightColor)
+        {
+            var table = new Table(
+                new TableProperties(
+                    new TableWidth
+                    {
+                        Width = "100%",
+                        Type = TableWidthUnitValues.Pct
+                    },
+                    new TableBorders(
+                        new TopBorder { Val = BorderValues.None },
+                        new BottomBorder { Val = BorderValues.None },
+                        new LeftBorder { Val = BorderValues.None },
+                        new RightBorder { Val = BorderValues.None },
+                        new InsideHorizontalBorder { Val = BorderValues.None },
+                        new InsideVerticalBorder { Val = BorderValues.None }
+                    )));
+
+            var row = new TableRow();
+
+            // Left badge
+            row.Append(
+                new TableCell(
+                    new TableCellProperties(
+                        new TableCellWidth
+                        {
+                            Width = "65%",
+                            Type = TableWidthUnitValues.Pct
+                        },
+                        new Shading
+                        {
+                            Val = ShadingPatternValues.Clear,
+                            Fill = leftBg
+                        },
+                        CellNoBorder()
+                    ),
+                    new Paragraph(
+                        new ParagraphProperties(
+                            new SpacingBetweenLines
+                            {
+                                Before = "40",
+                                After = "40"
+                            }),
+                        new Run(
+                            new RunProperties(
+                                new Color { Val = leftColor },
+                                new FontSize { Val = "14" }),
+                            new Text(leftText)
+                        ))
+                ));
+
+            // Right badge
+            row.Append(
+                new TableCell(
+                    new TableCellProperties(
+                        new TableCellWidth
+                        {
+                            Width = "35%",
+                            Type = TableWidthUnitValues.Pct
+                        },
+                        new Shading
+                        {
+                            Val = ShadingPatternValues.Clear,
+                            Fill = rightBg
+                        },
+                        CellNoBorder()
+                    ),
+                    new Paragraph(
+                        new ParagraphProperties(
+                            new Justification
+                            {
+                                Val = JustificationValues.Center
+                            },
+                            new SpacingBetweenLines
+                            {
+                                Before = "40",
+                                After = "40"
+                            }),
+                        new Run(
+                            new RunProperties(
+                                new Bold(),
+                                new Color { Val = rightColor },
+                                new FontSize { Val = "14" }),
+                            new Text(rightText)
+                        ))
+                ));
+
+            table.Append(row);
+
+            return table;
+        }
 
         // ── RIGHT: Radar card (60 % width) ───────────────────────────────────────────
         private TableCell BuildRadarCell(

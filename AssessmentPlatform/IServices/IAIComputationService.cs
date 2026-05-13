@@ -21,7 +21,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<bool>> RegenerateAiSearch(RegenerateAiSearchDto aiCityIdsDto, int userID, UserRole userRole);
         Task<ResultResponseDto<bool>> AddComment(AddCommentDto aiCityIdsDto, int userID, UserRole userRole);
         Task<ResultResponseDto<bool>> RegeneratePillarAiSearch(RegeneratePillarAiSearchDto aiCityIdsDto, int userID, UserRole userRole);
-        Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year);
+        Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year, string reportType = "AI");
         Task<List<AiCitySummeryDto>> GetAllCityAiSummeryDetail(int userID, UserRole userRole, int year);
         Task<byte[]> GenerateAllCityDetailsReport(List<AiCitySummeryDto> cityDetails, UserRole userRole, int userID, int year, Common.Interface.DocumentFormat format = Common.Interface.DocumentFormat.Pdf);
         public Task<ResultResponseDto<Dictionary<int, List<AiCityPillarReponse>>>> GetAllCitiesAIPillars(int userID, UserRole userRole, int currentYear = 0);

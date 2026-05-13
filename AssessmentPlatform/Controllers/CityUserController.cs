@@ -4,6 +4,7 @@ using AssessmentPlatform.Dtos.CityUserDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Enums;
 using AssessmentPlatform.IServices;
+using AssessmentPlatform.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -224,6 +225,27 @@ namespace AssessmentPlatform.Controllers
             return File(content.Item2,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 content.Item1);
+        }
+
+        
+        [HttpGet]
+        [Route("GetAllPillarAsync")]
+        public async Task<IActionResult> GetAll()
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _cityUserService.GetAllAsync(userId.GetValueOrDefault(), userRole));
         }
     }
 }

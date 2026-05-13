@@ -26,5 +26,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<AiCityPillarReponseDto>> GetAICityPillars(AiCityPillarRequestDto r, int userID, string tierName);
         Task<Tuple<string, byte[]>> ExportCompareCities(CompareKpiCityRequest request, int userId, string tierName);
 
+        Task<ResultResponseDto<List<Pillar>>> GetAllAsync(int userId, UserRole userRole);
+
     }
 }

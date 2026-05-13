@@ -287,6 +287,7 @@ namespace AssessmentPlatform.Services
                             .FirstOrDefault();
                         city.ScoreProgress = score;
                     }
+                    pillar.Cities = pillar.Cities.OrderByDescending(c => c.ScoreProgress).ToList();
                 }
 
                 _cache.Set(cacheKey, result, new MemoryCacheEntryOptions

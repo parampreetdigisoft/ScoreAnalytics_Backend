@@ -858,7 +858,7 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        private void ApplyCityRanking(List<AiCitySummeryDto> citiesDetails,List<dynamic> cityRanks)
+        private void ApplyCityRanking(List<AiCitySummeryDto> citiesDetails,List<dynamic> cityRanks, string reportType = "AI")
         {
             var totalCityCount = citiesDetails.Count;
 
@@ -880,7 +880,9 @@ namespace AssessmentPlatform.Services
             {
                 var rankedCities = cityRanks
                     .Where(x => region.Value.Contains(x.CityID))
-                    .OrderByDescending(x => x.ScoreProgress)
+                    .OrderByDescending(x => reportType == "AI"
+                        ? (x.AiProgress ?? 0)
+                        : (x.ScoreProgress ?? 0))
                     .Select((x, index) => new
                     {
                         x.CityID,
@@ -913,36 +915,40 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        private List<dynamic> CalculateCityRanks(List<EvaluationCityProgressResultDto> progress)
+        private List<dynamic> CalculateCityRanks(List<EvaluationCityProgressResultDto> progress, decimal pillarCount, string reportType = "AI")
         {
-            return progress
+            var groupedProgress = progress
                 .GroupBy(x => x.CityID)
                 .Select(g => new
                 {
                     CityID = g.Key,
-                    ScoreProgress = Math.Round((g.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Sum()) / 14.0m, 2) 
-                })
-                .OrderByDescending(x => x.ScoreProgress)
-                .Select((x, index) => new
-                {
-                    x.CityID,
-                    x.ScoreProgress,
-                    Rank = index + 1
-                })
-                .ToList<dynamic>();
+                    ScoreProgress = Math.Round((g.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Sum()) / pillarCount, 2),
+                    AiProgress = g.Select(x => x.AIProgress).DefaultIfEmpty(0).Average()
+                });
+
+            return groupedProgress
+                    .OrderByDescending(x => reportType == "AI" ? x.AiProgress : x.ScoreProgress)
+                    .Select((x, index) => new
+                    {
+                        x.CityID,
+                        x.ScoreProgress,
+                        x.AiProgress,
+                        Rank = index + 1
+                    })
+                    .ToList<dynamic>();
         }
-        public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year)
+        public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year, string reportType = "AI")
         {
+            reportType = reportType.ToUpper();
             var query = await GetCityAiSummeryDetails(userID, userRole, null, year);
             var citiesDetails = await query.ToListAsync();
 
             var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
-
-            var cityRanks = CalculateCityRanks(progress);
             var analyticalLayers = _context.AnalyticalLayers.AsQueryable();
             var totalValidKpis = await analyticalLayers.Distinct().CountAsync();
 
             int pillarCount = _appSettings.PillarCount;
+            var cityRanks = CalculateCityRanks(progress, pillarCount, reportType);
 
             ApplyCityRanking(citiesDetails, cityRanks);
 
@@ -976,7 +982,8 @@ namespace AssessmentPlatform.Services
             int pillarCount = _appSettings.PillarCount;
             var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
 
-            var cityRanks = CalculateCityRanks(progress);
+            var cityRanks = CalculateCityRanks(progress, pillarCount
+                );
 
             ApplyCityRanking(citiesDetails, cityRanks);
 
@@ -1587,8 +1594,15 @@ namespace AssessmentPlatform.Services
                     .ToListAsync();
 
                 var query = _context.Cities
-                    .Where(c => !request.CityID.HasValue || c.CityID == request.CityID
-                        && userCityIds.Contains(c.CityID))
+                     .Where(c =>
+                        (
+                            !request.CityID.HasValue
+                            || c.CityID == request.CityID
+                        )
+                        && (userCityIds.Contains(c.CityID) || userRole == UserRole.Admin)
+                        && c.IsActive
+                        && !c.IsDeleted
+                    )
                     .Select(x => new GetCityDocumentResponseDto 
                     {
                         CityID = x.CityID,

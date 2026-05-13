@@ -118,7 +118,7 @@ namespace AssessmentPlatform.Controllers
                      return Unauthorized("You don't have access.");
 
                 var cityDetails = await _aIComputationService
-                    .GetCityAiSummeryDetail(userId.Value, userRole, request.CityID, request.Year);
+                    .GetCityAiSummeryDetail(userId.Value, userRole, request.CityID, request.Year, request.ReportType);
 
                 string fileName;
                 byte[] fileBytes;
