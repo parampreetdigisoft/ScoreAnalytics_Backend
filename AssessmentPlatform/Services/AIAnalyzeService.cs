@@ -167,6 +167,21 @@ namespace AssessmentPlatform.Services
             return await _httpService.SendAsync<ChatCityAskQuestionResponse>(HttpMethod.Post, url, request, headers) ?? new ChatCityAskQuestionResponse();            
         }
 
+        public async Task<ChatCityExecutiveSlidesResponse?> GetCitySlides(int cityId)
+        {
+            var url = aiUrl + AiEndpoints.CitySlides();
+
+            return await _httpService.SendAsync<ChatCityExecutiveSlidesResponse>(
+                HttpMethod.Post,
+                url,
+                new CitySlidesRequest
+                {
+                    CityId = cityId
+                },
+                headers
+            );
+        }
+
         public async Task ImportAllCityImmediateSummary()
         {
             var allCitiesIds = await _context.Cities.Where(x => x.IsActive && !x.IsDeleted).Select(x => x.CityID).ToListAsync();
@@ -269,6 +284,8 @@ namespace AssessmentPlatform.Services
             $"{DocumentPath}/delete-document/{documentId}";
         public static string ChatCityAsk() => $"{ChatPath}/city";
         public static string ChatGlobalAsk() => $"{ChatPath}/global";
+
+        public static string CitySlides() => $"{ChatPath}/executive-slides";
     }
 
     #endregion
@@ -293,6 +310,70 @@ namespace AssessmentPlatform.Services
         public string? Message { get; set; }
         public string? Result { get; set; }
     }
+    public class PerformanceSummary
+    {
+        public string Trend { get; set; } = string.Empty;
 
+        public string Summary { get; set; } = string.Empty;
+    }
+
+    public class CombinedRiskItem
+    {
+        public int Rank { get; set; }
+
+        public string Title { get; set; } = string.Empty;
+
+        public int RiskScore { get; set; }
+
+        public string Severity { get; set; } = string.Empty;
+
+        public string Trend { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public string Recommendation { get; set; } = string.Empty;
+    }
+
+    public class EarlyWarningItem
+    {
+        public string Title { get; set; } = string.Empty;
+
+        public string Description { get; set; } = string.Empty;
+
+        public string Timeframe { get; set; } = string.Empty;
+
+        public string ImpactLevel { get; set; } = string.Empty;
+    }
+
+    public class CityExecutiveSlidesResult
+    {
+        public int CityId { get; set; }
+
+        public string CityName { get; set; } = string.Empty;
+
+        public PerformanceSummary DailyPerformance { get; set; } = new();
+
+        public PerformanceSummary WeeklyPerformance { get; set; } = new();
+
+        public PerformanceSummary MonthlyPerformance { get; set; } = new();
+
+        public List<CombinedRiskItem> CombinedRisks { get; set; } = new();
+
+        public List<EarlyWarningItem> EarlyWarnings { get; set; } = new();
+    }
+
+    public class ChatCityExecutiveSlidesResponse
+    {
+        public bool Success { get; set; }
+
+        public string Message { get; set; } = string.Empty;
+
+        public CityExecutiveSlidesResult Result { get; set; } = new();
+    }
+
+    public class CitySlidesRequest
+    {
+        public int CityId { get; set; }
+    }
     #endregion
 }

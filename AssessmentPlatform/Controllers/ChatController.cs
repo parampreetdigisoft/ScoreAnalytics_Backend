@@ -76,6 +76,25 @@ namespace AssessmentPlatform.Controllers
             return Ok(await _chatService.AskAboutCity(request));
         }
 
+        [HttpPost("citySlides")]
+        public async Task<IActionResult> GetCitySlides([FromBody] int cityId)
+        {
+            var userId = GetUserIdFromClaims();
+            if (userId == null)
+                return Unauthorized("User ID not found in token.");
+
+            var role = GetRoleFromClaims();
+            if (role == null)
+                return Unauthorized("You Don't have access.");
+
+            if (!Enum.TryParse<UserRole>(role, true, out var userRole))
+            {
+                return Unauthorized("You Don't have access.");
+            }
+
+            return Ok(await _chatService.GetCitySlides(cityId));
+        }
+
         [HttpPost("askGlobalQuestion")]
         public async Task<IActionResult> AskGlobalQuestion([FromBody] ChatGlobalAskQuestionRequestDto request)
         {

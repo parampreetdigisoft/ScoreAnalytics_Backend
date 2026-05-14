@@ -2,9 +2,10 @@
 
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.chatDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
-using AssessmentPlatform.Dtos.chatDto;
+using Microsoft.Extensions.Caching.Memory;
 
 
 
@@ -16,12 +17,14 @@ namespace AssessmentPlatform.Services
         private readonly ApplicationDbContext _context;
         private readonly IAppLogger _appLogger;
         private readonly IAIAnalyzeService _aIAnalyzeService;
+        private readonly IMemoryCache _cache;
         public ChatService(ApplicationDbContext context,
-            IAppLogger appLogger, IAIAnalyzeService aIAnalyzeService)
+            IAppLogger appLogger, IAIAnalyzeService aIAnalyzeService, IMemoryCache cache)
         {
             _context = context;
             _appLogger = appLogger;
             _aIAnalyzeService = aIAnalyzeService;
+            _cache = cache;
         }
         public async Task<ResultResponseDto<List<AIAssistantFAQDto>>> GetAssistantFAQDs(int userId, UserRole userRole)
         {
@@ -83,6 +86,77 @@ namespace AssessmentPlatform.Services
             {
                 await _appLogger.LogAsync("An error occurred while processing the AskAboutCity request.", ex);
                 return ResultResponseDto<ChatResponseDto>.Failure(new[] { "An error occurred while processing your request. Please try again later." });
+            }
+        }
+
+
+        public async Task<ResultResponseDto<ChatCityExecutiveSlidesResponse>> GetCitySlides(int cityId)
+        {
+            string cacheKey = $"CitySlides_{cityId}";
+
+            try
+            {
+                // ✅ Try cache first
+                if (_cache.TryGetValue(
+                    cacheKey,
+                    out ChatCityExecutiveSlidesResponse cachedResult))
+                {
+                    return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Success(
+                        cachedResult,
+                        new List<string>
+                        {
+                    "City executive slides fetched successfully from cache."
+                        }
+                    );
+                }
+
+                // ✅ Fetch from AI service
+                var result = await _aIAnalyzeService.GetCitySlides(cityId);
+
+                if (result == null || result.Success != true)
+                {
+                    return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Failure(
+                        new[]
+                        {
+                    result?.Message ??
+                    "Failed to fetch city executive slides from VUI Aevum."
+                        }
+                    );
+                }
+
+                // ✅ Store in cache
+                _cache.Set(
+                    cacheKey,
+                    result,
+                    new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                        SlidingExpiration = TimeSpan.FromMinutes(5),
+                        Priority = CacheItemPriority.High
+                    });
+
+                // ✅ Return response
+                return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Success(
+                    result,
+                    new List<string>
+                    {
+                "City executive slides fetched successfully."
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync(
+                    "An error occurred while processing the GetCitySlides request.",
+                    ex
+                );
+
+                return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Failure(
+                    new[]
+                    {
+                "An error occurred while processing your request. Please try again later."
+                    }
+                );
             }
         }
 
