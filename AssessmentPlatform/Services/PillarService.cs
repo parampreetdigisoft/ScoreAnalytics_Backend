@@ -638,7 +638,7 @@ namespace AssessmentPlatform.Services
                 // =========================
                 // 2. AI DATA
                 // =========================
-                var aiDataList = await _context.AIEstimatedQuestionScores
+                var aiDataList = await _context.AIPillarScores
                     .Where(x => x.CityID == request.CityID
                         && (!request.PillarID.HasValue || x.PillarID == request.PillarID)
                         && x.Year == year)
@@ -649,6 +649,17 @@ namespace AssessmentPlatform.Services
                         Score = g.Sum(x => x.AIScore ?? 0),
                         ScoreProgress = g.Average(x => x.AIProgress ?? 0),
                         Count = g.Count()
+                    })
+                    .ToListAsync();
+
+                var pillars = await _context.Pillars
+                    .Where(p => !request.PillarID.HasValue || p.PillarID == request.PillarID)
+                    .Select(p => new
+                    {
+                        p.PillarID,
+                        p.PillarName,
+                        p.DisplayOrder,
+                        TotalQuestion = p.Questions.Count()
                     })
                     .ToListAsync();
 
@@ -666,90 +677,72 @@ namespace AssessmentPlatform.Services
                     }
                 );
 
-                // =========================
-                // 3. ALL PILLARS (MAIN FIX)
-                // =========================
-                var pillars = await _context.Pillars
-                    .Where(p => !request.PillarID.HasValue || p.PillarID == request.PillarID)
-                    .Select(p => new
-                    {
-                        p.PillarID,
-                        p.PillarName,
-                        p.DisplayOrder,
-                        TotalQuestion = p.Questions.Count()
-                    })
-                    .ToListAsync();
-
-                // =========================
-                // 4. FINAL RESULT (FROM PILLARS)
-                // =========================
                 var result = pillars
-                    .Select(p =>
-                    {
-                        var pillarRawData = rawData
-                            .Where(x => x.PillarID == p.PillarID)
-                            .ToList();
+                     .Select(p =>
+                     {
+                         var pillarRawData = rawData
+                             .Where(x => x.PillarID == p.PillarID)
+                             .ToList();
 
-                        var users = pillarRawData
-                            .GroupBy(x => x.UserID)
-                            .Select(userGroup =>
-                            {
-                                var responses = userGroup
-                                    .SelectMany(x => x.Responses)
-                                    .Where(r => r.Score.HasValue &&
-                                                (int)r.Score.Value <= (int)ScoreValue.Four)
-                                    .ToList();
+                         var users = pillarRawData
+                             .GroupBy(x => x.UserID)
+                             .Select(userGroup =>
+                             {
+                                 var responses = userGroup
+                                     .SelectMany(x => x.Responses)
+                                     .Where(r => r.Score.HasValue &&
+                                                 (int)r.Score.Value <= (int)ScoreValue.Four)
+                                     .ToList();
 
-                                var score = responses.Sum(r => (int?)r.Score ?? 0);
-                                var scoreCount = responses.Count;
+                                 var score = responses.Sum(r => (int?)r.Score ?? 0);
+                                 var scoreCount = responses.Count;
 
-                                decimal progress = scoreCount > 0
-                                    ? score * 100m / (scoreCount * 4m)
-                                    : 0m;
+                                 decimal progress = scoreCount > 0
+                                     ? score * 100m / (scoreCount * 4m)
+                                     : 0m;
 
-                                return new PillarsUserHistroyResponseDto
-                                {
-                                    UserID = userGroup.Key,
-                                    FullName = usersDict.GetValueOrDefault(userGroup.Key, ""),
-                                    Score = score,
-                                    ScoreProgress = progress,
-                                    TotalQuestion = p.TotalQuestion,
-                                    AnsQuestion = responses.Count,
-                                    AnsPillar = responses.Any() ? 1 : 0
-                                };
-                            })
-                            .ToList();
+                                 return new PillarsUserHistroyResponseDto
+                                 {
+                                     UserID = userGroup.Key,
+                                     FullName = usersDict.GetValueOrDefault(userGroup.Key, ""),
+                                     Score = score,
+                                     ScoreProgress = progress,
+                                     TotalQuestion = p.TotalQuestion,
+                                     AnsQuestion = responses.Count,
+                                     AnsPillar = responses.Any() ? 1 : 0
+                                 };
+                             })
+                             .ToList();
 
-                        // ? Insert AI row (always)
-                        if (aiData.TryGetValue(p.PillarID, out var aiPillar))
-                        {
-                            users.Insert(0, aiPillar);
-                        }
-                        else
-                        {
-                            users.Insert(0, new PillarsUserHistroyResponseDto
-                            {
-                                UserID = int.MaxValue,
-                                FullName = "AI_Result",
-                                Score = 0,
-                                ScoreProgress = 0,
-                                TotalQuestion = p.TotalQuestion,
-                                AnsQuestion = 0,
-                                AnsPillar = 0
-                            });
-                        }
+                         // ? Insert AI row (always)
+                         if (aiData.TryGetValue(p.PillarID, out var aiPillar))
+                         {
+                             users.Insert(0, aiPillar);
+                         }
+                         else
+                         {
+                             users.Insert(0, new PillarsUserHistroyResponseDto
+                             {
+                                 UserID = int.MaxValue,
+                                 FullName = "AI_Result",
+                                 Score = 0,
+                                 ScoreProgress = 0,
+                                 TotalQuestion = p.TotalQuestion,
+                                 AnsQuestion = 0,
+                                 AnsPillar = 0
+                             });
+                         }
 
-                        return new PillarsHistroyResponseDto
-                        {
-                            PillarID = p.PillarID,
-                            PillarName = p.PillarName,
-                            DisplayOrder = p.DisplayOrder,
-                            Users = users
-                        };
-                    })
-                    .OrderBy(x => x.DisplayOrder)
-                    .ToList();
-
+                         return new PillarsHistroyResponseDto
+                         {
+                             PillarID = p.PillarID,
+                             PillarName = p.PillarName,
+                             DisplayOrder = p.DisplayOrder,
+                             Users = users
+                         };
+                     })
+                     .OrderBy(x => x.DisplayOrder)
+                     .ToList();
                 // =========================
                 // 5. PAGINATION
                 // =========================
