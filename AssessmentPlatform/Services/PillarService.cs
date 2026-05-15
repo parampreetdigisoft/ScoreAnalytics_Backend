@@ -39,7 +39,7 @@ namespace AssessmentPlatform.Services
 
         }
 
-        public async Task<Pillar> GetByIdAsync(int id)
+        public async Task<Pillar?> GetByIdAsync(int id)
         {
             try
             {

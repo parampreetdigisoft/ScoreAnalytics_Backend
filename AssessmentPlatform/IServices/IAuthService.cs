@@ -8,7 +8,7 @@ namespace AssessmentPlatform.IServices
     public interface IAuthService
     {
         User Register(string fullName, string email, string phn, string password, UserRole role);
-        User GetByEmail(string email);
+        User? GetByEmail(string email);
         Task<User?> GetByEmailAysync(string email);
         bool VerifyPassword(string password, string hash);
         Task<ResultResponseDto<UserResponseDto>> Login(string email, string password);
