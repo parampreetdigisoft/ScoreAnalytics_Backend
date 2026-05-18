@@ -1,4 +1,5 @@
-﻿using AssessmentPlatform.Services;
+﻿using AssessmentPlatform.Dtos.chatDto;
+using AssessmentPlatform.Services;
 
 namespace AssessmentPlatform.IServices
 {
@@ -16,6 +17,8 @@ namespace AssessmentPlatform.IServices
         Task AnalyzeCityImmediateSituation(int cityId);
         Task<ChatCityAskQuestionResponse> ChatCityAsk(ChatCityAskQuestionRequest request);
         Task<ChatCityAskQuestionResponse> ChatGlobalAsk(ChatGlobalAskQuestionRequest request);
+        Task<ChatCityAskQuestionResponse> CrossComparision(CrossComparisionRequest request);
+
         Task<ChatCityExecutiveSlidesResponse?> GetCitySlides(int cityId);
         Task RunEvery2HoursJob();
         Task RunMonthlyJob();

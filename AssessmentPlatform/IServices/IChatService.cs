@@ -14,5 +14,7 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<ChatResponseDto>> AskAboutCity(CityChatRequestDto request);
         Task<ResultResponseDto<ChatResponseDto>> AskAboutGlobal(ChatGlobalAskQuestionRequestDto request);
         Task<ResultResponseDto<ChatCityExecutiveSlidesResponse>> GetCitySlides(int cityId);
+
+        Task<ResultResponseDto<ChatResponseDto>> CrossComparision(CrossComparisionRequestDto request);
     }
 }

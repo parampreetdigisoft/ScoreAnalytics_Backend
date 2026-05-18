@@ -11,4 +11,18 @@
         public string? HistoryText { get; set; }
         public int? FAQID { get; set; }
     }
+
+    public class CrossComparisionRequestDto
+    {
+        public List<int> CityIDs { get; set; }
+        public string QuestionText { get; set; }
+        public string? HistoryText { get; set; }
+    }
+
+    public class CrossComparisionRequest
+    {
+        public List<int> CityIDs { get; set; }
+        public string QuestionText { get; set; }
+        public string? HistoryText { get; set; }
+    }
 }

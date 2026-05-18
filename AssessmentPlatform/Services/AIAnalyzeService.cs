@@ -1,6 +1,7 @@
 ﻿using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.chatDto;
 using AssessmentPlatform.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -167,6 +168,14 @@ namespace AssessmentPlatform.Services
             return await _httpService.SendAsync<ChatCityAskQuestionResponse>(HttpMethod.Post, url, request, headers) ?? new ChatCityAskQuestionResponse();            
         }
 
+        public async Task<ChatCityAskQuestionResponse> CrossComparision(CrossComparisionRequest request)
+        {
+            var url = aiUrl + AiEndpoints.CrossComparision();
+            var result = await _httpService.SendAsync<ChatCityAskQuestionResponse>(HttpMethod.Post, url, request, headers);
+
+            return result;
+        }
+
         public async Task<ChatCityExecutiveSlidesResponse?> GetCitySlides(int cityId)
         {
             var url = aiUrl + AiEndpoints.CitySlides();
@@ -285,6 +294,8 @@ namespace AssessmentPlatform.Services
         public static string ChatCityAsk() => $"{ChatPath}/city";
         public static string ChatGlobalAsk() => $"{ChatPath}/global";
 
+        public static string CrossComparision() => $"{ChatPath}/cross-comparision";
+
         public static string CitySlides() => $"{ChatPath}/executive-slides";
     }
 
@@ -351,11 +362,7 @@ namespace AssessmentPlatform.Services
 
         public string CityName { get; set; } = string.Empty;
 
-        public PerformanceSummary DailyPerformance { get; set; } = new();
-
-        public PerformanceSummary WeeklyPerformance { get; set; } = new();
-
-        public PerformanceSummary MonthlyPerformance { get; set; } = new();
+        public PerformanceSummary RecentPerformance { get; set; } = new();
 
         public List<CombinedRiskItem> CombinedRisks { get; set; } = new();
 
