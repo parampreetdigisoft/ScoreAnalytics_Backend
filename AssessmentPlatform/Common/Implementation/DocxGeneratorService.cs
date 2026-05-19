@@ -281,7 +281,7 @@ namespace AssessmentPlatform.Common.Implementation
 
             }
 
-            body.AppendChild(Gap(20));
+            body.AppendChild(Gap(5));
 
             // Row 2: KPI stats band
             int green = kpis.Count(k => k.Value >= 70);
@@ -291,7 +291,7 @@ namespace AssessmentPlatform.Common.Implementation
                 body.Append(el);
 
 
-            body.AppendChild(Gap(20));
+            body.AppendChild(Gap(5));
 
             if (kpis.Any())
             {
@@ -309,13 +309,17 @@ namespace AssessmentPlatform.Common.Implementation
         {
             return new Table(
                 new TableProperties(
-                    new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa }
-                ),
+                   new TableWidth { Width = ContentDxa.ToString(), Type = TableWidthUnitValues.Dxa }
+                   ),
                 new TableRow(
+                    new TableRowProperties(
+                        new CantSplit() { Val = OnOffOnlyValues.Off }
+                    ),
+
                     // LEFT: Title
                     new TableCell(
                         new TableCellProperties(
-                            new TableCellWidth { Width = (ContentDxa * 3 / 4).ToString(), Type = TableWidthUnitValues.Dxa },
+                           new TableCellWidth { Width = (ContentDxa * 3 / 4).ToString(), Type = TableWidthUnitValues.Dxa },
                             new TableCellBorders(
                                 new TopBorder { Val = BorderValues.None },
                                 new BottomBorder { Val = BorderValues.None },
@@ -323,7 +327,7 @@ namespace AssessmentPlatform.Common.Implementation
                                 new RightBorder { Val = BorderValues.None }
                             )
                         ),
-                        new Paragraph(
+                         new Paragraph(
                             new ParagraphProperties(new Justification { Val = JustificationValues.Left }),
                             new Run(
                                 new RunProperties(new Bold(), new FontSize { Val = "18" }),
@@ -344,7 +348,7 @@ namespace AssessmentPlatform.Common.Implementation
                             )
                         ),
                         new Paragraph(
-                            new ParagraphProperties(new Justification { Val = JustificationValues.Right }),
+                           new ParagraphProperties(new Justification { Val = JustificationValues.Right }),
                             new Run(
                                 new RunProperties(new Bold(), new FontSize { Val = "18" }),
                                 new Text($"Avg: {avgText}")
@@ -386,13 +390,13 @@ namespace AssessmentPlatform.Common.Implementation
 
         // ── LEFT: Donut card (40 % width) ────────────────────────────────────────────
         private TableCell BuildDonutCell(
-     MainDocumentPart mainPart,
-     byte[] donutPng,
-     AiCitySummeryDto city,
-     int pillarCount,
-     int kpiCount,
-     PillarChartItem? best,
-     PillarChartItem? worst)
+    MainDocumentPart mainPart,
+    byte[] donutPng,
+    AiCitySummeryDto city,
+    int pillarCount,
+    int kpiCount,
+    PillarChartItem? best,
+    PillarChartItem? worst)
         {
             int leftDxa = (int)(ContentDxa * 0.30);
 
@@ -400,10 +404,7 @@ namespace AssessmentPlatform.Common.Implementation
             long imgEmuH = imgEmuW * 220 / 320;
 
             var cell = new TableCell();
-
-            // ─────────────────────────────────────────────
             // Cell Properties
-            // ─────────────────────────────────────────────
             cell.Append(
                 new TableCellProperties(
                     new TableCellWidth
@@ -415,22 +416,22 @@ namespace AssessmentPlatform.Common.Implementation
                     new TableCellMargin(
                         new TopMargin
                         {
-                            Width = "80",
+                            Width = "20",
                             Type = TableWidthUnitValues.Dxa
                         },
                         new BottomMargin
                         {
-                            Width = "80",
+                            Width = "20",
                             Type = TableWidthUnitValues.Dxa
                         },
                         new LeftMargin
                         {
-                            Width = "80",
+                            Width = "20",
                             Type = TableWidthUnitValues.Dxa
                         },
                         new RightMargin
                         {
-                            Width = "80",
+                            Width = "20",
                             Type = TableWidthUnitValues.Dxa
                         }),
                     new Shading
@@ -440,40 +441,33 @@ namespace AssessmentPlatform.Common.Implementation
                         Fill = "FFFFFF"
                     }));
 
-            // ─────────────────────────────────────────────
             // Heading
-            // ─────────────────────────────────────────────
             cell.Append(
                 CenteredBoldPara(
                     "Overall City Score",
                     "12352f",
                     "20"));
 
-            // ─────────────────────────────────────────────
             // Rank Labels
-            // ─────────────────────────────────────────────
             var globalRankLabel =
                 city.Rank.HasValue &&
                 city.TotalCity.HasValue &&
-                city.TotalCity > 1
+                city.TotalCity >= 1
                     ? $"Global Rank: {city.Rank} / {city.TotalCity}"
                     : "Global Rank: N/A";
 
             var regionName =
-                string.IsNullOrEmpty(city.Region)
+                string.IsNullOrWhiteSpace(city.Region)
                     ? "Region"
                     : city.Region;
 
             var regionRankLabel =
                 city.RegionRank.HasValue &&
                 city.RegionTotalCity.HasValue &&
-                city.RegionTotalCity > 1
+                city.RegionTotalCity >= 1
                     ? $"{regionName}: {city.RegionRank} / {city.RegionTotalCity}"
                     : $"{regionName}: N/A";
-
-            // ─────────────────────────────────────────────
             // Donut Image
-            // ─────────────────────────────────────────────
             cell.Append(
                 EmbedImage(
                     mainPart,
@@ -481,21 +475,19 @@ namespace AssessmentPlatform.Common.Implementation
                     imgEmuW,
                     imgEmuH));
 
-            // ─────────────────────────────────────────────
-            // Pillars | KPIs Table
-            // ─────────────────────────────────────────────
-            cell.Append(
+            // Pillars / KPI Table
+            var pillarTable =
                 BuildPillarKpiTable(
                     pillarCount,
                     kpiCount,
-                    leftDxa));
+                    leftDxa);
 
-            // ─────────────────────────────────────────────
-            // Best Pillar + Global Rank
-            // ─────────────────────────────────────────────
+            cell.Append(pillarTable);
+
+            // Best Pillar
             if (best != null)
             {
-                cell.Append(
+                var bestTable =
                     BuildDualBadgeRow(
                         $"▲ {Shorten(best.Name, 16)} ({best.Value:F0})",
                         "E8F5E9",
@@ -504,15 +496,14 @@ namespace AssessmentPlatform.Common.Implementation
                         globalRankLabel,
                         "E8F0EC",
                         "12352f"
-                    ));
-            }
+                    );
 
-            // ─────────────────────────────────────────────
-            // Worst Pillar + Region Rank
-            // ─────────────────────────────────────────────
+                cell.Append(bestTable);
+            }
+            // Worst Pillar
             if (worst != null)
             {
-                cell.Append(
+                var worstTable =
                     BuildDualBadgeRow(
                         $"▼ {Shorten(worst.Name, 16)} ({worst.Value:F0})",
                         "FDECEA",
@@ -521,26 +512,32 @@ namespace AssessmentPlatform.Common.Implementation
                         regionRankLabel,
                         "FFF3E0",
                         "5D3B00"
-                    ));
+                    );
+                cell.Append(worstTable);
+            }
+
+            // REQUIRED for Word 2003/2007 compatibility
+            if (!(cell.LastChild is Paragraph))
+            {
+                cell.Append(new Paragraph());
             }
 
             return cell;
         }
 
         private Table BuildDualBadgeRow(
-    string leftText,
-    string leftBg,
-    string leftColor,
-
-    string rightText,
-    string rightBg,
-    string rightColor)
+            string leftText,
+            string leftBg,
+            string leftColor,
+            string rightText,
+            string rightBg,
+            string rightColor)
         {
             var table = new Table(
                 new TableProperties(
                     new TableWidth
                     {
-                        Width = "100%",
+                        Width = "5000",
                         Type = TableWidthUnitValues.Pct
                     },
                     new TableBorders(
@@ -554,13 +551,13 @@ namespace AssessmentPlatform.Common.Implementation
 
             var row = new TableRow();
 
-            // Left badge
+            // LEFT BADGE
             row.Append(
                 new TableCell(
                     new TableCellProperties(
                         new TableCellWidth
                         {
-                            Width = "65%",
+                            Width = "3250",
                             Type = TableWidthUnitValues.Pct
                         },
                         new Shading
@@ -570,13 +567,15 @@ namespace AssessmentPlatform.Common.Implementation
                         },
                         CellNoBorder()
                     ),
+
                     new Paragraph(
                         new ParagraphProperties(
                             new SpacingBetweenLines
                             {
-                                Before = "40",
-                                After = "40"
+                                Before = "0",
+                                After = "0"
                             }),
+
                         new Run(
                             new RunProperties(
                                 new Color { Val = leftColor },
@@ -585,13 +584,13 @@ namespace AssessmentPlatform.Common.Implementation
                         ))
                 ));
 
-            // Right badge
+            // RIGHT BADGE
             row.Append(
                 new TableCell(
                     new TableCellProperties(
                         new TableCellWidth
                         {
-                            Width = "35%",
+                            Width = "1750",
                             Type = TableWidthUnitValues.Pct
                         },
                         new Shading
@@ -609,8 +608,8 @@ namespace AssessmentPlatform.Common.Implementation
                             },
                             new SpacingBetweenLines
                             {
-                                Before = "40",
-                                After = "40"
+                                Before = "0",
+                                After = "0"
                             }),
                         new Run(
                             new RunProperties(
@@ -626,37 +625,48 @@ namespace AssessmentPlatform.Common.Implementation
             return table;
         }
 
-        // ── RIGHT: Radar card (60 % width) ───────────────────────────────────────────
         private TableCell BuildRadarCell(
             MainDocumentPart mainPart,
             byte[] radarPng,
             List<PillarChartItem> pillars)
         {
-            int rightDxa = (int)(ContentDxa * 0.60);   // 60 % of page content width
+            int rightDxa = (int)(ContentDxa * 0.60);
+
             long imgEmuW = (long)rightDxa * 914400L / 1440L;
-            long imgEmuH = imgEmuW * 280 / 460;        // keep aspect of 460×280 render
+            
+            long imgEmuH = imgEmuW * 220 / 460;
 
             var cell = new TableCell();
 
-            cell.Append(new TableCellProperties(
-                new TableCellWidth { Width = rightDxa.ToString(), Type = TableWidthUnitValues.Dxa },
-                CellNoBorder(),
-                new TableCellMargin(
-                    new TopMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new BottomMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new LeftMargin { Width = "80", Type = TableWidthUnitValues.Dxa },
-                    new RightMargin { Width = "80", Type = TableWidthUnitValues.Dxa }),
+            cell.Append(
+                new TableCellProperties(
+                    new TableCellWidth
+                    {
+                        Width = rightDxa.ToString(),
+                        Type = TableWidthUnitValues.Dxa
+                    },
+
+                    CellNoBorder(),
+
+                   new TableCellMargin(
+                    new TopMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
+                    new BottomMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
+                    new LeftMargin { Width = "20", Type = TableWidthUnitValues.Dxa },
+                    new RightMargin { Width = "20", Type = TableWidthUnitValues.Dxa }),
                 new Shading { Val = ShadingPatternValues.Clear, Color = "auto", Fill = "FFFFFF" }));
 
-            // ── Heading ──
-            cell.Append(CenteredBoldPara("Pillar Performance Radar", "12352f", "20"));
+            cell.Append( CenteredBoldPara( "Pillar Performance Radar","12352f","20"));
 
-            // ── Radar image ──
-            cell.Append(EmbedImage(mainPart, radarPng, imgEmuW, imgEmuH));
+            cell.Append( EmbedImage( mainPart, radarPng,imgEmuW, imgEmuH));
+
+            // REQUIRED for Word 2003/2007 compatibility
+            if (!(cell.LastChild is Paragraph))
+            {
+                cell.Append(new Paragraph());
+            }
 
             return cell;
         }
-
         // ── Helpers ──────────────────────────────────────────────────────────────────
 
         /// Pillars | KPIs two-column mini-table
@@ -1641,11 +1651,12 @@ namespace AssessmentPlatform.Common.Implementation
                     var cardTable = BuildKpiCardTable(kpi, cardNum, v, accent, interps, matched, cardW);
 
                     // Wrap card table in a cell
-                    var cell = new TableCell(
-                        new TableCellProperties(
-                            new TableCellWidth { Width = cardW.ToString(), Type = TableWidthUnitValues.Dxa },
-                            CellNoBorders()),
-                        cardTable);
+                    var cell = new TableCell( new TableCellProperties( new TableCellWidth
+                         {
+                             Width = cardW.ToString(),
+                             Type = TableWidthUnitValues.Dxa
+                         },
+                         CellNoBorders()),cardTable, new Paragraph());
                     row.AppendChild(cell);
 
                     // Gap cell between the two cards

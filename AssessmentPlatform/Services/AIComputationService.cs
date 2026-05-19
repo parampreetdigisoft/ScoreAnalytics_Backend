@@ -956,6 +956,7 @@ namespace AssessmentPlatform.Services
 
             if (cityDetails !=null && userRole != UserRole.CityUser && cityID.HasValue )
             {
+                var score = cityDetails.AIProgress;
                 cityDetails.EvidenceSummary = CommonService.InitailLineOfExecutiveSummery(cityDetails.EvidenceSummary, cityDetails.ImmediateSituationSummary, cityDetails.AIProgress, cityDetails.CityName, pillarCount, totalValidKpis);
                 var cityProgress = progress.Where(x => x.CityID == cityID);
 
@@ -968,6 +969,11 @@ namespace AssessmentPlatform.Services
 
                 cityDetails.EvaluatorProgress = cityScore;
                 cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));
+                if (reportType != "AI")
+                {
+                    score = cityDetails.EvaluatorProgress;
+                }
+                cityDetails.EvidenceSummary = CommonService.InitailLineOfExecutiveSummery(cityDetails.EvidenceSummary, cityDetails.ImmediateSituationSummary, score, cityDetails.CityName, pillarCount, totalValidKpis);
             }
 
             return cityDetails ?? new AiCitySummeryDto();
