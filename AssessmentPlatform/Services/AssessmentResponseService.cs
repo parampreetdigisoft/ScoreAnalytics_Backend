@@ -2,6 +2,7 @@
 using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
@@ -11,6 +12,7 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Linq.Expressions;
 
 namespace AssessmentPlatform.Services
@@ -21,12 +23,14 @@ namespace AssessmentPlatform.Services
         private readonly IAppLogger _appLogger;
         private readonly Download _download;
         private readonly ICommonService _commonService;
-        public AssessmentResponseService(ApplicationDbContext context, IAppLogger appLogger, Download download, ICommonService commonService)
+        private readonly AppSettings _appSettings;
+        public AssessmentResponseService(ApplicationDbContext context, IAppLogger appLogger, Download download, ICommonService commonService, IOptions<AppSettings> appSettings)
         {
             _context = context;
             _appLogger = appLogger;
             _download = download;
             _commonService = commonService;
+            _appSettings = appSettings.Value;
         }
 
         public async Task<List<AssessmentResponse>> GetAllAsync()
@@ -876,6 +880,7 @@ namespace AssessmentPlatform.Services
             try
             {
                 var year = request.UpdatedAt.Year;
+                var pillarCount = _appSettings.PillarCount;
 
                 // 1. Validate city access
                 var hasAccess = await _context.UserCityMappings
@@ -941,7 +946,7 @@ namespace AssessmentPlatform.Services
                     CityID = request.CityID,
                     CityName = city?.CityName ?? string.Empty,
                     AiValue = aiCityProgress,
-                    EvaluationValue = Math.Round(pillarEvaluations.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Sum()/14.0m,2),
+                    EvaluationValue = Math.Round(pillarEvaluations.Select(x => x.ScoreProgress).DefaultIfEmpty(0).Sum()/ (decimal)pillarCount, 2),
                     Pillars = pillarResults
                 };
 

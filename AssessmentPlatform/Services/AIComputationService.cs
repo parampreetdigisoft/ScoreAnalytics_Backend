@@ -99,7 +99,7 @@ namespace AssessmentPlatform.Services
                     {
                         var pillars = cities.Where(x => x.CityID == c.CityID);
 
-                        var cityScore = Math.Round(pillars.Sum(x => x.ScoreProgress) / 14.0m,2);
+                        var cityScore = Math.Round(pillars.Sum(x => x.ScoreProgress) / _appSettings.PillarCount,2);
 
                         c.EvaluatorProgress = cityScore;
                         c.Discrepancy = Math.Abs(cityScore - (c.AIProgress ?? 0));
@@ -964,7 +964,7 @@ namespace AssessmentPlatform.Services
                     .DefaultIfEmpty(0)
                     .Sum();
 
-                cityScore = Math.Round(cityScore / 14.0m, 2);
+                cityScore = Math.Round(cityScore / (decimal)pillarCount, 2);
 
                 cityDetails.EvaluatorProgress = cityScore;
                 cityDetails.Discrepancy = Math.Abs(cityScore - (cityDetails.AIProgress ?? 0));
@@ -1085,6 +1085,7 @@ namespace AssessmentPlatform.Services
         private async Task<List<PeerCityHistoryReportDto>> GetPeerCities(int userID, UserRole role, int cityID, int year , bool isAiScore =true)
         {
             var peerCities = new List<PeerCityHistoryReportDto>();
+            var pillarCount = _appSettings.PillarCount;
 
             var peersCityIds = await _context.Cities
                    .Where(x => x.CityID == cityID && x.IsActive && !x.IsDeleted)
@@ -1190,7 +1191,7 @@ namespace AssessmentPlatform.Services
                             ScoreProgress = Math.Round(
                                 yearGroup.Select(x => x.ScoreProgress)
                                          .DefaultIfEmpty(0)
-                                         .Sum()/14.0m, 2),
+                                         .Sum()/ (decimal)pillarCount, 2),
 
                             // Pillar level score
                             Pillars = pillars

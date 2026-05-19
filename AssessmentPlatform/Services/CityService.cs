@@ -2,6 +2,7 @@
 using AssessmentPlatform.Common.Implementation;
 using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.AssessmentDto;
 using AssessmentPlatform.Dtos.CityDto;
@@ -10,6 +11,7 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Data;
 using System.Linq.Expressions;
 
@@ -24,13 +26,15 @@ namespace AssessmentPlatform.Services
         private readonly IWebHostEnvironment _env;
         private readonly ICommonService _commonService;
         private readonly Download _download;
-        public CityService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, ICommonService commonService, Download download)
+        private readonly AppSettings _appSettings;
+        public CityService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, ICommonService commonService, Download download, IOptions<AppSettings> appSettings)
         {
             _context = context;
             _appLogger = appLogger;
             _env = env;
             _commonService = commonService;
             _download = download;
+            _appSettings = appSettings.Value;
         }
 
         #endregion
@@ -478,6 +482,7 @@ namespace AssessmentPlatform.Services
         }
         private async Task ApplyManualScoresAsync(PaginationResponse<UserCityMappingResponseDto> response,PaginationRequest request,UserRole role, int year)
         {
+            var pillarCount = _appSettings.PillarCount;
             var scores = await _commonService.GetCitiesProgressAsync(request.UserId.GetValueOrDefault(),(int)role, year);
 
             var scoreMap = scores
@@ -487,7 +492,7 @@ namespace AssessmentPlatform.Services
                g =>
                {
                     var total = g.Sum(x => (decimal?)x.ScoreProgress) ?? 0;
-                    return Math.Round(total / 14.0m, 2);
+                    return Math.Round(total / (decimal)pillarCount, 2);
                });
 
             foreach (var city in response.Data)
@@ -510,12 +515,12 @@ namespace AssessmentPlatform.Services
         {
             try
             {
-
-                IQueryable<UserCityMappingResponseDto> cityQuery;
-
+                var pillarCount = _appSettings.PillarCount;
                 int year = DateTime.UtcNow.Year;
                 var startDate = new DateTime(year, 1, 1);
                 var endDate = new DateTime(year + 1, 1, 1);
+
+                IQueryable<UserCityMappingResponseDto> cityQuery;
 
                 if (userRole == UserRole.Admin)
                 {
@@ -538,7 +543,7 @@ namespace AssessmentPlatform.Services
                        g =>
                        {
                            var total = g.Sum(x => (decimal?)x.ScoreProgress) ?? 0;
-                           return Math.Round(total / 14.0m, 2);
+                           return Math.Round(total / (decimal)pillarCount, 2);
                        });
 
                     foreach (var city in result)
@@ -815,6 +820,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var pillarCount = _appSettings.PillarCount;
                 int year = updatedAt.Year;
                 var startDate = new DateTime(year, 1, 1);
                 var endDate = new DateTime(year + 1, 1, 1);
@@ -859,7 +865,7 @@ namespace AssessmentPlatform.Services
                     {
                         var allPillars = manualAssessmentList.Where(x => x.CityID == g.CityID);
 
-                        var manualScore = allPillars.Any()? allPillars.Sum(x => x?.ScoreProgress ?? 0)/14.0m: 0;
+                        var manualScore = allPillars.Any()? allPillars.Sum(x => x?.ScoreProgress ?? 0)/ (decimal)pillarCount: 0;
 
                         return new GetCitiesSubmitionHistoryReponseDto
                         {
@@ -1029,6 +1035,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var pillarCount = _appSettings.PillarCount;
                 int year = DateTime.UtcNow.Year;
                 var cities = await _commonService.GetCitiesProgressForAdmin(userId, (int)userRole, year);
                 
@@ -1041,7 +1048,7 @@ namespace AssessmentPlatform.Services
                         x.CityName,
                         x.State,
                         x.Country
-                    )).OrderByDescending(x=> x.Sum(y=>y.PillarProgress)/14.0m);
+                    )).OrderByDescending(x=> x.Sum(y=>y.PillarProgress)/ (decimal)pillarCount);
 
                 var byteRes = MakeCityPillarSheet(request,result);
 
@@ -1058,6 +1065,7 @@ namespace AssessmentPlatform.Services
             ExportCityWithOptionDto request,
             IEnumerable<IGrouping<(int CityID, string CityName, string State, string Country), GetCitiesProgressAdminDto>> cityGroups)
         {
+            var pillarCount = _appSettings.PillarCount;
             using var workbook = new XLWorkbook();
             var ws = workbook.Worksheets.Add("Cities Progress Report");
 
@@ -1112,7 +1120,7 @@ namespace AssessmentPlatform.Services
                 var cityData = cityGroup.First();
                 var pillars = cityGroup.OrderBy(x => x.DisplayOrder).ToList();
 
-                var cityProgress = Math.Round(pillars.Sum(x => x.PillarProgress) / 14.0m,2);
+                var cityProgress = Math.Round(pillars.Sum(x => x.PillarProgress) / (decimal)pillarCount,2);
 
                 // ========================
                 // ✅ RANK-WISE (1 ROW ONLY)
