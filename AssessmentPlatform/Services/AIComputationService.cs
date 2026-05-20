@@ -721,7 +721,7 @@ namespace AssessmentPlatform.Services
                 }
 
 
-                await _download.AiResearchByCityId(dto.CityID, dto.CityEnable, dto.PillarEnable, dto.QuestionEnable, dto.ImmediateSummaryEnable);
+                await _download.AiResearchByCityId(dto.CityID, dto.CityEnable, dto.PillarEnable, dto.QuestionEnable, dto.ImmediateSummaryEnable, dto.RegenerateMissingQuestionsEnable);
                 var aiResponse = await _context.AICityScores.FirstOrDefaultAsync(x => x.CityID == dto.CityID && x.City.IsActive && !x.City.IsDeleted);
                 if(aiResponse != null)
                 {
@@ -833,14 +833,17 @@ namespace AssessmentPlatform.Services
                     {
                         _context.AIEstimatedQuestionScores.RemoveRange(aiQuestionList);
                         await _context.SaveChangesAsync();
-                    }
-
+                    }                   
                     await _iAIAnalayzeService.AnalyzeQuestionsOfCityPillar(channel.CityID, channel.PillarID);
+                                       
                 }
 
                 if (channel.PillarEnable)
                     await _iAIAnalayzeService.AnalyzeSinglePillar(channel.CityID,channel.PillarID);
-
+                if (!channel.QuestionEnable && channel.RegenerateMissingQuestionsEnable)
+                {
+                    await _iAIAnalayzeService.AnalyzeCityMissingQuestions(channel.CityID, channel.PillarID);
+                }
 
                 var msglist = new List<string>
                 {

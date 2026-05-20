@@ -1,6 +1,7 @@
 ﻿using AssessmentPlatform.Data;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using DocumentFormat.OpenXml.Bibliography;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Concurrent;
@@ -198,6 +199,8 @@ namespace AssessmentPlatform.Backgroundjob
                         await aiService.AnalyzeSingleCity(channel.CityID.Value);
                     if (!channel.CityEnable && channel.ImmediateSummaryEnable)
                         await aiService.AnalyzeCityImmediateSituation(channel.CityID.Value);
+                    if (channel.RegenerateMissingQuestionsEnable && !channel.QuestionEnable)
+                        await aiService.AnalyzeCityMissingQuestions(channel.CityID.Value, channel.PillarId);
                 }
 
                 

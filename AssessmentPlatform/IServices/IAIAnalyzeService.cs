@@ -15,6 +15,7 @@ namespace AssessmentPlatform.IServices
         Task ProcessDocument(int documentID);
         Task DeleteDocument(int documentID);
         Task AnalyzeCityImmediateSituation(int cityId);
+        Task AnalyzeCityMissingQuestions(int cityId, int? pillarId);
         Task<ChatCityAskQuestionResponse> ChatCityAsk(ChatCityAskQuestionRequest request);
         Task<ChatCityAskQuestionResponse> ChatGlobalAsk(ChatGlobalAskQuestionRequest request);
         Task<ChatCityAskQuestionResponse> CrossComparision(CrossComparisionRequest request);

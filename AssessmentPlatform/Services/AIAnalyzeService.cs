@@ -146,6 +146,12 @@ namespace AssessmentPlatform.Services
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
+        public async Task AnalyzeCityMissingQuestions(int cityId, int? pillarId)
+        {
+            var url = aiUrl + AiEndpoints.AnalyzeCityMissingQuestions(cityId, pillarId);
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
+        }
+
         public async Task ProcessDocument(int documentID)
         {
             var url = aiUrl + AiEndpoints.ProcessDocument(documentID);
@@ -286,6 +292,10 @@ namespace AssessmentPlatform.Services
 
         public static string AnalyzeCityImmediateSituation(int cityId) =>
            $"{BasePath}/analyze/{cityId}/immediateSituation";
+
+        public static string AnalyzeCityMissingQuestions(int cityId, int? pillarId) =>
+          $"{BasePath}/analyze/missing-pillar-questions?city_id={cityId}" +
+          (pillarId.HasValue ? $"&pillar_id={pillarId.Value}" : "");
 
         public static string ProcessDocument(int documentId) =>
             $"{DocumentPath}/process-document/{documentId}";

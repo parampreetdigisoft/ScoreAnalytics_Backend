@@ -17,6 +17,9 @@ namespace AssessmentPlatform.Backgroundjob
         public bool PillarEnable { get; set; }
         public bool QuestionEnable { get; set; }
         public bool ImmediateSummaryEnable { get; set; }
+        public bool RegenerateMissingQuestionsEnable { get; set; }
+
+        public int? PillarId { get; set; }
         public string InsertAnalyticalLayerResults(int cityID = 0)
         {
             CityID = cityID;
@@ -25,13 +28,14 @@ namespace AssessmentPlatform.Backgroundjob
             return "Execution has been started";
         }
 
-        public Task AiResearchByCityId(int cityID , bool cityEnable,bool pillarEnable, bool questionEnable, bool immediateSummaryEnable = false)
+        public Task AiResearchByCityId(int cityID , bool cityEnable,bool pillarEnable, bool questionEnable, bool immediateSummaryEnable = false, bool regenerateMissingQuestionsEnable = false)
         {
             this.CityID = cityID;
             this.CityEnable = cityEnable;
             this.PillarEnable = pillarEnable;
             this.QuestionEnable = questionEnable;
             this.ImmediateSummaryEnable = immediateSummaryEnable;
+            this.RegenerateMissingQuestionsEnable = regenerateMissingQuestionsEnable;
             Type = "AiResearchByCityId";
             channelService.Write(this);
             return Task.CompletedTask;
