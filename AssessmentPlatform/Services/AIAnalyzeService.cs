@@ -146,10 +146,10 @@ namespace AssessmentPlatform.Services
             await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
         }
 
-        public async Task AnalyzeCityMissingQuestions(int cityId, int? pillarId)
+        public async Task AnalyzeCityMissingQuestions(MissingCityQuestionRequest r)
         {
-            var url = aiUrl + AiEndpoints.AnalyzeCityMissingQuestions(cityId, pillarId);
-            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, null, headers);
+            var url = aiUrl + AiEndpoints.AnalyzeCityMissingQuestions();
+            await _httpService.SendAsync<dynamic>(HttpMethod.Post, url, r, headers);
         }
 
         public async Task ProcessDocument(int documentID)
@@ -291,11 +291,10 @@ namespace AssessmentPlatform.Services
             $"{BasePath}/analyze/{cityId}/pillars/{pillarId}/questions";
 
         public static string AnalyzeCityImmediateSituation(int cityId) =>
-           $"{BasePath}/analyze/{cityId}/immediateSituation";
+           $"{BasePath}/analyze/{cityId}/immediateSituation";       
 
-        public static string AnalyzeCityMissingQuestions(int cityId, int? pillarId) =>
-          $"{BasePath}/analyze/missing-pillar-questions?city_id={cityId}" +
-          (pillarId.HasValue ? $"&pillar_id={pillarId.Value}" : "");
+        public static string AnalyzeCityMissingQuestions() =>
+          $"{BasePath}/analyze/missing-pillar-questions";
 
         public static string ProcessDocument(int documentId) =>
             $"{DocumentPath}/process-document/{documentId}";
@@ -331,8 +330,12 @@ namespace AssessmentPlatform.Services
         public string? Message { get; set; }
         public string? Result { get; set; }
     }
-    
+    public class MissingCityQuestionRequest
+    {
+        public int CityID { get; set; }
+        public int? PillarID { get; set; }
+    }
 
-   
+
     #endregion
 }

@@ -9,6 +9,7 @@ using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
 using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.Caching.Memory;
+using System.Diagnostics.Metrics;
 
 
 
@@ -122,19 +123,30 @@ namespace AssessmentPlatform.Services
                 }
 
                 var pillars = (
-                            from x in _context.AIPillarScores
-                            join p in _context.Pillars
-                                on x.PillarID equals p.PillarID
-                            where x.CityID == city.CityID
-                                  && x.Year == city.DataYear
-                            select new PillarsUserHistoryResponseDto
-                            {
-                                PillarID = x.PillarID,
-                                PillarName = p.PillarName ?? "",
-                                DisplayOrder = p.DisplayOrder,
-                                PillarScore = x.AIProgress ?? 0
-                            }
-                        ).ToList();
+                    from p in _context.Pillars
+
+                    join x in _context.AIPillarScores
+                        .Where(a => a.CityID == city.CityID
+                                 && a.Year == city.DataYear)
+                    on p.PillarID equals x.PillarID into pillarScores
+
+                    from score in pillarScores.DefaultIfEmpty()
+
+                    select new PillarsUserHistoryResponseDto
+                    {
+                        PillarID = p.PillarID,
+                        PillarName = p.PillarName ?? "",
+                        DisplayOrder = p.DisplayOrder,
+                        PillarScore = score != null ? score.AIProgress ?? 0 : 0,
+                        ImagePath = p.ImagePath
+                    }
+                ).ToList();
+
+                if (userRole == UserRole.CityUser)
+                {
+                    var validPillars = _context.CityUserPillarMappings.Where(x => x.UserID == userId).Select(x => x.PillarID);
+                    pillars = pillars.Where(x => validPillars.Contains(x.PillarID)).ToList();
+                }
 
                 var cityResult = new CityRankingResponseDto
                 {

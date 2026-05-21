@@ -83,5 +83,7 @@
         public string PillarName { get; set; }
         public decimal PillarScore { get; set; }
         public int DisplayOrder { get; set; }
+
+        public string ImagePath { get; set; }
     }
 }

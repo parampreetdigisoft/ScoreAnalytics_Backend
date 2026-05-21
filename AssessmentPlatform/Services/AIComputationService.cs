@@ -842,7 +842,12 @@ namespace AssessmentPlatform.Services
                     await _iAIAnalayzeService.AnalyzeSinglePillar(channel.CityID,channel.PillarID);
                 if (!channel.QuestionEnable && channel.RegenerateMissingQuestionsEnable)
                 {
-                    await _iAIAnalayzeService.AnalyzeCityMissingQuestions(channel.CityID, channel.PillarID);
+                    var request = new MissingCityQuestionRequest
+                    {
+                        CityID = channel.CityID,
+                        PillarID = channel.PillarID
+                    };
+                    await _iAIAnalayzeService.AnalyzeCityMissingQuestions(request);
                 }
 
                 var msglist = new List<string>
