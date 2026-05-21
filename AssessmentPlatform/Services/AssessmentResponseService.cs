@@ -298,9 +298,9 @@ namespace AssessmentPlatform.Services
                         UserID = u.UserID,
                         UserName = u.FullName,
 
-                        Score = responses
-                            .Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four)
-                            .Sum(r => (int?)r.Score ?? 0),
+                        Score = (responses.Where(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four).Sum(r => (decimal)((int?)r.Score ?? 0)) * 100m)
+                                 /
+                                (responses.Count(r => r.Score.HasValue && (int)r.Score.Value <= (int)ScoreValue.Four) * 4m),
 
                         TotalNA = responses.Count(r =>
                             !r.Score.HasValue &&

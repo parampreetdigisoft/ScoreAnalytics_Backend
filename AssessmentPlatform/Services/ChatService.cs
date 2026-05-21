@@ -154,6 +154,7 @@ namespace AssessmentPlatform.Services
                     CityID = city.CityID,
                     CityName = city.CityName,
                     CityRank = city.CityRank,
+                    Country = city.Country,
                     CityAIScore = city.CityAIScore,
                     DataYear = city.DataYear,
                     Region = city.Region,

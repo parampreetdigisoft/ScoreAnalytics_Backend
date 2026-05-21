@@ -73,7 +73,7 @@
         public int CityRank { get; set; }
         public int TotalCityInCountry { get; set; }
         public int CountryRank { get; set; }
-        public decimal CityAIScore { get; set; }
+        public decimal? CityAIScore { get; set; }
         public int? DataYear { get; set; }
         public List<PillarsUserHistoryResponseDto> Pillars { get; set; }
     }

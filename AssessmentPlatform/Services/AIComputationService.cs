@@ -965,7 +965,7 @@ namespace AssessmentPlatform.Services
             if (cityDetails !=null && userRole != UserRole.CityUser && cityID.HasValue )
             {
                 var score = cityDetails.AIProgress;
-                cityDetails.EvidenceSummary = CommonService.InitailLineOfExecutiveSummery(cityDetails.EvidenceSummary, cityDetails.ImmediateSituationSummary, cityDetails.AIProgress, cityDetails.CityName, pillarCount, totalValidKpis);
+                
                 var cityProgress = progress.Where(x => x.CityID == cityID);
 
                 var cityScore = cityProgress
