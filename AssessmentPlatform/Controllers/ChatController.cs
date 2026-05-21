@@ -93,7 +93,7 @@ namespace AssessmentPlatform.Controllers
                 return Unauthorized("You Don't have access.");
             }
 
-            return Ok(await _chatService.GetCitySlides(cityId));
+            return Ok(await _chatService.GetCitySlides(cityId, userId.GetValueOrDefault(), userRole));
         }
 
         [HttpPost("askGlobalQuestion")]

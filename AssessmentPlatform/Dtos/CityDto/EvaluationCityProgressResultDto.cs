@@ -29,4 +29,18 @@
         public int UserID { get; set; }
     }
 
+    public class CityRankingResultDto
+    {
+        public int CityID { get; set; }
+        public string CityName { get; set; }
+        public string Region { get; set; }
+        public string State { get; set; }
+        public int TotalCity { get; set; }
+        public int CityRank { get; set; }
+        public int TotalCityInCountry { get; set; }
+        public int CountryRank { get; set; }
+        public decimal CityAIScore { get; set; }
+        public int? DataYear { get; set; }
+    }
+
 }

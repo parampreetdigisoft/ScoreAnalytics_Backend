@@ -116,5 +116,25 @@ namespace AssessmentPlatform.Common.Implementation
             );
         }
 
+        public async Task<List<CityRankingResultDto>> GetCitiesRankings(int cityId, int year)
+        {
+            try
+            {
+                return await _context.CityRankingResultDto
+                 .FromSqlRaw(
+                     "EXEC usp_getCityRanking @CityId, @Year",
+                     new SqlParameter("@CityId", cityId),
+                     new SqlParameter("@Year", year)
+                 )
+                 .AsNoTracking()
+                 .ToListAsync();
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync("Error in Executing usp_getCityRanking", ex);
+                return new List<CityRankingResultDto    >();
+            }
+        }
+
     }
 }

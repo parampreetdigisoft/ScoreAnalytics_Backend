@@ -42,6 +42,7 @@ namespace AssessmentPlatform.Data
 
         public DbSet<AssistantChatHistory> AssistantChatHistory { get; set; }
         public DbSet<AIAssistantFAQ> AIAssistantFAQ { get; set; }
+        public DbSet<CityRankingResultDto> CityRankingResultDto { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -150,7 +151,8 @@ namespace AssessmentPlatform.Data
             modelBuilder.Entity<AnalyticalLayerPillarMapping>().HasKey(ur => ur.AnalyticalLayerPillarMappingID);
             modelBuilder.Entity<AIUserCityMapping>().HasKey(ur => ur.AIUserCityMappingID);
             modelBuilder.Entity<EvaluationCityProgressResultDto>().HasNoKey().ToView(null); 
-            modelBuilder.Entity<EvaluationCityProgressHistoryResultDto>().HasNoKey().ToView(null); 
+            modelBuilder.Entity<EvaluationCityProgressHistoryResultDto>().HasNoKey().ToView(null);
+            modelBuilder.Entity<CityRankingResultDto>().HasNoKey().ToView(null);
             modelBuilder.Entity<GetCitiesProgressAdminDto>().HasNoKey().ToView(null); 
             modelBuilder.Entity<Blog>().HasKey(b => b.BlogID);
             modelBuilder.Entity<CityPeer>().HasKey(b => b.CityPeerID);

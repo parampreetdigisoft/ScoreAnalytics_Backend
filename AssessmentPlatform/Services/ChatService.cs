@@ -1,10 +1,13 @@
 ﻿
 
+using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.chatDto;
+using AssessmentPlatform.Dtos.PillarDto;
 using AssessmentPlatform.IServices;
 using AssessmentPlatform.Models;
+using DocumentFormat.OpenXml.Spreadsheet;
 using Microsoft.Extensions.Caching.Memory;
 
 
@@ -18,13 +21,15 @@ namespace AssessmentPlatform.Services
         private readonly IAppLogger _appLogger;
         private readonly IAIAnalyzeService _aIAnalyzeService;
         private readonly IMemoryCache _cache;
+        private readonly ICommonService _commonService;
         public ChatService(ApplicationDbContext context,
-            IAppLogger appLogger, IAIAnalyzeService aIAnalyzeService, IMemoryCache cache)
+            IAppLogger appLogger, IAIAnalyzeService aIAnalyzeService, IMemoryCache cache, ICommonService commonService)
         {
             _context = context;
             _appLogger = appLogger;
             _aIAnalyzeService = aIAnalyzeService;
             _cache = cache;
+            _commonService = commonService;
         }
         public async Task<ResultResponseDto<List<AIAssistantFAQDto>>> GetAssistantFAQDs(int userId, UserRole userRole)
         {
@@ -90,17 +95,67 @@ namespace AssessmentPlatform.Services
         }
 
 
-        public async Task<ResultResponseDto<ChatCityExecutiveSlidesResponse>> GetCitySlides(int cityId)
+        public async Task<ResultResponseDto<ChatCityExecutiveSlidesResponse>> GetCitySlides(int cityId, int userId, UserRole userRole)
         {
             string cacheKey = $"CitySlides_{cityId}";
 
             try
             {
+
+                if (userRole == UserRole.CityUser)
+                {
+                    var isValidCity = _context.PublicUserCityMappings.Where(x => x.UserID == userId).Any(c => c.CityID == cityId);
+                    if (!isValidCity)
+                    {
+                        return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Failure(new[] { "You don't have access to this city data." });
+                    }
+                }
+                var year = DateTime.UtcNow.Year;
+
+                var cityExists = await _commonService.GetCitiesRankings(cityId, year);
+
+                var city = cityExists.FirstOrDefault(x => x.CityID == cityId);
+
+                if (city == null)
+                {
+                    return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Failure(new[] { "City not found." });
+                }
+
+                var pillars = (
+                            from x in _context.AIPillarScores
+                            join p in _context.Pillars
+                                on x.PillarID equals p.PillarID
+                            where x.CityID == city.CityID
+                                  && x.Year == city.DataYear
+                            select new PillarsUserHistoryResponseDto
+                            {
+                                PillarID = x.PillarID,
+                                PillarName = p.PillarName ?? "",
+                                DisplayOrder = p.DisplayOrder,
+                                PillarScore = x.AIProgress ?? 0
+                            }
+                        ).ToList();
+
+                var cityResult = new CityRankingResponseDto
+                {
+                    State = city.State,
+                    CityID = city.CityID,
+                    CityName = city.CityName,
+                    CityRank = city.CityRank,
+                    CityAIScore = city.CityAIScore,
+                    DataYear = city.DataYear,
+                    Region = city.Region,
+                    CountryRank= city.CountryRank,
+                    TotalCity = city.TotalCity,
+                    TotalCityInCountry = city.TotalCityInCountry,
+                    Pillars = pillars.OrderBy(p => p.DisplayOrder).ToList()
+                };
                 // ✅ Try cache first
                 if (_cache.TryGetValue(
                     cacheKey,
                     out ChatCityExecutiveSlidesResponse cachedResult))
                 {
+                    cachedResult.Result.City = cityResult;
                     return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Success(
                         cachedResult,
                         new List<string>
