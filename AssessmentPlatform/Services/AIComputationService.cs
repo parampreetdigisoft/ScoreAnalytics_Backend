@@ -470,9 +470,10 @@ namespace AssessmentPlatform.Services
                     .Select(g => new
                     {
                         CityID = g.Key,
+                        UpdatedAt = g.Max(x => x.UpdatedAt),
                         AIProgress = g.Max(x => x.AIProgress)
                     })
-                    .ToDictionaryAsync(x => x.CityID, x => x.AIProgress);
+                    .ToDictionaryAsync(x => x.CityID, x => new { x.AIProgress, x.UpdatedAt });
 
 
                 foreach (var city in cities)
@@ -511,7 +512,8 @@ namespace AssessmentPlatform.Services
                     };
                     if (aiCities?.TryGetValue(city.CityID,out var aiCityValue) ?? false)
                     {
-                        chartRow.Value = aiCityValue ?? 0;
+                        chartRow.Value = aiCityValue.AIProgress ?? 0;
+                        chartRow.UpdatedAt = aiCityValue.UpdatedAt;
                     }
                     response.TableData.Add(chartRow);
 

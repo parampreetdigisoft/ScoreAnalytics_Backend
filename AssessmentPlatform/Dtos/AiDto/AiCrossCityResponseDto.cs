@@ -18,6 +18,7 @@
         public int CityID { get; set; }
         public string CityName { get; set; }
         public decimal Value { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public List<CrossCityPillarValueDto> PillarValues { get; set; } = new List<CrossCityPillarValueDto>();
     }
 
