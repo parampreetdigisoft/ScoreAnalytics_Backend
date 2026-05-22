@@ -7,6 +7,8 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using SkiaSharp;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace AssessmentPlatform.Common.Implementation
 {
@@ -106,8 +108,9 @@ namespace AssessmentPlatform.Common.Implementation
         public void AddCityDetailsPdf(IDocumentContainer container, AiCitySummeryDto cityDetails, List<AiCityPillarReponse> pillars, List<KpiChartItem> kpis,
             List<PeerCityHistoryReportDto> peerCities, UserRole userRole, bool isAllCities = false)
         {
-            var kpiChartItems = kpis.ToList(); 
-
+            var kpiChartItems = kpis.ToList();
+           cityDetails = SanitizeCitySummary(cityDetails);
+           SanitizePillars(pillars);            
             // Build pillar chart items (max 14)
             var pillarChartItems = pillars
             .Take(14)
@@ -200,6 +203,142 @@ namespace AssessmentPlatform.Common.Implementation
             }
         }
 
+        private AiCitySummeryDto SanitizeCitySummary(AiCitySummeryDto city)
+        {
+            city.State = Clean(city.State);
+            city.CityName = Clean(city.CityName);
+            city.Country = Clean(city.Country);
+            city.Region =Clean(city.Region);
+
+            city.ConfidenceLevel = Clean(city.ConfidenceLevel);
+            city.EvidenceSummary = Clean(city.EvidenceSummary);
+            city.CrossPillarPatterns = Clean(city.CrossPillarPatterns);
+            city.InstitutionalCapacity = Clean(city.InstitutionalCapacity);
+            city.EquityAssessment = Clean(city.EquityAssessment);
+            city.SustainabilityOutlook = Clean(city.SustainabilityOutlook);
+            city.StrategicRecommendations = Clean(city.StrategicRecommendations);
+            city.DataTransparencyNote = Clean(city.DataTransparencyNote);
+
+            city.Comment = Clean(city.Comment);
+
+            city.ImmediateSituationSummary = Clean(city.ImmediateSituationSummary);
+            city.KeyDevelopments = Clean(city.KeyDevelopments);
+            city.CriticalRisks = Clean(city.CriticalRisks);
+            city.Gaps = Clean(city.Gaps);
+
+            return city;
+        }
+        public string Clean(string? input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            string text = input.Normalize(NormalizationForm.FormKC);
+
+            // Normalize line endings
+            text = text.Replace("\r\n", "\n");
+            text = text.Replace("\r", "\n");
+
+            // Replace dangerous Unicode glyphs
+            text = text
+
+                // Hyphens / dashes
+                .Replace('\u2010', '-')
+                .Replace('\u2011', '-')
+                .Replace('\u2012', '-')
+                .Replace('\u2013', '-')
+                .Replace('\u2014', '-')
+                .Replace('\u2212', '-')
+
+                // Quotes
+                .Replace('\u2018', '\'')
+                .Replace('\u2019', '\'')
+                .Replace('\u201A', '\'')
+                .Replace('\u201B', '\'')
+
+                .Replace('\u201C', '"')
+                .Replace('\u201D', '"')
+                .Replace('\u201E', '"')
+
+                // Bullets
+                .Replace('\u2022', '-')
+                .Replace('\u25CF', '-')
+                .Replace('\u25AA', '-')
+
+                // Ellipsis
+                .Replace("\u2026", "...")
+
+                // Spaces
+                .Replace('\u00A0', ' ')
+                .Replace("\u200B", "")
+                .Replace("\u200C", "")
+                .Replace("\u200D", "")
+                .Replace("\u2060", "")
+                .Replace("\uFEFF", "");
+
+            // Remove invalid control chars
+            text = Regex.Replace(
+                text,
+                @"[\u0000-\u0008\u000B\u000C\u000E-\u001F]",
+                "");
+
+            return text.Trim();
+        }
+
+
+        private void SanitizePillars(List<AiCityPillarReponse> pillars)
+        {
+            foreach (var p in pillars)
+            {
+                p.State = Clean(p.State);
+                p.CityName = Clean(p.CityName);
+                p.Country = Clean(p.Country);
+
+                p.PillarName = Clean(p.PillarName);
+
+                p.ConfidenceLevel =
+                    Clean(p.ConfidenceLevel);
+
+                p.EvidenceSummary =
+                    Clean(p.EvidenceSummary);
+
+                p.RedFlags =
+                    Clean(p.RedFlags);
+
+                p.GeographicEquityNote =
+                    Clean(p.GeographicEquityNote);
+
+                p.InstitutionalAssessment =
+                    Clean(p.InstitutionalAssessment);
+
+                p.DataGapAnalysis =
+                    Clean(p.DataGapAnalysis);
+
+                p.AnalystDataGapAnalysis =
+                    Clean(p.AnalystDataGapAnalysis);
+
+                p.ImagePath =
+                    Clean(p.ImagePath);
+
+                if (p.DataSourceCitations != null)
+                {
+                    foreach (var citation in p.DataSourceCitations)
+                    {
+                        citation.SourceType =
+                            Clean(citation.SourceType);
+
+                        citation.SourceName =
+                            Clean(citation.SourceName);
+
+                        citation.SourceURL =
+                            Clean(citation.SourceURL);
+
+                        citation.DataExtract =
+                            Clean(citation.DataExtract);
+                    }
+                }
+            }
+        }
         // ─────────────────────────────────────────────────────────────────────────────
         //  PAGE LAYOUT HELPERS  (reusable)
         // ─────────────────────────────────────────────────────────────────────────────
