@@ -93,7 +93,7 @@ namespace AssessmentPlatform.Services
                 await _appLogger.LogAsync("An error occurred while processing the AskAboutCity request.", ex);
                 return ResultResponseDto<ChatResponseDto>.Failure(new[] { "An error occurred while processing your request. Please try again later." });
             }
-        }
+        }     
 
 
         public async Task<ResultResponseDto<ChatCityExecutiveSlidesResponse>> GetCitySlides(int cityId, int userId, UserRole userRole)
@@ -102,7 +102,6 @@ namespace AssessmentPlatform.Services
 
             try
             {
-
                 if (userRole == UserRole.CityUser)
                 {
                     var isValidCity = _context.PublicUserCityMappings.Where(x => x.UserID == userId).Any(c => c.CityID == cityId);
@@ -147,7 +146,6 @@ namespace AssessmentPlatform.Services
                     var validPillars = _context.CityUserPillarMappings.Where(x => x.UserID == userId).Select(x => x.PillarID);
                     pillars = pillars.Where(x => validPillars.Contains(x.PillarID)).ToList();
                 }
-
                 var cityResult = new CityRankingResponseDto
                 {
                     State = city.State,
@@ -163,21 +161,17 @@ namespace AssessmentPlatform.Services
                     TotalCityInCountry = city.TotalCityInCountry,
                     Pillars = pillars.OrderBy(p => p.DisplayOrder).ToList()
                 };
-                // ✅ Try cache first
-                if (_cache.TryGetValue(
-                    cacheKey,
-                    out ChatCityExecutiveSlidesResponse cachedResult))
+                if (_cache.TryGetValue(cacheKey, out ChatCityExecutiveSlidesResponse cachedResult))
                 {
                     cachedResult.Result.City = cityResult;
                     return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Success(
                         cachedResult,
                         new List<string>
                         {
-                    "City executive slides fetched successfully from cache."
+                            "City executive slides fetched successfully from cache."
                         }
                     );
                 }
-
                 // ✅ Fetch from AI service
                 var result = await _aIAnalyzeService.GetCitySlides(cityId);
 
@@ -186,29 +180,26 @@ namespace AssessmentPlatform.Services
                     return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Failure(
                         new[]
                         {
-                    result?.Message ??
-                    "Failed to fetch city executive slides from VUI Aevum."
+                            result?.Message ??
+                            "Failed to fetch City executive slides from PEM Aevum."
                         }
                     );
                 }
 
                 // ✅ Store in cache
-                _cache.Set(
-                     cacheKey,
-                     result,
-                     new MemoryCacheEntryOptions
-                     {
-                         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12),
-                         SlidingExpiration = TimeSpan.FromMinutes(10),
-                         Priority = CacheItemPriority.High
-                     });
-
-                // ✅ Return response
+                _cache.Set(cacheKey, result,
+                    new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12),
+                        SlidingExpiration = TimeSpan.FromHours(10),
+                        Priority = CacheItemPriority.High
+                    });
+                result.Result.City = cityResult;
                 return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Success(
                     result,
                     new List<string>
                     {
-                "City executive slides fetched successfully."
+                         "City executive slides fetched successfully."
                     }
                 );
             }
@@ -222,7 +213,7 @@ namespace AssessmentPlatform.Services
                 return ResultResponseDto<ChatCityExecutiveSlidesResponse>.Failure(
                     new[]
                     {
-                "An error occurred while processing your request. Please try again later."
+                        "An error occurred while processing your request. Please try again later."
                     }
                 );
             }
