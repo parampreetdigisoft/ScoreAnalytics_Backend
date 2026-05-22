@@ -7,6 +7,7 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using SkiaSharp;
+using System.Security.AccessControl;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -1285,8 +1286,15 @@ namespace AssessmentPlatform.Common.Implementation
         {
             var value = kpi.Value ?? 0;
             var v = value == 100 ? Math.Round(value, 0) : Math.Round(value, 1);
-            string accent = GetBarColor((float)v);
-
+            string accent = "";
+            if (kpi.ShortName == "PRUPS")
+            {
+                accent = GetPrupsColor((float)v);
+            }
+            else
+            {
+                accent = GetBarColor((float)v);
+            }         
             var interps = kpi.InterPretation ?? new List<FiveLevelInterpretationsDto>();
             FiveLevelInterpretationsDto? matched = interps.FirstOrDefault(x =>
                 x.MinRange.HasValue && x.MaxRange.HasValue &&
@@ -2149,17 +2157,31 @@ namespace AssessmentPlatform.Common.Implementation
 
         static SKColor GetColor(float value)
         {
-            if (value >= 70) return SKColor.Parse("#2E7D32");
-            if (value >= 40) return SKColor.Parse("#F9A825");
+            if (value >= 80) return SKColor.Parse("#2E7D32");
+            else if (value >= 60) return SKColor.Parse("#469449");
+            else if (value >= 40) return SKColor.Parse("#F9A825");
+            else if (value >= 20) return SKColor.Parse("#c66528");
+
             return SKColor.Parse("#C62828");
         }
-       
 
         static string GetBarColor(float value)
         {
-            if (value >= 70) return "#2E7D32";
-            if (value >= 40) return "#F9A825";
-            return "#C62828";
+            if (value >= 80) return "#2E7D32"; // Dark Green
+            else if (value >= 60) return "#469449"; // Medium Green
+            else if (value >= 40) return "#F9A825"; // Amber Yellow
+            else if (value >= 20) return "#C66528"; // Orange Brown
+
+            return "#C62828"; // Red
+        }
+        static string GetPrupsColor(float value)
+        {
+            if (value >= 2) return "#2E7D32";      // Exceptional Peer Performance
+            else if (value >= 1) return "#469449"; // Strong Peer Performance
+            else if (value >= -1) return "#F9A825"; // Typical Peer Performance
+            else if (value >= -2) return "#C66528"; // Below-Average Peer Performance
+
+            return "#C62828"; // Severe Underperformance
         }
 
         static string GetSourceTypeBadgeColor(string sourceType) => sourceType?.ToLower() switch

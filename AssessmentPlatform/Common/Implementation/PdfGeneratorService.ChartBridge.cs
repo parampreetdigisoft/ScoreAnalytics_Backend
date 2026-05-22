@@ -316,8 +316,15 @@ namespace AssessmentPlatform.Common.Implementation
 
         // ── Private static helpers shared by canvas methods above ─────────────
 
-        private static SKColor GetColorStatic(float v)
-            => v >= 70 ? SKColor.Parse("#2E7D32") : v >= 40 ? SKColor.Parse("#F9A825") : SKColor.Parse("#C62828");
+        private static SKColor GetColorStatic(float value)
+        {
+            if (value >= 80) return SKColor.Parse("#2E7D32");
+            else if (value >= 60) return SKColor.Parse("#469449");
+            else if (value >= 40) return SKColor.Parse("#F9A825");
+            else if (value >= 20) return SKColor.Parse("#c66528");
+
+            return SKColor.Parse("#C62828");
+        }
 
         private static bool IsSameCityStatic(string? a, string? b)
             => string.Equals(a?.Trim(), b?.Trim(), StringComparison.OrdinalIgnoreCase);

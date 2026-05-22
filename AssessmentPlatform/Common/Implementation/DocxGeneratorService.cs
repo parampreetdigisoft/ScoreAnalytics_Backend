@@ -1633,8 +1633,16 @@ namespace AssessmentPlatform.Common.Implementation
 
                     decimal v = kpi.Value ?? 0;
                     v = v == 100 ? Math.Round(v, 0) : Math.Round(v, 1);
-                    string accent = GetBarColor((float)v).TrimStart('#');
 
+                    string accent = "";
+                    if (kpi.ShortName == "PRUPS")
+                    {
+                        accent = GetPrupsColor((float)v).TrimStart('#');
+                    }
+                    else
+                    {
+                        accent = GetBarColor((float)v).TrimStart('#');
+                    }
                     var interps = kpi.InterPretation ?? new List<FiveLevelInterpretationsDto>();
                     var matched = interps.FirstOrDefault(x =>
                         x.MinRange.HasValue && x.MaxRange.HasValue &&
@@ -2779,9 +2787,25 @@ namespace AssessmentPlatform.Common.Implementation
         //  COLOUR / FORMAT UTILITIES  (mirrors PdfGeneratorService statics)
         // ════════════════════════════════════════════════════════════════════
 
-        private static string GetBarColor(float value) =>
-            value >= 70 ? "#2E7D32" : value >= 40 ? "#F9A825" : "#C62828";
+        private static string GetBarColor(float value)
+        {
+            if (value >= 80) return "#2E7D32";
+            else if (value >= 60) return "#469449";
+            else if (value >= 40) return "#F9A825";
+            else if (value >= 20) return "#C66528";
 
+            return "#C62828";
+        }
+
+        private static string GetPrupsColor(float value)
+        {
+            if (value >= 2) return "#2E7D32";      // Exceptional Peer Performance
+            else if (value >= 1) return "#469449"; // Strong Peer Performance
+            else if (value >= -1) return "#F9A825"; // Typical Peer Performance
+            else if (value >= -2) return "#C66528"; // Below-Average Peer Performance
+
+            return "#C62828"; // Severe Underperformance
+        }
         private static string Shorten(string text, int max) =>
             string.IsNullOrWhiteSpace(text) ? "" :
             text.Length <= max ? text : text[..max] + "…";
