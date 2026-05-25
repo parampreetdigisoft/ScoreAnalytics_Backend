@@ -71,7 +71,7 @@ namespace AssessmentPlatform.Services
 
                 if (userRole != UserRole.CityUser)
                 {
-                    var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, DateTime.Now.Year);
+                    var progress = await _commonService.GetCitiesProgressAsync(userID, (int)userRole, request.Year);
 
                     var ids = result.Data.Select(x => x.CityID);
                     var cities = progress.Where(x => ids.Contains(x.CityID));
