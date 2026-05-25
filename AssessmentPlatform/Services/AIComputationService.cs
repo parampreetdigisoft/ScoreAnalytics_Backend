@@ -868,31 +868,42 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        private void ApplyCityRanking(List<AiCitySummeryDto> citiesDetails,List<dynamic> cityRanks, string reportType = "AI")
+        private void ApplyCityRanking(List<AiCitySummeryDto> citiesDetails, List<dynamic> cityRanks, string reportType = "AI")
         {
             var totalCityCount = citiesDetails.Count;
 
-            // Global rank lookup
-            var cityRankLookup = cityRanks.ToDictionary(x => x.CityID);
+            // Recalculate global ranks safely
+            var orderedGlobalRanks = cityRanks
+                .OrderByDescending(x => reportType == "AI"
+                    ? (decimal)(x.AiProgress ?? 0)
+                    : (decimal)(x.ScoreProgress ?? 0))
+                .Select((x, index) => new
+                {
+                    x.CityID,
+                    Rank = index + 1
+                })
+                .ToList();
 
-            // Region -> CityIDs lookup
-            var regionLookup = citiesDetails
-                .GroupBy(x => x.Region)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Select(x => x.CityID).ToList()
-                );
+            var cityRankLookup = orderedGlobalRanks
+                .ToDictionary(x => x.CityID);
 
-            // Region rank lookup
+            // Region-wise ranking
             var regionRankLookup = new Dictionary<int, (int Rank, int TotalCity)>();
 
-            foreach (var region in regionLookup)
+            var regionGroups = citiesDetails
+                .GroupBy(x => x.Region);
+
+            foreach (var region in regionGroups)
             {
+                var regionCityIds = region
+                    .Select(x => x.CityID)
+                    .ToHashSet();
+
                 var rankedCities = cityRanks
-                    .Where(x => region.Value.Contains(x.CityID))
+                    .Where(x => regionCityIds.Contains((int)x.CityID))
                     .OrderByDescending(x => reportType == "AI"
-                        ? (x.AiProgress ?? 0)
-                        : (x.ScoreProgress ?? 0))
+                        ? (decimal?)(x.AiProgress ?? 0)
+                        : (decimal?)(x.ScoreProgress ?? 0))
                     .Select((x, index) => new
                     {
                         x.CityID,
@@ -904,11 +915,12 @@ namespace AssessmentPlatform.Services
 
                 foreach (var city in rankedCities)
                 {
-                    regionRankLookup[city.CityID] = (city.Rank, regionTotal);
+                    regionRankLookup[(int)city.CityID] =
+                        (city.Rank, regionTotal);
                 }
             }
 
-            // Final mapping
+            // Assign final values
             foreach (var city in citiesDetails)
             {
                 if (cityRankLookup.TryGetValue(city.CityID, out var globalRank))
@@ -937,15 +949,16 @@ namespace AssessmentPlatform.Services
                 });
 
             return groupedProgress
-                    .OrderByDescending(x => reportType == "AI" ? x.AiProgress : x.ScoreProgress)
-                    .Select((x, index) => new
-                    {
-                        x.CityID,
-                        x.ScoreProgress,
-                        x.AiProgress,
-                        Rank = index + 1
-                    })
-                    .ToList<dynamic>();
+                .OrderByDescending(x => reportType == "AI" ? x.AiProgress : x.ScoreProgress)
+                .Select((x, index) => new
+                {
+                    x.CityID,
+                    x.ScoreProgress,
+                    x.AiProgress,
+                    Rank = index + 1
+                })
+                .Cast<dynamic>()
+                .ToList();
         }
         public async Task<AiCitySummeryDto> GetCityAiSummeryDetail(int userID, UserRole userRole, int? cityID, int year, string reportType = "AI")
         {
@@ -960,7 +973,7 @@ namespace AssessmentPlatform.Services
             int pillarCount = _appSettings.PillarCount;
             var cityRanks = CalculateCityRanks(progress, pillarCount, reportType);
 
-            ApplyCityRanking(citiesDetails, cityRanks);
+            ApplyCityRanking(citiesDetails, cityRanks, reportType);
 
             var cityDetails = citiesDetails.FirstOrDefault(x=>x.CityID==cityID);
 
