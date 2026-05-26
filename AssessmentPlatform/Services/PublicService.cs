@@ -20,14 +20,17 @@ namespace AssessmentPlatform.Services
         private readonly IWebHostEnvironment _env;
         private readonly IMemoryCache _cache;
         private readonly ICommonService _commonService;
+        private readonly IAIAnalyzeService _aIAnalyzeService;
 
-        public PublicService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, IMemoryCache cache, ICommonService commonService)
+        public PublicService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, 
+            IMemoryCache cache, ICommonService commonService, IAIAnalyzeService aIAnalyzeService)
         {
             _context = context;
             _appLogger = appLogger;
             _env = env;
             _cache = cache;
             _commonService = commonService;
+            _aIAnalyzeService = aIAnalyzeService;
         }
         public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetAllCities()
         {
@@ -310,6 +313,112 @@ namespace AssessmentPlatform.Services
                 );
             }
         }
+
+        public async Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int countryCount)
+        {
+            string cacheKey = $"EmergingTrendsAndIssues_{countryCount}";
+
+            try
+            {
+                if (_cache.TryGetValue(cacheKey, out EmergingTrendsResult cachedResult))
+                {
+                    return ResultResponseDto<EmergingTrendsResult>.Success(
+                        cachedResult,
+                        new List<string>
+                        {
+                            "Emerging trends and issues fetched successfully from cache."
+                        }
+                    );
+                }
+
+                var result = await _aIAnalyzeService.GetEmergingTrendsAndIssues(countryCount);
+
+                if (result == null || result.Success != true)
+                {
+                    return ResultResponseDto<EmergingTrendsResult>.Failure(
+                        new[]
+                        {
+                            result?.Message ??
+                            "Failed to fetch emerging trends and issues."
+                        }
+                    );
+                }
+                var countryCodes = result.Result.Countries
+                    .Select(c => c.CityAliasName?.Trim().ToLower())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToList();
+
+                var countries = result.Result.Countries
+                    .Select(c => c.Country?.Trim().ToLower())
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .ToList();
+
+                var countryLookup = await _context.Cities
+                    .AsNoTracking()
+                    .Where(c =>
+                        c.IsActive &&
+                        !c.IsDeleted &&
+                        (
+                            countryCodes.Contains(c.CityAliasName.ToLower()) ||
+                            countries.Contains(c.CityName.ToLower())
+                        ))
+                    .Select(c => new
+                    {
+                        c.CityID,
+                        c.Image,
+                        c.CityAliasName,
+                        c.CityName
+
+                    })
+                    .ToListAsync();
+
+                foreach (var trendCountry in result.Result.Countries)
+                {
+                    var countryCode = trendCountry.CountryCode?.Trim().ToLower();
+                    var countryName = trendCountry.Country?.Trim().ToLower();
+
+                    var matchedCountry = countryLookup.FirstOrDefault(x =>
+                        x.CountryCode == countryCode ||
+                        x.CountryName == countryName);
+
+                    trendCountry.ImagePath = matchedCountry?.Image ?? "";
+                }
+
+                _cache.Set(
+                    cacheKey,
+                    result.Result,
+                    new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(5),
+                        SlidingExpiration = TimeSpan.FromHours(4),
+                        Priority = CacheItemPriority.High
+                    }
+                );
+
+                return ResultResponseDto<EmergingTrendsResult>.Success(
+                    result.Result,
+                    new List<string>
+                    {
+                        "Emerging trends and issues fetched successfully."
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync(
+                    "An error occurred while processing the GetEmergingTrendsAndIssues request.",
+                    ex
+                );
+
+                return ResultResponseDto<EmergingTrendsResult>.Failure(
+                    new[]
+                    {
+                        "An error occurred while processing your request. Please try again later."
+                    }
+                );
+            }
+        }
+
     }
 }
 

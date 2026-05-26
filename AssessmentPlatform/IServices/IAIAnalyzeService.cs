@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Dtos.chatDto;
+using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.Services;
 
 namespace AssessmentPlatform.IServices
@@ -19,11 +20,10 @@ namespace AssessmentPlatform.IServices
         Task<ChatCityAskQuestionResponse> ChatCityAsk(ChatCityAskQuestionRequest request);
         Task<ChatCityAskQuestionResponse> ChatGlobalAsk(ChatGlobalAskQuestionRequest request);
         Task<ChatCityAskQuestionResponse> CrossComparision(CrossComparisionRequest request);
-
+        Task<ChatEmergingTrendsResponse?> GetEmergingTrendsAndIssues(int city_count);
         Task<ChatCityExecutiveSlidesResponse?> GetCitySlides(int cityId);
         Task RunEvery2HoursJob();
         Task RunMonthlyJob();
-        Task RunDailyJob();
-        
+        Task RunDailyJob();        
     }
 }

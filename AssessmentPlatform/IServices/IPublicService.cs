@@ -12,5 +12,6 @@ namespace AssessmentPlatform.IServices
         Task<PaginationResponse<PartnerCityResponseDto>> GetPartnerCities(PartnerCityRequestDto r);
         Task<CountryCityResponse> GetCountriesAndCities_WithStaleSupport();
         Task<ResultResponseDto<List<PromotedPillarsResponseDto>>> GetPromotedCities();
+        Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int countryCount);
     }
 }

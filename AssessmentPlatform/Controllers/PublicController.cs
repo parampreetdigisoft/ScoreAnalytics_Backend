@@ -90,5 +90,11 @@ namespace AssessmentPlatform.Controllers
             return Ok(data);
         }
 
+        [HttpGet("emergingTrendsAndIssues")]
+        public async Task<IActionResult> GetEmergingTrendsAndIssues([FromQuery] int countryCount = 8)
+        {
+            return Ok(await _publicService.GetEmergingTrendsAndIssues(countryCount));
+        }
+
     }
 }

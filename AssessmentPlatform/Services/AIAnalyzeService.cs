@@ -2,6 +2,7 @@
 using AssessmentPlatform.Common.Models.settings;
 using AssessmentPlatform.Data;
 using AssessmentPlatform.Dtos.chatDto;
+using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -181,6 +182,17 @@ namespace AssessmentPlatform.Services
 
             return result;
         }
+        public async Task<ChatEmergingTrendsResponse?> GetEmergingTrendsAndIssues(int city_count)
+        {
+            var url = aiUrl + AiEndpoints.EmergingTrendsAndIssues(city_count);
+
+            return await _httpService.SendAsync<ChatEmergingTrendsResponse>(
+                HttpMethod.Get,
+                url,
+                null,
+                headers
+            );
+        }
 
         public async Task<ChatCityExecutiveSlidesResponse?> GetCitySlides(int cityId)
         {
@@ -306,6 +318,8 @@ namespace AssessmentPlatform.Services
         public static string CrossComparision() => $"{ChatPath}/cross-comparision";
 
         public static string CitySlides() => $"{ChatPath}/executive-slides";
+        public static string EmergingTrendsAndIssues(int city_count) =>
+            $"{ChatPath}/emerging-trends-and-issues?city_count={city_count}";
     }
 
     #endregion
