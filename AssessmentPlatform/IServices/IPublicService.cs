@@ -1,4 +1,5 @@
 ﻿using AssessmentPlatform.Common.Models;
+using AssessmentPlatform.Dtos.chatDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.PublicDto;
 
@@ -12,6 +13,7 @@ namespace AssessmentPlatform.IServices
         Task<PaginationResponse<PartnerCityResponseDto>> GetPartnerCities(PartnerCityRequestDto r);
         Task<CountryCityResponse> GetCountriesAndCities_WithStaleSupport();
         Task<ResultResponseDto<List<PromotedPillarsResponseDto>>> GetPromotedCities();
-        Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int countryCount);
+        Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int cityCount);
+        Task<ResultResponseDto<PillarLiveSignalsResult>> GetPillarLiveSignals();
     }
 }

@@ -91,9 +91,15 @@ namespace AssessmentPlatform.Controllers
         }
 
         [HttpGet("emergingTrendsAndIssues")]
-        public async Task<IActionResult> GetEmergingTrendsAndIssues([FromQuery] int countryCount = 8)
+        public async Task<IActionResult> GetEmergingTrendsAndIssues([FromQuery] int cityCount = 8)
         {
-            return Ok(await _publicService.GetEmergingTrendsAndIssues(countryCount));
+            return Ok(await _publicService.GetEmergingTrendsAndIssues(cityCount));
+        }
+
+        [HttpGet("pillarLiveSignals")]
+        public async Task<IActionResult> GetPillarLiveSignals()
+        {
+            return Ok(await _publicService.GetPillarLiveSignals());
         }
 
     }

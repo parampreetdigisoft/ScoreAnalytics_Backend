@@ -22,6 +22,7 @@ namespace AssessmentPlatform.IServices
         Task<ChatCityAskQuestionResponse> CrossComparision(CrossComparisionRequest request);
         Task<ChatEmergingTrendsResponse?> GetEmergingTrendsAndIssues(int city_count);
         Task<ChatCityExecutiveSlidesResponse?> GetCitySlides(int cityId);
+        Task<ChatPillarLiveSignalsResponse?> GetPillarLiveSignals();
         Task RunEvery2HoursJob();
         Task RunMonthlyJob();
         Task RunDailyJob();        

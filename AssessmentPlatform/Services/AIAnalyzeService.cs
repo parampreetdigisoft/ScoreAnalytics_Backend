@@ -209,6 +209,18 @@ namespace AssessmentPlatform.Services
             );
         }
 
+        public async Task<ChatPillarLiveSignalsResponse?> GetPillarLiveSignals()
+        {
+            var url = aiUrl + AiEndpoints.PillarLiveSignals();
+
+            return await _httpService.SendAsync<ChatPillarLiveSignalsResponse>(
+                HttpMethod.Get,
+                url,
+                null,
+                headers
+            );
+        }
+
         public async Task ImportAllCityImmediateSummary()
         {
             var allCitiesIds = await _context.Cities.Where(x => x.IsActive && !x.IsDeleted).Select(x => x.CityID).ToListAsync();
@@ -318,6 +330,8 @@ namespace AssessmentPlatform.Services
         public static string CrossComparision() => $"{ChatPath}/cross-comparision";
 
         public static string CitySlides() => $"{ChatPath}/executive-slides";
+
+        public static string PillarLiveSignals() => $"{ChatPath}/pillar-live-signals";
         public static string EmergingTrendsAndIssues(int city_count) =>
             $"{ChatPath}/emerging-trends-and-issues?city_count={city_count}";
     }

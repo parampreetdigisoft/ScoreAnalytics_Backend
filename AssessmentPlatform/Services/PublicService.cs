@@ -2,6 +2,7 @@
 using AssessmentPlatform.Common.Interface;
 using AssessmentPlatform.Common.Models;
 using AssessmentPlatform.Data;
+using AssessmentPlatform.Dtos.chatDto;
 using AssessmentPlatform.Dtos.CommonDto;
 using AssessmentPlatform.Dtos.PublicDto;
 using AssessmentPlatform.IServices;
@@ -314,9 +315,9 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int countryCount)
+        public async Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int cityCount)
         {
-            string cacheKey = $"EmergingTrendsAndIssues_{countryCount}";
+            string cacheKey = $"EmergingTrendsAndIssues_{cityCount}";
 
             try
             {
@@ -331,7 +332,7 @@ namespace AssessmentPlatform.Services
                     );
                 }
 
-                var result = await _aIAnalyzeService.GetEmergingTrendsAndIssues(countryCount);
+                var result = await _aIAnalyzeService.GetEmergingTrendsAndIssues(cityCount);
 
                 if (result == null || result.Success != true)
                 {
@@ -342,47 +343,7 @@ namespace AssessmentPlatform.Services
                             "Failed to fetch emerging trends and issues."
                         }
                     );
-                }
-                var countryCodes = result.Result.Countries
-                    .Select(c => c.CityAliasName?.Trim().ToLower())
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .ToList();
-
-                var countries = result.Result.Countries
-                    .Select(c => c.Country?.Trim().ToLower())
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
-                    .ToList();
-
-                var countryLookup = await _context.Cities
-                    .AsNoTracking()
-                    .Where(c =>
-                        c.IsActive &&
-                        !c.IsDeleted &&
-                        (
-                            countryCodes.Contains(c.CityAliasName.ToLower()) ||
-                            countries.Contains(c.CityName.ToLower())
-                        ))
-                    .Select(c => new
-                    {
-                        c.CityID,
-                        c.Image,
-                        c.CityAliasName,
-                        c.CityName
-
-                    })
-                    .ToListAsync();
-
-                foreach (var trendCountry in result.Result.Countries)
-                {
-                    var countryCode = trendCountry.CountryCode?.Trim().ToLower();
-                    var countryName = trendCountry.Country?.Trim().ToLower();
-
-                    var matchedCountry = countryLookup.FirstOrDefault(x =>
-                        x.CountryCode == countryCode ||
-                        x.CountryName == countryName);
-
-                    trendCountry.ImagePath = matchedCountry?.Image ?? "";
-                }
+                }               
 
                 _cache.Set(
                     cacheKey,
@@ -411,6 +372,97 @@ namespace AssessmentPlatform.Services
                 );
 
                 return ResultResponseDto<EmergingTrendsResult>.Failure(
+                    new[]
+                    {
+                        "An error occurred while processing your request. Please try again later."
+                    }
+                );
+            }
+        }
+
+        public async Task<ResultResponseDto<PillarLiveSignalsResult>> GetPillarLiveSignals()
+        {
+            const string cacheKey = "PillarLiveSignals";
+
+            try
+            {
+                if (_cache.TryGetValue(cacheKey, out PillarLiveSignalsResult cachedResult))
+                {
+                    return ResultResponseDto<PillarLiveSignalsResult>.Success(
+                        cachedResult,
+                        new List<string>
+                        {
+                            "Pillar live signals fetched successfully from cache."
+                        }
+                    );
+                }
+
+                var result = await _aIAnalyzeService.GetPillarLiveSignals();
+
+                if (result == null || result.Success != true)
+                {
+                    return ResultResponseDto<PillarLiveSignalsResult>.Failure(
+                        new[]
+                        {
+                            result?.Message ??
+                            "Failed to fetch pillar live signals."
+                        }
+                    );
+                }
+
+                var pillarLookup = await _context.Pillars
+                    .AsNoTracking()
+                    .Select(p => new
+                    {
+                        p.PillarID,
+                        p.PillarName,
+                        p.ImagePath,
+                        p.DisplayOrder
+                    })
+                    .ToListAsync();
+
+                foreach (var pillarCard in result.Result.Pillars)
+                {
+                    var matched = pillarLookup.FirstOrDefault(p => p.PillarID == pillarCard.PillarId);
+                    pillarCard.PillarName = matched?.PillarName ?? $"Pillar {pillarCard.PillarId}";
+                    pillarCard.ImagePath = matched?.ImagePath ?? "";
+                }
+
+                result.Result.Pillars = result.Result.Pillars
+                    .OrderBy(p =>
+                    {
+                        var order = pillarLookup.FirstOrDefault(x => x.PillarID == p.PillarId)?.DisplayOrder;
+                        return order ?? p.PillarId;
+                    })
+                    .ToList();
+
+                _cache.Set(
+                    cacheKey,
+                    result.Result,
+                    new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12),
+                        SlidingExpiration = TimeSpan.FromHours(10),
+                        Priority = CacheItemPriority.High
+                    }
+                );
+
+                return ResultResponseDto<PillarLiveSignalsResult>.Success(
+                    result.Result,
+                    new List<string>
+                    {
+                        "Pillar live signals fetched successfully."
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync(
+                    "An error occurred while processing the GetPillarLiveSignals request.",
+                    ex
+                );
+
+                return ResultResponseDto<PillarLiveSignalsResult>.Failure(
                     new[]
                     {
                         "An error occurred while processing your request. Please try again later."

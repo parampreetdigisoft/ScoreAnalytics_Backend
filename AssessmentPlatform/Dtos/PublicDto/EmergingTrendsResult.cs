@@ -1,12 +1,12 @@
 ﻿namespace AssessmentPlatform.Dtos.PublicDto
 {
-    public class EmergingTrendCountryCard
+    public class EmergingTrendCityCard
     {
         public string ImagePath { get; set; } = string.Empty;
         public string City { get; set; } = string.Empty;
         public string Country { get; set; } = string.Empty;
 
-        public string CountryCode { get; set; } = string.Empty;
+        public string CityCode { get; set; } = string.Empty;
 
         public string Region { get; set; } = string.Empty;
 
@@ -39,7 +39,7 @@
 
         public string SubHeadline { get; set; } = string.Empty;
 
-        public List<EmergingTrendCountryCard> Countries { get; set; } = new();
+        public List<EmergingTrendCityCard> Cities { get; set; } = new();
     }
 
     public class ChatEmergingTrendsResponse
