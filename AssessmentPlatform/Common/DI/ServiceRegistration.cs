@@ -13,6 +13,7 @@ namespace AssessmentPlatform.Common.DI
         {
             services.AddHostedService<ChannelWorker>();
             //services.AddHostedService<AiJobService>();
+            services.AddHostedService<EmergingTrendsCacheWorker>();
             services.AddScoped<Download>();
             services.AddHostedService<LogWorker>();
             // Channels

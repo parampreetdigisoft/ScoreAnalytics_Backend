@@ -15,5 +15,6 @@ namespace AssessmentPlatform.IServices
         Task<ResultResponseDto<List<PromotedPillarsResponseDto>>> GetPromotedCities();
         Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int cityCount);
         Task<ResultResponseDto<PillarLiveSignalsResult>> GetPillarLiveSignals();
+        Task<bool> RefreshEmergingTrendsCacheAsync(int cityCount, CancellationToken cancellationToken = default);
     }
 }
