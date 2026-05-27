@@ -317,11 +317,12 @@ namespace AssessmentPlatform.Services
 
         public async Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int cityCount)
         {
-            string cacheKey = $"EmergingTrendsAndIssues_{cityCount}";
-
             try
             {
-                if (_cache.TryGetValue(cacheKey, out EmergingTrendsResult cachedResult))
+                var cacheKey = EmergingTrendsCacheKey(cityCount);
+
+                if (_cache.TryGetValue(cacheKey, out EmergingTrendsResult cachedResult)
+                    && cachedResult?.Cities?.Count > 0)
                 {
                     return ResultResponseDto<EmergingTrendsResult>.Success(
                         cachedResult,
@@ -332,35 +333,10 @@ namespace AssessmentPlatform.Services
                     );
                 }
 
-                var result = await _aIAnalyzeService.GetEmergingTrendsAndIssues(cityCount);
-
-                if (result == null || result.Success != true)
-                {
-                    return ResultResponseDto<EmergingTrendsResult>.Failure(
-                        new[]
-                        {
-                            result?.Message ??
-                            "Failed to fetch emerging trends and issues."
-                        }
-                    );
-                }               
-
-                _cache.Set(
-                    cacheKey,
-                    result.Result,
-                    new MemoryCacheEntryOptions
+                return ResultResponseDto<EmergingTrendsResult>.Failure(
+                    new[]
                     {
-                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(5),
-                        SlidingExpiration = TimeSpan.FromHours(4),
-                        Priority = CacheItemPriority.High
-                    }
-                );
-
-                return ResultResponseDto<EmergingTrendsResult>.Success(
-                    result.Result,
-                    new List<string>
-                    {
-                        "Emerging trends and issues fetched successfully."
+                        "Emerging trends feed is being updated. Please try again shortly."
                     }
                 );
             }
@@ -469,6 +445,63 @@ namespace AssessmentPlatform.Services
                     }
                 );
             }
+        }
+
+        public async Task<bool> RefreshEmergingTrendsCacheAsync(
+            int cityCount,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var enriched = await FetchAndEnrichEmergingTrendsAsync(cityCount, cancellationToken);
+
+                if (enriched == null || enriched.Cities == null || enriched.Cities.Count == 0)
+                {
+                    return false;
+                }
+
+                var cacheKey = EmergingTrendsCacheKey(cityCount);
+                _cache.Set(
+                    cacheKey,
+                    enriched,
+                    new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12),
+                        Priority = CacheItemPriority.High
+                    }
+                );
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync(
+                    "An error occurred while refreshing the emerging trends cache.",
+                    ex
+                );
+                return false;
+            }
+        }
+        private static string EmergingTrendsCacheKey(int cityCount) =>
+           $"EmergingTrendsAndIssues_{cityCount }";
+
+        private async Task<EmergingTrendsResult?> FetchAndEnrichEmergingTrendsAsync(
+            int cityCount,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _aIAnalyzeService.GetEmergingTrendsAndIssues(cityCount);
+
+            if (result == null || result.Success != true || result.Result == null)
+            {
+                return null;
+            }
+
+            if (result.Result.Cities == null || result.Result.Cities.Count == 0)
+            {
+                return null;
+            }            
+
+            return result.Result;
         }
 
     }
