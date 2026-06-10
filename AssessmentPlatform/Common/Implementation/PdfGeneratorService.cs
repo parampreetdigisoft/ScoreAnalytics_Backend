@@ -640,7 +640,7 @@ namespace AssessmentPlatform.Common.Implementation
             {
                 Style = SKPaintStyle.Stroke,
                 StrokeWidth = thick,
-                Color = GetColor(score),
+                Color = SKColor.Parse("#134534"),
                 IsAntialias = true,
                 StrokeCap = SKStrokeCap.Round
             };
