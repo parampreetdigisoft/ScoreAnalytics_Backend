@@ -26,7 +26,7 @@ namespace AssessmentPlatform
         {
             // Controllers
             services.AddControllers();
-
+            services.AddMemoryCache();
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(
                     Configuration.GetConnectionString("DefaultConnection"),

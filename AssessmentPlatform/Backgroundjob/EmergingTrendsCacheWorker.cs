@@ -1,13 +1,12 @@
 using AssessmentPlatform.IServices;
 using Microsoft.Extensions.Configuration;
-using AssessmentPlatform.IServices;
 
 namespace AssessmentPlatform.Backgroundjob
 {
     /// <summary>
     /// Refreshes emerging trends in memory on a schedule. Retries every 10s until success (no cache on failure).
     /// </summary>
-    public class EmergingTrendsCacheWorker : BackgroundService
+public class EmergingTrendsCacheWorker : BackgroundService
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly IConfiguration _configuration;
@@ -31,16 +30,10 @@ namespace AssessmentPlatform.Backgroundjob
             var retryDelay = TimeSpan.FromSeconds(
                 _configuration.GetValue("EmergingTrendsCache:RetryDelaySeconds", 10));
 
-            _logger.LogInformation(
-                "Emerging trends cache worker started (cityCount={CityCount}, refresh={RefreshMinutes}m, retry={RetrySeconds}s)",
-                cityCount,
-                refreshInterval.TotalMinutes,
-                retryDelay.TotalSeconds);
+            await RefreshUntilCachedAsync(cityCount, retryDelay, stoppingToken);
 
             while (!stoppingToken.IsCancellationRequested)
             {
-                await RefreshUntilSuccessAsync(cityCount, retryDelay, stoppingToken);
-
                 try
                 {
                     await Task.Delay(refreshInterval, stoppingToken);
@@ -49,45 +42,21 @@ namespace AssessmentPlatform.Backgroundjob
                 {
                     break;
                 }
+
+                await TryRefreshAsync(cityCount, stoppingToken);
             }
         }
 
-        private async Task RefreshUntilSuccessAsync(
+        private async Task RefreshUntilCachedAsync(
             int cityCount,
             TimeSpan retryDelay,
             CancellationToken stoppingToken)
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                try
+                if (await TryRefreshAsync(cityCount, stoppingToken))
                 {
-                    using var scope = _serviceProvider.CreateScope();
-                    var publicService = scope.ServiceProvider.GetRequiredService<IPublicService>();
-
-                    var cached = await publicService.RefreshEmergingTrendsCacheAsync(
-                        cityCount,
-                        stoppingToken);
-
-                    if (cached)
-                    {
-                        _logger.LogInformation(
-                            "Emerging trends cache refreshed successfully (cityCount={CityCount})",
-                            cityCount);
-                        return;
-                    }
-
-                    _logger.LogWarning(
-                        "Emerging trends refresh returned no data (cityCount={CityCount}); retry in {RetrySeconds}s",
-                        cityCount,
-                        retryDelay.TotalSeconds);
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Emerging trends cache refresh failed (cityCount={CityCount}); retry in {RetrySeconds}s",
-                        cityCount,
-                        retryDelay.TotalSeconds);
+                    return;
                 }
 
                 try
@@ -98,6 +67,27 @@ namespace AssessmentPlatform.Backgroundjob
                 {
                     break;
                 }
+            }
+        }
+
+        private async Task<bool> TryRefreshAsync(int cityCount, CancellationToken stoppingToken)
+        {
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var publicService = scope.ServiceProvider.GetRequiredService<IPublicService>();
+
+                return await publicService.RefreshEmergingTrendsCacheAsync(
+                    cityCount,
+                    stoppingToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Emerging trends cache refresh failed (cityCount={cityCount})",
+                    cityCount);
+                return false;
             }
         }
     }
