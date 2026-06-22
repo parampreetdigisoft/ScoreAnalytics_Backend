@@ -22,9 +22,9 @@ namespace AssessmentPlatform.Services
         private readonly IMemoryCache _cache;
         private readonly ICommonService _commonService;
         private readonly IAIAnalyzeService _aIAnalyzeService;
-
+        private readonly IConfiguration _configuration;
         public PublicService(ApplicationDbContext context, IAppLogger appLogger, IWebHostEnvironment env, 
-            IMemoryCache cache, ICommonService commonService, IAIAnalyzeService aIAnalyzeService)
+            IMemoryCache cache, ICommonService commonService, IAIAnalyzeService aIAnalyzeService, IConfiguration configuration)
         {
             _context = context;
             _appLogger = appLogger;
@@ -32,6 +32,7 @@ namespace AssessmentPlatform.Services
             _cache = cache;
             _commonService = commonService;
             _aIAnalyzeService = aIAnalyzeService;
+            _configuration = configuration;
         }
         public async Task<ResultResponseDto<List<PartnerCityResponseDto>>> GetAllCities()
         {
@@ -315,47 +316,6 @@ namespace AssessmentPlatform.Services
             }
         }
 
-        public async Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int cityCount)
-        {
-            try
-            {
-                var cacheKey = EmergingTrendsCacheKey(cityCount);
-
-                if (_cache.TryGetValue(cacheKey, out EmergingTrendsResult cachedResult)
-                    && cachedResult?.Cities?.Count > 0)
-                {
-                    return ResultResponseDto<EmergingTrendsResult>.Success(
-                        cachedResult,
-                        new List<string>
-                        {
-                            "Emerging trends and issues fetched successfully from cache."
-                        }
-                    );
-                }
-
-                return ResultResponseDto<EmergingTrendsResult>.Failure(
-                    new[]
-                    {
-                        "Emerging trends feed is being updated. Please try again shortly."
-                    }
-                );
-            }
-            catch (Exception ex)
-            {
-                await _appLogger.LogAsync(
-                    "An error occurred while processing the GetEmergingTrendsAndIssues request.",
-                    ex
-                );
-
-                return ResultResponseDto<EmergingTrendsResult>.Failure(
-                    new[]
-                    {
-                        "An error occurred while processing your request. Please try again later."
-                    }
-                );
-            }
-        }
-
         public async Task<ResultResponseDto<PillarLiveSignalsResult>> GetPillarLiveSignals()
         {
             const string cacheKey = "PillarLiveSignals";
@@ -446,6 +406,128 @@ namespace AssessmentPlatform.Services
                 );
             }
         }
+               
+        private static string EmergingTrendsCacheKey(int cityCount) =>
+           $"EmergingTrendsAndIssues_{cityCount }";
+        private static string EmergingTrendsStaleCacheKey(int cityCount) =>
+            $"EmergingTrendsAndIssues_Stale_{cityCount}";
+
+        private TimeSpan EmergingTrendsCacheDuration =>
+            TimeSpan.FromHours(_configuration.GetValue("EmergingTrendsCache:CacheExpirationHours", 12));
+
+        private TimeSpan EmergingTrendsStaleCacheDuration =>
+            TimeSpan.FromHours(_configuration.GetValue("EmergingTrendsCache:StaleCacheExpirationHours", 168));
+
+        private bool TryGetEmergingTrendsFromCache(
+            int cityCount,
+            out EmergingTrendsResult? result,
+            bool allowStale = false)
+        {
+            result = null;
+
+            if (_cache.TryGetValue(EmergingTrendsCacheKey(cityCount), out EmergingTrendsResult? cached)
+                && cached?.Cities?.Count > 0)
+            {
+                result = cached;
+                return true;
+            }
+
+            if (allowStale
+                && _cache.TryGetValue(EmergingTrendsStaleCacheKey(cityCount), out EmergingTrendsResult? stale)
+                && stale?.Cities?.Count > 0)
+            {
+                result = stale;
+                return true;
+            }
+
+            return false;
+        }
+
+        private void SetEmergingTrendsCache(
+            int cityCount,
+            EmergingTrendsResult data,
+            bool updateStale = true)
+        {
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = EmergingTrendsCacheDuration,
+                Priority = CacheItemPriority.NeverRemove
+            };
+
+            _cache.Set(EmergingTrendsCacheKey(cityCount), data, cacheOptions);
+
+            if (updateStale)
+            {
+                _cache.Set(
+                    EmergingTrendsStaleCacheKey(cityCount),
+                    data,
+                    new MemoryCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = EmergingTrendsStaleCacheDuration,
+                        Priority = CacheItemPriority.NeverRemove
+                    }
+                );
+            }
+        }
+
+        private bool PreserveEmergingTrendsCacheOnRefreshFailure(int cityCount)
+        {
+            if (!TryGetEmergingTrendsFromCache(cityCount, out var stale, allowStale: true)
+                || stale == null)
+            {
+                return false;
+            }
+
+            SetEmergingTrendsCache(cityCount, stale, updateStale: false);
+            return true;
+        }
+
+        public async Task<ResultResponseDto<EmergingTrendsResult>> GetEmergingTrendsAndIssues(int cityCount)
+        {
+            try
+            {
+                cityCount = _configuration.GetValue("EmergingTrendsCache:CityCount", 8);
+
+                if (TryGetEmergingTrendsFromCache(cityCount, out var cachedResult, allowStale: true)
+                    && cachedResult != null)
+                {
+                    var fromPrimary = _cache.TryGetValue(
+                        EmergingTrendsCacheKey(cityCount),
+                        out EmergingTrendsResult _);
+
+                    return ResultResponseDto<EmergingTrendsResult>.Success(
+                        cachedResult,
+                        new List<string>
+                        {
+                            fromPrimary
+                                ? "Emerging trends and issues fetched successfully from cache."
+                                : "Emerging trends and issues fetched successfully from last known data."
+                        }
+                    );
+                }
+
+                return ResultResponseDto<EmergingTrendsResult>.Failure(
+                    new[]
+                    {
+                        "Emerging trends feed is being updated. Please try again shortly."
+                    }
+                );
+            }
+            catch (Exception ex)
+            {
+                await _appLogger.LogAsync(
+                    "An error occurred while processing the GetEmergingTrendsAndIssues request.",
+                    ex
+                );
+
+                return ResultResponseDto<EmergingTrendsResult>.Failure(
+                    new[]
+                    {
+                        "An error occurred while processing your request. Please try again later."
+                    }
+                );
+            }
+        }
 
         public async Task<bool> RefreshEmergingTrendsCacheAsync(
             int cityCount,
@@ -453,25 +535,17 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                cityCount = _configuration.GetValue("EmergingTrendsCache:CityCount", cityCount);
+
                 var enriched = await FetchAndEnrichEmergingTrendsAsync(cityCount, cancellationToken);
 
-                if (enriched == null || enriched.Cities == null || enriched.Cities.Count == 0)
+                if (enriched?.Cities?.Count > 0)
                 {
-                    return false;
+                    SetEmergingTrendsCache(cityCount, enriched);
+                    return true;
                 }
 
-                var cacheKey = EmergingTrendsCacheKey(cityCount);
-                _cache.Set(
-                    cacheKey,
-                    enriched,
-                    new MemoryCacheEntryOptions
-                    {
-                        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(12),
-                        Priority = CacheItemPriority.High
-                    }
-                );
-
-                return true;
+                return PreserveEmergingTrendsCacheOnRefreshFailure(cityCount);
             }
             catch (Exception ex)
             {
@@ -479,12 +553,10 @@ namespace AssessmentPlatform.Services
                     "An error occurred while refreshing the emerging trends cache.",
                     ex
                 );
-                return false;
+
+                return PreserveEmergingTrendsCacheOnRefreshFailure(cityCount);
             }
         }
-        private static string EmergingTrendsCacheKey(int cityCount) =>
-           $"EmergingTrendsAndIssues_{cityCount }";
-
         private async Task<EmergingTrendsResult?> FetchAndEnrichEmergingTrendsAsync(
             int cityCount,
             CancellationToken cancellationToken = default)

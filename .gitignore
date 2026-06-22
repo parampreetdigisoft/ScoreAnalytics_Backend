@@ -15,3 +15,5 @@ obj/
 
 # Ignore local secrets (optional)
 appsettings.Development.json
+config.bat
+node_modules
