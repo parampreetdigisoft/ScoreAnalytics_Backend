@@ -814,7 +814,7 @@ namespace AssessmentPlatform.Services
                         CreatedAt = currentDate,
                         UpdatedAt = currentDate,
                         IsActive = true,
-                        AssessmentPhase = transferAssessment.AssessmentPhase,
+                        AssessmentPhase = transferAssessment.AssessmentPhase == AssessmentPhase.Completed ?  transferAssessment.AssessmentPhase: AssessmentPhase.InProgress,
                         PillarAssessments = new List<PillarAssessment>()
                     };
 
@@ -823,7 +823,7 @@ namespace AssessmentPlatform.Services
                 else
                 {
                     existingAssessment.UpdatedAt = currentDate;
-                    existingAssessment.AssessmentPhase = transferAssessment.AssessmentPhase;
+                    existingAssessment.AssessmentPhase = transferAssessment.AssessmentPhase == AssessmentPhase.Completed ? transferAssessment.AssessmentPhase : AssessmentPhase.InProgress;
                 }
 
                 // Transfer pillar data

@@ -632,7 +632,8 @@ namespace AssessmentPlatform.Services
                 else
                 {
                     var user = users.FirstOrDefault(x => x.UserID == request.UserID);
-                    var assessment = await _context.Assessments.Include(x => x.UserCityMapping).FirstOrDefaultAsync(x => x.UserCityMappingID == request.UserCityMappingID);
+                    var year = DateTime.Now.Year;
+                    var assessment = await _context.Assessments.Include(x => x.UserCityMapping).FirstOrDefaultAsync(x => x.UserCityMappingID == request.UserCityMappingID && x.CreatedAt.Year== year);
                     if (assessment != null)
                     {
                         var city = _context.Cities.FirstOrDefault(x => x.CityID == assessment.UserCityMapping.CityID);

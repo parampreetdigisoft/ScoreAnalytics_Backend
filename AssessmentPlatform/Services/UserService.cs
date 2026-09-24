@@ -212,6 +212,7 @@ namespace AssessmentPlatform.Services
         {
             try
             {
+                var year = DateTime.Now.Year;
                 var query =
                 from u in _context.Users
                 where !u.IsDeleted
@@ -227,7 +228,7 @@ namespace AssessmentPlatform.Services
                     // LEFT JOIN to Assessments
                 join a in _context.Assessments
                         .Include(q => q.PillarAssessments)
-                            .ThenInclude(q => q.Responses)
+                            .ThenInclude(q => q.Responses).Where(x=>x.IsActive && x.CreatedAt.Year == year)
                     on uc.UserCityMappingID equals a.UserCityMappingID into userAssessment
                 from a in userAssessment.DefaultIfEmpty()
 
